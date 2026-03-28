@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -75,7 +75,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"</Command>
+      <Command>copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"
+if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --debug --no-translations "$(TargetPath)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
@@ -97,7 +98,8 @@
       <Command>if exist "$(TargetDir)Config" rmdir /S /Q "$(TargetDir)Config"
 if exist "$(TargetDir)Logs" rmdir /S /Q "$(TargetDir)Logs"
 if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
-copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"</Command>
+copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"
+if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --release --no-translations "$(TargetPath)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
