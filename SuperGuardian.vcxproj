@@ -20,13 +20,13 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
@@ -41,7 +41,7 @@
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
-    <QtInstall>Qt6.10.2_x64</QtInstall>
+    <QtInstall>Qt6.10.2_x64_static</QtInstall>
     <QtModules>core;gui;widgets</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
@@ -75,8 +75,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"
-if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --debug --no-translations "$(TargetPath)"</Command>
+      <Command>if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --debug --no-translations "$(TargetPath)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
@@ -87,6 +86,7 @@ if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.
       <ConformanceMode>true</ConformanceMode>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -98,8 +98,7 @@ if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.
       <Command>if exist "$(TargetDir)Config" rmdir /S /Q "$(TargetDir)Config"
 if exist "$(TargetDir)Logs" rmdir /S /Q "$(TargetDir)Logs"
 if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
-copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"
-if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --release --no-translations "$(TargetPath)"</Command>
+</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -135,6 +134,7 @@ if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.
   </ItemGroup>
   <ItemGroup>
     <None Include="SuperGuardian.ui.new" />
+    <None Include="_build_static_runner.bat" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="app.rc" />

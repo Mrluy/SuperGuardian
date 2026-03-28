@@ -120,50 +120,6 @@ void setAutostart(bool enable) {
     RegCloseKey(hKey);
 }
 
-// --- Watchdog executable helpers ---
-
-static QString localWatchdogExecutablePath() {
-    return QDir(appCacheDirPath()).filePath("SuperGuardianWatchdog.exe");
-}
-
-static QString ensureLocalWatchdogExecutable() {
-    QString target = localWatchdogExecutablePath();
-    QString source = QCoreApplication::applicationFilePath();
-    if (target.isEmpty() || source.isEmpty()) return source;
-
-    QFileInfo srcInfo(source);
-    QFileInfo dstInfo(target);
-    if (!dstInfo.exists() || srcInfo.lastModified() > dstInfo.lastModified() || srcInfo.size() != dstInfo.size()) {
-        QFile::remove(target);
-        if (!QFile::copy(source, target)) {
-            appendWatchdogLog(QString("copy watchdog helper failed: %1 -> %2").arg(source, target));
-            return source;
-        }
-    }
-    return target;
-}
-
-QString outputWatchdogExecutablePath() {
-    return QDir(QCoreApplication::applicationDirPath()).filePath("SuperGuardianWatchdog.exe");
-}
-
-QString ensureOutputWatchdogExecutable() {
-    QString target = outputWatchdogExecutablePath();
-    QString source = QCoreApplication::applicationFilePath();
-    if (target.isEmpty() || source.isEmpty()) return source;
-
-    QFileInfo srcInfo(source);
-    QFileInfo dstInfo(target);
-    if (!dstInfo.exists() || srcInfo.lastModified() > dstInfo.lastModified() || srcInfo.size() != dstInfo.size()) {
-        QFile::remove(target);
-        if (!QFile::copy(source, target)) {
-            appendWatchdogLog(QString("copy output watchdog failed: %1 -> %2").arg(source, target));
-            return ensureLocalWatchdogExecutable();
-        }
-    }
-    return target;
-}
-
 // --- Watchdog mode ---
 
 int runWatchdogMode(int argc, char* argv[]) {

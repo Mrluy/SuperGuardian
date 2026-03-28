@@ -124,21 +124,20 @@ void SuperGuardian::runSelfGuardTest() {
 }
 
 void SuperGuardian::startWatchdogHelper() {
-    // start a detached dedicated watchdog executable with --watchdog <pid> <exe>
-    QString exe = ensureOutputWatchdogExecutable();
+    // start self as watchdog with --watchdog <pid> <exe>
+    QString exe = QCoreApplication::applicationFilePath();
     DWORD pid = GetCurrentProcessId();
-    QString mainExe = QCoreApplication::applicationFilePath();
     // ensure previous helper is not alive
     stopWatchdogHelper();
     qint64 newPid = 0;
-    QStringList args{ "--watchdog", QString::number(pid), mainExe };
+    QStringList args{ "--watchdog", QString::number(pid), exe };
     bool ok = QProcess::startDetached(exe, args, QFileInfo(exe).absolutePath(), &newPid);
     if (ok && newPid > 0) {
         QSettings s(appSettingsFilePath(), QSettings::IniFormat);
         s.setValue("watchdog_pid", (int)newPid);
-        appendWatchdogLog(QString("main started watchdog pid=%1 exe=%2 main=%3").arg((int)newPid).arg(exe, mainExe));
+        appendWatchdogLog(QString("main started watchdog pid=%1 exe=%2").arg((int)newPid).arg(exe));
     } else {
-        appendWatchdogLog(QString("main failed to start watchdog exe=%1 main=%2").arg(exe, mainExe), GetLastError());
+        appendWatchdogLog(QString("main failed to start watchdog exe=%1").arg(exe), GetLastError());
     }
 }
 
@@ -150,5 +149,4 @@ void SuperGuardian::stopWatchdogHelper() {
         if (h) { TerminateProcess(h, 0); CloseHandle(h); }
         s.remove("watchdog_pid");
     }
-    killProcessesByName("SuperGuardianWatchdog.exe");
 }

@@ -11,6 +11,3 @@ void setAutostart(bool enable);
 void killProcessesByName(const QString& name);
 
 int runWatchdogMode(int argc, char* argv[]);
-
-QString outputWatchdogExecutablePath();
-QString ensureOutputWatchdogExecutable();
