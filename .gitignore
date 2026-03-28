@@ -362,3 +362,7 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /package.ps1
+/package.ps1
+/app.ico
+/SuperGuardian.vcxproj
+/SuperGuardian.vcxproj.filters
