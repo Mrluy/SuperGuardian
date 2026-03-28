@@ -106,7 +106,6 @@ copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"</Command>
     <ClCompile Include="SuperGuardianProcess.cpp" />
     <ClCompile Include="SuperGuardianSettings.cpp" />
     <ClCompile Include="SuperGuardianTray.cpp" />
-    <ClCompile Include="SuperGuardian_new2.cpp" />
     <ClCompile Include="ThemeManager.cpp" />
     <QtRcc Include="resources.qrc" />
     <QtRcc Include="SuperGuardian.qrc" />
@@ -133,7 +132,6 @@ copy /Y "$(TargetPath)" "$(TargetDir)SuperGuardianWatchdog.exe"</Command>
     <ClInclude Include="ThemeManager.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="package.ps1" />
     <None Include="SuperGuardian.ui.new" />
   </ItemGroup>
   <ItemGroup>
