@@ -65,6 +65,7 @@ private slots:
     void contextToggleGuard(int row);
     void contextRemoveItem(int row);
     void contextSetScheduledRestart(const QList<int>& rows);
+    void contextSetGuardDelay(const QList<int>& rows);
 
 protected:
     void closeEvent(QCloseEvent* event) override;

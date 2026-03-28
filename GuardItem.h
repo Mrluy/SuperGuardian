@@ -16,4 +16,6 @@ struct GuardItem {
     int restartCount = 0;
     int scheduledRestartIntervalSecs = 0;
     QDateTime nextScheduledRestart;
+    int guardDelaySecs = 0;
+    QDateTime guardDelayExitTime;
 };

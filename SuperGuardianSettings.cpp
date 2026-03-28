@@ -24,6 +24,7 @@ void SuperGuardian::loadSettings() {
         item.restartCount = s.value("restartCount").toInt();
         item.scheduledRestartIntervalSecs = s.value("scheduledRestartIntervalSecs", 0).toInt();
         item.nextScheduledRestart = QDateTime::fromString(s.value("nextScheduledRestart").toString());
+        item.guardDelaySecs = s.value("guardDelaySecs", 0).toInt();
 
         items.append(item);
         int row = tableWidget->rowCount();
@@ -45,6 +46,7 @@ void SuperGuardian::loadSettings() {
         tableWidget->setItem(row, 4, makeItem(QString::number(item.restartCount)));
         tableWidget->setItem(row, 5, makeItem(formatRestartInterval(item.scheduledRestartIntervalSecs)));
         tableWidget->setItem(row, 6, makeItem(item.nextScheduledRestart.isValid() ? item.nextScheduledRestart.toString(QString::fromUtf8("yyyy年M月d日 hh:mm:ss")) : "-"));
+        tableWidget->setItem(row, 7, makeItem(item.guardDelaySecs > 0 ? QString::number(item.guardDelaySecs) + QString::fromUtf8(" 秒") : "-"));
 
         QWidget* opWidget = new QWidget();
         QHBoxLayout* opLay = new QHBoxLayout(opWidget);
@@ -55,7 +57,7 @@ void SuperGuardian::loadSettings() {
         srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
         opLay->addWidget(btn);
         opLay->addWidget(srBtn);
-        tableWidget->setCellWidget(row, 7, opWidget);
+        tableWidget->setCellWidget(row, 8, opWidget);
         connect(btn, &QPushButton::clicked, [this, path = item.path, btn]() {
             int idx = findItemIndexByPath(path);
             int row = findRowByPath(path);
@@ -113,6 +115,7 @@ void SuperGuardian::saveSettings() {
         s.setValue("startTime", items[i].startTime.toString());
         s.setValue("scheduledRestartIntervalSecs", items[i].scheduledRestartIntervalSecs);
         s.setValue("nextScheduledRestart", items[i].nextScheduledRestart.toString());
+        s.setValue("guardDelaySecs", items[i].guardDelaySecs);
     }
     s.endArray();
 }
@@ -157,47 +160,47 @@ void SuperGuardian::clearListWithConfirmation() {
 void SuperGuardian::distributeColumnWidths() {
     if (!tableWidget) return;
     autoResizingColumns = true;
-    int available = tableWidget->viewport()->width() - tableWidget->columnWidth(7);
+    int available = tableWidget->viewport()->width() - tableWidget->columnWidth(8);
     if (available <= 100) { autoResizingColumns = false; return; }
 
-    const double defaultWeights[] = {3.0, 1.0, 1.5, 2.0, 1.0, 1.5, 2.0};
-    double ratios[7];
+    const double defaultWeights[] = {3.0, 1.0, 1.5, 2.0, 1.0, 1.5, 2.0, 1.0};
+    double ratios[8];
     bool hasCustom = false;
 
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
     if (s.contains("columnRatios")) {
         QStringList parts = s.value("columnRatios").toString().split(",");
-        if (parts.size() == 7) {
+        if (parts.size() == 8) {
             hasCustom = true;
             double sum = 0;
-            for (int i = 0; i < 7; i++) { ratios[i] = parts[i].toDouble(); sum += ratios[i]; }
+            for (int i = 0; i < 8; i++) { ratios[i] = parts[i].toDouble(); sum += ratios[i]; }
             if (sum <= 0.001) hasCustom = false;
-            else for (int i = 0; i < 7; i++) ratios[i] /= sum;
+            else for (int i = 0; i < 8; i++) ratios[i] /= sum;
         }
     }
     if (!hasCustom) {
         double sum = 0;
-        for (int i = 0; i < 7; i++) { ratios[i] = defaultWeights[i]; sum += ratios[i]; }
-        for (int i = 0; i < 7; i++) ratios[i] /= sum;
+        for (int i = 0; i < 8; i++) { ratios[i] = defaultWeights[i]; sum += ratios[i]; }
+        for (int i = 0; i < 8; i++) ratios[i] /= sum;
     }
 
     int remaining = available;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
         int w = qMax(40, (int)(available * ratios[i]));
         tableWidget->setColumnWidth(i, w);
         remaining -= w;
     }
-    tableWidget->setColumnWidth(6, qMax(40, remaining));
+    tableWidget->setColumnWidth(7, qMax(40, remaining));
     autoResizingColumns = false;
 }
 
 void SuperGuardian::saveColumnWidths() {
     if (autoResizingColumns) return;
     double total = 0;
-    for (int i = 0; i < 7; i++) total += tableWidget->columnWidth(i);
+    for (int i = 0; i < 8; i++) total += tableWidget->columnWidth(i);
     if (total <= 0) return;
     QStringList parts;
-    for (int i = 0; i < 7; i++)
+    for (int i = 0; i < 8; i++)
         parts.append(QString::number(tableWidget->columnWidth(i) / total, 'f', 6));
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
     s.setValue("columnRatios", parts.join(","));
@@ -327,6 +330,7 @@ void SuperGuardian::rebuildTableFromItems() {
         tableWidget->setItem(row, 4, makeItem(QString::number(item.restartCount)));
         tableWidget->setItem(row, 5, makeItem(formatRestartInterval(item.scheduledRestartIntervalSecs)));
         tableWidget->setItem(row, 6, makeItem(item.nextScheduledRestart.isValid() ? item.nextScheduledRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+        tableWidget->setItem(row, 7, makeItem(item.guardDelaySecs > 0 ? QString::number(item.guardDelaySecs) + QString::fromUtf8(" \u79d2") : "-"));
         QWidget* opWidget = new QWidget();
         QHBoxLayout* opLay = new QHBoxLayout(opWidget);
         opLay->setContentsMargins(2,0,2,0);
@@ -336,6 +340,6 @@ void SuperGuardian::rebuildTableFromItems() {
         srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
         opLay->addWidget(btn);
         opLay->addWidget(srBtn);
-        tableWidget->setCellWidget(row, 7, opWidget);
+        tableWidget->setCellWidget(row, 8, opWidget);
     }
 }

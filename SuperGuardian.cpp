@@ -80,11 +80,11 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     btnAdd->setEnabled(false);
     tableWidget = new DesktopSelectTable(this);
 
-    tableWidget->setColumnCount(8);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("程序"), QString::fromUtf8("运行状态"), QString::fromUtf8("持续运行时长"), QString::fromUtf8("上次重启"), QString::fromUtf8("守护次数"), QString::fromUtf8("定时重启周期"), QString::fromUtf8("下次重启时间"), QString::fromUtf8("操作") });
+    tableWidget->setColumnCount(9);
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("程序"), QString::fromUtf8("运行状态"), QString::fromUtf8("持续运行时长"), QString::fromUtf8("上次重启"), QString::fromUtf8("守护次数"), QString::fromUtf8("定时重启周期"), QString::fromUtf8("下次重启时间"), QString::fromUtf8("守护延时"), QString::fromUtf8("操作") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    tableWidget->horizontalHeader()->setSectionResizeMode(7, QHeaderView::Fixed);
-    tableWidget->setColumnWidth(7, 220);
+    tableWidget->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
+    tableWidget->setColumnWidth(8, 220);
     tableWidget->setSortingEnabled(false);
     tableWidget->horizontalHeader()->setSortIndicatorShown(false);
     tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -96,6 +96,9 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget->setItemDelegate(new BruteForceDelegate(tableWidget));
     tableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tableWidget, &QTableWidget::customContextMenuRequested, this, &SuperGuardian::onTableContextMenuRequested);
+    if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(7)) {
+        hdr->setToolTip(QString::fromUtf8("针对程序更新及其他自带重启逻辑的操作，\n配置此项可避免守护进程重复触发重启。\n若程序稳定性较差，\n设置后可能影响程序的正常访问。"));
+    }
     tableWidget->verticalHeader()->setSectionsClickable(false);
     tableWidget->verticalHeader()->setHighlightSections(false);
     tableWidget->verticalHeader()->setFocusPolicy(Qt::NoFocus);
@@ -192,7 +195,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     connect(tableWidget, &QTableWidget::cellDoubleClicked, this, &SuperGuardian::onTableDoubleClicked);
     connect(tray, &QSystemTrayIcon::activated, this, &SuperGuardian::onTrayActivated);
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {
-        if (section == 7) return;
+        if (section == 8) return;
 
         QHeaderView* header = tableWidget->horizontalHeader();
         if (header->sortIndicatorSection() == section && sortState == 2) {
@@ -220,7 +223,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     applyTheme(theme);
 
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int) {
-        if (logicalIndex < 7 && !autoResizingColumns)
+        if (logicalIndex < 8 && !autoResizingColumns)
             saveColumnWidths();
     });
 }

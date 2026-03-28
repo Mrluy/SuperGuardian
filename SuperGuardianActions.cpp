@@ -47,6 +47,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     });
     menu.addAction(QString::fromUtf8("开始/停止守护"), this, [this, targetRows]() { for (int row : targetRows) contextToggleGuard(row); });
     menu.addAction(QString::fromUtf8("定时重启"), this, [this, targetRows]() { contextSetScheduledRestart(targetRows); });
+    menu.addAction(QString::fromUtf8("设置守护延时"), this, [this, targetRows]() { contextSetGuardDelay(targetRows); });
     menu.addSeparator();
     menu.addAction(QString::fromUtf8("移除项"), this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
@@ -78,7 +79,7 @@ void SuperGuardian::contextToggleGuard(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
     items[idx].guarding = !items[idx].guarding;
-    QWidget* opw = tableWidget->cellWidget(row, 7);
+    QWidget* opw = tableWidget->cellWidget(row, 8);
     if (opw) {
         QList<QPushButton*> btns = opw->findChildren<QPushButton*>();
         for (QPushButton* b : btns) {
@@ -223,7 +224,7 @@ void SuperGuardian::onTableDoubleClicked(int row, int col) {
     if (idx < 0) return;
     GuardItem& item = items[idx];
     item.guarding = !item.guarding;
-    QWidget* opw = tableWidget->cellWidget(row,7);
+    QWidget* opw = tableWidget->cellWidget(row,8);
     if (opw) {
         QList<QPushButton*> btns = opw->findChildren<QPushButton*>();
         for (QPushButton* b : btns) {
@@ -247,4 +248,47 @@ void SuperGuardian::onTableDoubleClicked(int row, int col) {
         }
         if (tableWidget->item(row,2)) tableWidget->item(row,2)->setText("-");
     }
+}
+
+void SuperGuardian::contextSetGuardDelay(const QList<int>& rows) {
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u5b88\u62a4\u5ef6\u65f6"));
+    dlg.setFixedWidth(320);
+    dlg.setMinimumHeight(150);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8bbe\u7f6e\u5b88\u62a4\u5ef6\u65f6\u542f\u52a8\u65f6\u957f\uff08\u79d2\uff09\uff1a")));
+    lay->addWidget(new QLabel(QString::fromUtf8("\u7a0b\u5e8f\u9000\u51fa\u540e\uff0c\u5ef6\u65f6\u6307\u5b9a\u79d2\u6570\u518d\u542f\u52a8\u3002\n\u8bbe\u7f6e\u4e3a 0 \u8868\u793a\u4e0d\u5ef6\u65f6\u3002")));
+    QSpinBox* spin = new QSpinBox();
+    spin->setRange(0, 86400);
+    spin->setValue(0);
+    spin->setSuffix(QString::fromUtf8(" \u79d2"));
+    if (rows.size() == 1) {
+        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        if (itemIdx >= 0) spin->setValue(items[itemIdx].guardDelaySecs);
+    }
+    lay->addWidget(spin);
+    lay->addStretch();
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
+    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    btnLay->addWidget(okBtn);
+    btnLay->addWidget(cancelBtn);
+    btnLay->addStretch();
+    lay->addLayout(btnLay);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    int delaySecs = spin->value();
+    for (int row : rows) {
+        int itemIdx = findItemIndexByPath(rowPath(row));
+        if (itemIdx < 0) continue;
+        GuardItem& item = items[itemIdx];
+        item.guardDelaySecs = delaySecs;
+        item.guardDelayExitTime = QDateTime();
+        if (tableWidget->item(row, 7))
+            tableWidget->item(row, 7)->setText(delaySecs > 0 ? QString::number(delaySecs) + QString::fromUtf8(" \u79d2") : "-");
+    }
+    saveSettings();
 }

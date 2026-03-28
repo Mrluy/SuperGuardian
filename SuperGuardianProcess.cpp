@@ -37,6 +37,7 @@ void SuperGuardian::addProgram(const QString& path) {
     tableWidget->setItem(row, 4, makeItem("0"));
     tableWidget->setItem(row, 5, makeItem("-"));
     tableWidget->setItem(row, 6, makeItem("-"));
+    tableWidget->setItem(row, 7, makeItem("-"));
 
     // 操作列: 守护按钮 + 定时重启按钮
     QWidget* opWidget = new QWidget();
@@ -48,7 +49,7 @@ void SuperGuardian::addProgram(const QString& path) {
     srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
     opLay->addWidget(btn);
     opLay->addWidget(srBtn);
-    tableWidget->setCellWidget(row, 7, opWidget);
+    tableWidget->setCellWidget(row, 8, opWidget);
     // ensure no cell is left as current editor (prevents caret showing)
     if (tableWidget->selectionModel()) tableWidget->selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::NoUpdate);
     connect(btn, &QPushButton::clicked, this, [this, itemPath=item.path]() {
@@ -112,6 +113,11 @@ void SuperGuardian::checkProcesses() {
         bool running = isProcessRunning(item.processName, count);
         bool scheduledRestarted = false;
 
+        // 进程运行中，重置守护延时计时
+        if (running && item.guardDelayExitTime.isValid()) {
+            item.guardDelayExitTime = QDateTime();
+        }
+
         // 定时重启逻辑（独立于守护）
         if (hasScheduledRestart && item.nextScheduledRestart.isValid()
             && QDateTime::currentDateTime() >= item.nextScheduledRestart) {
@@ -139,12 +145,27 @@ void SuperGuardian::checkProcesses() {
                 int recount = 0;
                 isProcessRunning(item.processName, recount);
                 if (recount == 0) {
-                    launchProgram(item.path);
-                    item.lastLaunchTime = QDateTime::currentDateTime();
-                    item.lastGuardRestartTime = QDateTime::currentDateTime();
-                    item.restartCount++;
-                    item.lastRestart = QDateTime::currentDateTime();
-                    running = true;
+                    if (item.guardDelaySecs > 0) {
+                        if (!item.guardDelayExitTime.isValid()) {
+                            item.guardDelayExitTime = QDateTime::currentDateTime();
+                        }
+                        if (item.guardDelayExitTime.secsTo(QDateTime::currentDateTime()) >= item.guardDelaySecs) {
+                            item.guardDelayExitTime = QDateTime();
+                            launchProgram(item.path);
+                            item.lastLaunchTime = QDateTime::currentDateTime();
+                            item.lastGuardRestartTime = QDateTime::currentDateTime();
+                            item.restartCount++;
+                            item.lastRestart = QDateTime::currentDateTime();
+                            running = true;
+                        }
+                    } else {
+                        launchProgram(item.path);
+                        item.lastLaunchTime = QDateTime::currentDateTime();
+                        item.lastGuardRestartTime = QDateTime::currentDateTime();
+                        item.restartCount++;
+                        item.lastRestart = QDateTime::currentDateTime();
+                        running = true;
+                    }
                 }
             }
         }
@@ -169,6 +190,7 @@ void SuperGuardian::checkProcesses() {
         if (tableWidget->item(row,4)) tableWidget->item(row,4)->setText(QString::number(item.restartCount));
         if (tableWidget->item(row,5)) tableWidget->item(row,5)->setText(formatRestartInterval(item.scheduledRestartIntervalSecs));
         if (tableWidget->item(row,6)) tableWidget->item(row,6)->setText(item.nextScheduledRestart.isValid() ? item.nextScheduledRestart.toString(QString::fromUtf8("yyyy年M月d日 hh:mm:ss")) : "-");
+        if (tableWidget->item(row,7)) tableWidget->item(row,7)->setText(item.guardDelaySecs > 0 ? QString::number(item.guardDelaySecs) + QString::fromUtf8(" 秒") : "-");
     }
     saveSettings();
 }
