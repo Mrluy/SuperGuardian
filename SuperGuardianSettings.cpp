@@ -4,16 +4,69 @@
 #include "ProcessUtils.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 
 // ---- 配置持久化、搜索辅助、列宽管理、导入导出重置 ----
 
+static QJsonArray scheduleRulesToJson(const QList<ScheduleRule>& rules) {
+    QJsonArray arr;
+    for (const ScheduleRule& r : rules) {
+        QJsonObject o;
+        o["type"] = (r.type == ScheduleRule::Periodic) ? "periodic" : "fixed";
+        o["intervalSecs"] = r.intervalSecs;
+        o["fixedTime"] = r.fixedTime.toString("HH:mm:ss");
+        QJsonArray days;
+        for (int d : r.daysOfWeek) days.append(d);
+        o["daysOfWeek"] = days;
+        o["nextTrigger"] = r.nextTrigger.toString(Qt::ISODate);
+        arr.append(o);
+    }
+    return arr;
+}
+
+static QList<ScheduleRule> jsonToScheduleRules(const QJsonArray& arr) {
+    QList<ScheduleRule> rules;
+    for (const QJsonValue& v : arr) {
+        QJsonObject o = v.toObject();
+        ScheduleRule r;
+        r.type = (o["type"].toString() == "fixed") ? ScheduleRule::FixedTime : ScheduleRule::Periodic;
+        r.intervalSecs = o["intervalSecs"].toInt(3600);
+        r.fixedTime = QTime::fromString(o["fixedTime"].toString(), "HH:mm:ss");
+        QJsonArray days = o["daysOfWeek"].toArray();
+        for (const QJsonValue& dv : days) r.daysOfWeek.insert(dv.toInt());
+        r.nextTrigger = QDateTime::fromString(o["nextTrigger"].toString(), Qt::ISODate);
+        rules.append(r);
+    }
+    return rules;
+}
+
 void SuperGuardian::loadSettings() {
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+
+    // Load SMTP config
+    s.beginGroup("smtp");
+    smtpConfig.server = s.value("server").toString();
+    smtpConfig.port = s.value("port", 587).toInt();
+    smtpConfig.useTls = s.value("useTls", true).toBool();
+    smtpConfig.username = s.value("username").toString();
+    smtpConfig.password = s.value("password").toString();
+    smtpConfig.fromAddress = s.value("fromAddress").toString();
+    smtpConfig.fromName = s.value("fromName").toString();
+    smtpConfig.toAddress = s.value("toAddress").toString();
+    s.endGroup();
+
+    if (emailEnabledAct) {
+        emailEnabledAct->blockSignals(true);
+        emailEnabledAct->setChecked(s.value("emailEnabled", false).toBool());
+        emailEnabledAct->blockSignals(false);
+    }
+
     int size = s.beginReadArray("items");
     for (int i = 0; i < size; ++i) {
         s.setArrayIndex(i);
         QString path = s.value("path").toString();
-        // add to list and UI
         GuardItem item;
         item.path = path;
         item.targetPath = resolveShortcut(path);
@@ -22,81 +75,48 @@ void SuperGuardian::loadSettings() {
         item.startTime = QDateTime::fromString(s.value("startTime").toString());
         item.lastRestart = QDateTime::fromString(s.value("lastRestart").toString());
         item.restartCount = s.value("restartCount").toInt();
-        item.scheduledRestartIntervalSecs = s.value("scheduledRestartIntervalSecs", 0).toInt();
-        item.nextScheduledRestart = QDateTime::fromString(s.value("nextScheduledRestart").toString());
-        item.guardDelaySecs = s.value("guardDelaySecs", 0).toInt();
+        item.startDelaySecs = s.value("startDelaySecs", 1).toInt();
+        if (item.startDelaySecs < 1) item.startDelaySecs = 1;
+
+        // Load schedule rules (new format)
+        if (s.contains("restartRulesJson")) {
+            QJsonDocument doc = QJsonDocument::fromJson(s.value("restartRulesJson").toString().toUtf8());
+            item.restartRules = jsonToScheduleRules(doc.array());
+        } else if (s.value("scheduledRestartIntervalSecs", 0).toInt() > 0) {
+            // Backward compatibility: convert old single interval to rule
+            ScheduleRule r;
+            r.type = ScheduleRule::Periodic;
+            r.intervalSecs = s.value("scheduledRestartIntervalSecs").toInt();
+            r.nextTrigger = QDateTime::fromString(s.value("nextScheduledRestart").toString());
+            item.restartRules.append(r);
+            item.restartRulesActive = true;
+        }
+        item.restartRulesActive = s.value("restartRulesActive", !item.restartRules.isEmpty()).toBool();
+
+        item.scheduledRunEnabled = s.value("scheduledRunEnabled", false).toBool();
+        if (s.contains("runRulesJson")) {
+            QJsonDocument doc = QJsonDocument::fromJson(s.value("runRulesJson").toString().toUtf8());
+            item.runRules = jsonToScheduleRules(doc.array());
+        }
+
+        // Retry config
+        item.retryConfig.retryIntervalSecs = s.value("retryIntervalSecs", 30).toInt();
+        item.retryConfig.maxRetries = s.value("retryMaxRetries", 10).toInt();
+        item.retryConfig.maxDurationSecs = s.value("retryMaxDurationSecs", 300).toInt();
+
+        // Email notify per-program
+        item.emailNotify.enabled = s.value("emailNotifyEnabled", false).toBool();
+        item.emailNotify.onGuardTriggered = s.value("emailOnGuardTriggered", false).toBool();
+        item.emailNotify.onStartFailed = s.value("emailOnStartFailed", true).toBool();
+        item.emailNotify.onScheduledRestartFailed = s.value("emailOnRestartFailed", true).toBool();
+        item.emailNotify.onScheduledRunFailed = s.value("emailOnRunFailed", true).toBool();
+        item.emailNotify.onProcessExited = s.value("emailOnProcessExited", false).toBool();
+        item.emailNotify.onRetryExhausted = s.value("emailOnRetryExhausted", true).toBool();
 
         items.append(item);
         int row = tableWidget->rowCount();
         tableWidget->insertRow(row);
-        auto makeItem = [&](const QString& t){ QTableWidgetItem* it = new QTableWidgetItem(t); it->setFlags(it->flags() & ~Qt::ItemIsEditable); it->setTextAlignment(Qt::AlignCenter); return it; };
-        QTableWidgetItem* nameItem = new QTableWidgetItem(item.processName);
-        nameItem->setIcon(getFileIcon(item.targetPath));
-        nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
-        nameItem->setData(Qt::UserRole, item.path);
-        nameItem->setToolTip(item.processName);
-        tableWidget->setItem(row, 0, nameItem);
-        QString initStatus;
-        if (item.guarding) initStatus = QString::fromUtf8("运行中");
-        else if (item.scheduledRestartIntervalSecs > 0) initStatus = QString::fromUtf8("-");
-        else initStatus = QString::fromUtf8("未守护");
-        tableWidget->setItem(row, 1, makeItem(initStatus));
-        tableWidget->setItem(row, 2, makeItem(item.guarding ? QStringLiteral("0") : QStringLiteral("-")));
-        tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy年M月d日 hh:mm:ss")) : "-"));
-        tableWidget->setItem(row, 4, makeItem(QString::number(item.restartCount)));
-        tableWidget->setItem(row, 5, makeItem(formatRestartInterval(item.scheduledRestartIntervalSecs)));
-        tableWidget->setItem(row, 6, makeItem(item.nextScheduledRestart.isValid() ? item.nextScheduledRestart.toString(QString::fromUtf8("yyyy年M月d日 hh:mm:ss")) : "-"));
-        tableWidget->setItem(row, 7, makeItem(item.guardDelaySecs > 0 ? QString::number(item.guardDelaySecs) + QString::fromUtf8(" 秒") : "-"));
-
-        QWidget* opWidget = new QWidget();
-        QHBoxLayout* opLay = new QHBoxLayout(opWidget);
-        opLay->setContentsMargins(2,0,2,0);
-        opLay->setSpacing(4);
-        QPushButton* btn = new QPushButton(item.guarding ? QString::fromUtf8("关闭守护") : QString::fromUtf8("开始守护"));
-        QPushButton* srBtn = new QPushButton(item.scheduledRestartIntervalSecs > 0 ? QString::fromUtf8("停止定时重启") : QString::fromUtf8("开启定时重启"));
-        srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
-        opLay->addWidget(btn);
-        opLay->addWidget(srBtn);
-        tableWidget->setCellWidget(row, 8, opWidget);
-        connect(btn, &QPushButton::clicked, [this, path = item.path, btn]() {
-            int idx = findItemIndexByPath(path);
-            int row = findRowByPath(path);
-            if (idx < 0 || row < 0) return;
-            GuardItem& it = items[idx];
-            it.guarding = !it.guarding;
-            btn->setText(it.guarding ? QString::fromUtf8("关闭守护") : QString::fromUtf8("开始守护"));
-            if (it.guarding) {
-                it.startTime = QDateTime::currentDateTime();
-                int count = 0;
-                bool running = isProcessRunning(it.processName, count);
-                if (!running && count == 0) {
-                    launchProgram(it.path);
-                    it.lastLaunchTime = QDateTime::currentDateTime();
-                }
-            } else {
-                if (it.scheduledRestartIntervalSecs <= 0) {
-                    if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("未守护"));
-                }
-                if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
-            }
-        });
-        connect(srBtn, &QPushButton::clicked, [this, path = item.path, srBtn]() {
-            int idx = findItemIndexByPath(path);
-            if (idx < 0) return;
-            int displayRow = findRowByPath(path);
-            if (displayRow < 0) return;
-            GuardItem& it = items[idx];
-            if (it.scheduledRestartIntervalSecs > 0) {
-                it.scheduledRestartIntervalSecs = 0;
-                it.nextScheduledRestart = QDateTime();
-                srBtn->setText(QString::fromUtf8("开启定时重启"));
-                if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
-                if (tableWidget->item(displayRow, 6)) tableWidget->item(displayRow, 6)->setText("-");
-                saveSettings();
-            } else {
-                contextSetScheduledRestart(QList<int>{displayRow});
-            }
-        });
+        setupTableRow(row, item);
     }
     s.endArray();
     syncSelfGuardListEntry(selfGuardAct && selfGuardAct->isChecked());
@@ -104,6 +124,22 @@ void SuperGuardian::loadSettings() {
 
 void SuperGuardian::saveSettings() {
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+
+    // Save SMTP config
+    s.beginGroup("smtp");
+    s.setValue("server", smtpConfig.server);
+    s.setValue("port", smtpConfig.port);
+    s.setValue("useTls", smtpConfig.useTls);
+    s.setValue("username", smtpConfig.username);
+    s.setValue("password", smtpConfig.password);
+    s.setValue("fromAddress", smtpConfig.fromAddress);
+    s.setValue("fromName", smtpConfig.fromName);
+    s.setValue("toAddress", smtpConfig.toAddress);
+    s.endGroup();
+
+    if (emailEnabledAct)
+        s.setValue("emailEnabled", emailEnabledAct->isChecked());
+
     s.beginWriteArray("items");
     int saveIndex = 0;
     for (int i = 0; i < items.size(); ++i) {
@@ -113,9 +149,27 @@ void SuperGuardian::saveSettings() {
         s.setValue("lastRestart", items[i].lastRestart.toString());
         s.setValue("restartCount", items[i].restartCount);
         s.setValue("startTime", items[i].startTime.toString());
-        s.setValue("scheduledRestartIntervalSecs", items[i].scheduledRestartIntervalSecs);
-        s.setValue("nextScheduledRestart", items[i].nextScheduledRestart.toString());
-        s.setValue("guardDelaySecs", items[i].guardDelaySecs);
+        s.setValue("startDelaySecs", items[i].startDelaySecs);
+
+        QJsonDocument restartDoc(scheduleRulesToJson(items[i].restartRules));
+        s.setValue("restartRulesJson", QString::fromUtf8(restartDoc.toJson(QJsonDocument::Compact)));
+        s.setValue("restartRulesActive", items[i].restartRulesActive);
+
+        s.setValue("scheduledRunEnabled", items[i].scheduledRunEnabled);
+        QJsonDocument runDoc(scheduleRulesToJson(items[i].runRules));
+        s.setValue("runRulesJson", QString::fromUtf8(runDoc.toJson(QJsonDocument::Compact)));
+
+        s.setValue("retryIntervalSecs", items[i].retryConfig.retryIntervalSecs);
+        s.setValue("retryMaxRetries", items[i].retryConfig.maxRetries);
+        s.setValue("retryMaxDurationSecs", items[i].retryConfig.maxDurationSecs);
+
+        s.setValue("emailNotifyEnabled", items[i].emailNotify.enabled);
+        s.setValue("emailOnGuardTriggered", items[i].emailNotify.onGuardTriggered);
+        s.setValue("emailOnStartFailed", items[i].emailNotify.onStartFailed);
+        s.setValue("emailOnRestartFailed", items[i].emailNotify.onScheduledRestartFailed);
+        s.setValue("emailOnRunFailed", items[i].emailNotify.onScheduledRunFailed);
+        s.setValue("emailOnProcessExited", items[i].emailNotify.onProcessExited);
+        s.setValue("emailOnRetryExhausted", items[i].emailNotify.onRetryExhausted);
     }
     s.endArray();
 }
@@ -313,33 +367,10 @@ void SuperGuardian::resetConfig() {
 
 void SuperGuardian::rebuildTableFromItems() {
     tableWidget->setRowCount(0);
-    auto makeItem = [](const QString& t){ QTableWidgetItem* it = new QTableWidgetItem(t); it->setFlags(it->flags() & ~Qt::ItemIsEditable); it->setTextAlignment(Qt::AlignCenter); return it; };
     for (int i = 0; i < items.size(); ++i) {
         const GuardItem& item = items[i];
         int row = tableWidget->rowCount();
         tableWidget->insertRow(row);
-        QTableWidgetItem* nameItem = new QTableWidgetItem(item.processName);
-        nameItem->setIcon(getFileIcon(item.targetPath));
-        nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
-        nameItem->setData(Qt::UserRole, item.path);
-        nameItem->setToolTip(item.processName);
-        tableWidget->setItem(row, 0, nameItem);
-        tableWidget->setItem(row, 1, makeItem(item.guarding ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u672a\u5b88\u62a4")));
-        tableWidget->setItem(row, 2, makeItem(item.guarding ? QStringLiteral("0") : QStringLiteral("-")));
-        tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
-        tableWidget->setItem(row, 4, makeItem(QString::number(item.restartCount)));
-        tableWidget->setItem(row, 5, makeItem(formatRestartInterval(item.scheduledRestartIntervalSecs)));
-        tableWidget->setItem(row, 6, makeItem(item.nextScheduledRestart.isValid() ? item.nextScheduledRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
-        tableWidget->setItem(row, 7, makeItem(item.guardDelaySecs > 0 ? QString::number(item.guardDelaySecs) + QString::fromUtf8(" \u79d2") : "-"));
-        QWidget* opWidget = new QWidget();
-        QHBoxLayout* opLay = new QHBoxLayout(opWidget);
-        opLay->setContentsMargins(2,0,2,0);
-        opLay->setSpacing(4);
-        QPushButton* btn = new QPushButton(item.guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
-        QPushButton* srBtn = new QPushButton(item.scheduledRestartIntervalSecs > 0 ? QString::fromUtf8("\u505c\u6b62\u5b9a\u65f6\u91cd\u542f") : QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
-        srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
-        opLay->addWidget(btn);
-        opLay->addWidget(srBtn);
-        tableWidget->setCellWidget(row, 8, opWidget);
+        setupTableRow(row, item);
     }
 }

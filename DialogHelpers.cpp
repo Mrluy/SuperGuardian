@@ -93,3 +93,56 @@ QString formatRestartInterval(int secs) {
     if (result.isEmpty()) result = QString::fromUtf8("1\u5206\u949f");
     return result;
 }
+
+QString formatDaysShort(const QSet<int>& days) {
+    if (days.isEmpty()) return QString::fromUtf8("\u6bcf\u5929");
+    QSet<int> weekdays = {1,2,3,4,5};
+    QSet<int> weekend = {6,7};
+    if (days == weekdays) return QString::fromUtf8("\u5de5\u4f5c\u65e5");
+    if (days == weekend) return QString::fromUtf8("\u5468\u672b");
+    static const char* names[] = { nullptr, "\u5468\u4e00", "\u5468\u4e8c", "\u5468\u4e09", "\u5468\u56db", "\u5468\u4e94", "\u5468\u516d", "\u5468\u65e5" };
+    QList<int> sorted(days.begin(), days.end());
+    std::sort(sorted.begin(), sorted.end());
+    QStringList parts;
+    for (int d : sorted) {
+        if (d >= 1 && d <= 7) parts << QString::fromUtf8(names[d]);
+    }
+    return parts.join(",");
+}
+
+QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) {
+    if (rule.type == ScheduleRule::Periodic) {
+        return from.addSecs(rule.intervalSecs);
+    }
+    // FixedTime: find next matching day+time
+    QDateTime candidate(from.date(), rule.fixedTime);
+    if (candidate <= from) candidate = candidate.addDays(1);
+    if (rule.daysOfWeek.isEmpty()) return candidate;
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        int dow = candidate.date().dayOfWeek();
+        if (rule.daysOfWeek.contains(dow)) return candidate;
+        candidate = candidate.addDays(1);
+    }
+    return candidate;
+}
+
+QDateTime nextTriggerTime(const QList<ScheduleRule>& rules) {
+    QDateTime earliest;
+    for (const ScheduleRule& r : rules) {
+        if (r.nextTrigger.isValid()) {
+            if (!earliest.isValid() || r.nextTrigger < earliest)
+                earliest = r.nextTrigger;
+        }
+    }
+    return earliest;
+}
+
+QString formatScheduleRules(const QList<ScheduleRule>& rules) {
+    if (rules.isEmpty()) return QStringLiteral("-");
+    if (rules.size() == 1) {
+        const ScheduleRule& r = rules[0];
+        if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
+        return formatDaysShort(r.daysOfWeek) + " " + r.fixedTime.toString("HH:mm");
+    }
+    return QString::fromUtf8("%1\u4e2a\u89c4\u5219").arg(rules.size());
+}

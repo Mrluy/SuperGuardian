@@ -81,10 +81,10 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(9);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("程序"), QString::fromUtf8("运行状态"), QString::fromUtf8("持续运行时长"), QString::fromUtf8("上次重启"), QString::fromUtf8("守护次数"), QString::fromUtf8("定时重启周期"), QString::fromUtf8("下次重启时间"), QString::fromUtf8("守护延时"), QString::fromUtf8("操作") });
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("\u4e0a\u6b21\u91cd\u542f"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), QString::fromUtf8("\u4e0b\u6b21\u91cd\u542f"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     tableWidget->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
-    tableWidget->setColumnWidth(8, 220);
+    tableWidget->setColumnWidth(8, 300);
     tableWidget->setSortingEnabled(false);
     tableWidget->horizontalHeader()->setSortIndicatorShown(false);
     tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -97,7 +97,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tableWidget, &QTableWidget::customContextMenuRequested, this, &SuperGuardian::onTableContextMenuRequested);
     if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(7)) {
-        hdr->setToolTip(QString::fromUtf8("针对程序更新及其他自带重启逻辑的操作，\n配置此项可避免守护进程重复触发重启。\n若程序稳定性较差，\n设置后可能影响程序的正常访问。"));
+        hdr->setToolTip(QString::fromUtf8("\u7a0b\u5e8f\u91cd\u542f\u65f6\u7684\u542f\u52a8\u5ef6\u65f6\uff0c\u5355\u4f4d\u4e3a\u79d2\u3002\n\u9ed8\u8ba4 1 \u79d2\uff0c\u4e0d\u53ef\u4f4e\u4e8e\u6b64\u503c\u3002\n\u5b88\u62a4\u91cd\u542f\u3001\u5b9a\u65f6\u91cd\u542f\u5747\u4f7f\u7528\u6b64\u5ef6\u65f6\u3002\n\u5b9a\u65f6\u8fd0\u884c\u4e0d\u4f7f\u7528\u6b64\u9879\u3002"));
     }
     tableWidget->verticalHeader()->setSectionsClickable(false);
     tableWidget->verticalHeader()->setHighlightSections(false);
@@ -127,6 +127,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     selfGuardAct->setCheckable(true);
     autostartAct = trayMenu->addAction(QString::fromUtf8("开机自启"));
     autostartAct->setCheckable(true);
+    trayEmailAct = trayMenu->addAction(QString::fromUtf8("邮件提醒"));
+    trayEmailAct->setCheckable(true);
     trayMenu->addSeparator();
     QAction* exitAct = trayMenu->addAction(QString::fromUtf8("退出"), this, &SuperGuardian::onExit);
     tray->setContextMenu(trayMenu);
@@ -147,13 +149,18 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     });
 
-    QMenu* optionsMenu = menuBar()->addMenu(QString::fromUtf8("选项"));
+    QMenu* optionsMenu = menuBar()->addMenu(QString::fromUtf8("\u9009\u9879"));
     optionsMenu->addAction(selfGuardAct);
     optionsMenu->addAction(autostartAct);
+    emailEnabledAct = optionsMenu->addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192"));
+    emailEnabledAct->setCheckable(true);
+    emailEnabledAct->setChecked(false);
 
-    QMenu* configMenu = menuBar()->addMenu(QString::fromUtf8("配置"));
+    QMenu* configMenu = menuBar()->addMenu(QString::fromUtf8("\u914d\u7f6e"));
     configMenu->addAction(QString::fromUtf8("\u5bfc\u5165"), this, &SuperGuardian::importConfig);
     configMenu->addAction(QString::fromUtf8("\u5bfc\u51fa"), this, &SuperGuardian::exportConfig);
+    configMenu->addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192\u914d\u7f6e"), this, &SuperGuardian::showSmtpConfigDialog);
+    configMenu->addSeparator();
     configMenu->addAction(QString::fromUtf8("\u91cd\u7f6e\u5168\u90e8\u914d\u7f6e"), this, &SuperGuardian::resetConfig);
 
     QMenu* operationMenu = menuBar()->addMenu(QString::fromUtf8("操作"));
@@ -175,6 +182,22 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     // ---- 信号连接 ----
     connect(selfGuardAct, &QAction::toggled, this, &SuperGuardian::onSelfGuardToggled);
     connect(autostartAct, &QAction::toggled, this, &SuperGuardian::onAutostartToggled);
+
+    // 同步托盘邮件提醒与菜单栏邮件提醒
+    connect(emailEnabledAct, &QAction::toggled, this, [this](bool on) {
+        trayEmailAct->blockSignals(true);
+        trayEmailAct->setChecked(on);
+        trayEmailAct->blockSignals(false);
+        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+        s.setValue("emailEnabled", on);
+    });
+    connect(trayEmailAct, &QAction::toggled, this, [this](bool on) {
+        emailEnabledAct->blockSignals(true);
+        emailEnabledAct->setChecked(on);
+        emailEnabledAct->blockSignals(false);
+        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+        s.setValue("emailEnabled", on);
+    });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
         QString file = QFileDialog::getOpenFileName(this, QString::fromUtf8("选择程序"), "", "Executable (*.exe);;All Files (*)");

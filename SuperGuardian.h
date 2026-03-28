@@ -2,6 +2,7 @@
 
 #include <QtWidgets>
 #include "GuardItem.h"
+#include "EmailService.h"
 
 class SuperGuardian : public QMainWindow
 {
@@ -23,13 +24,18 @@ private:
     QMenu* trayMenu;
     QAction* selfGuardAct;
     QAction* autostartAct;
+    QAction* emailEnabledAct = nullptr;
+    QAction* trayEmailAct = nullptr;
     QTimer* timer;
+    SmtpConfig smtpConfig;
 
     QToolButton* themeToggleBtn = nullptr;
-    int sortState = 0; // 0=default, 1=ascending, 2=descending
+    int sortState = 0;
     bool autoResizingColumns = false;
 
     void addProgram(const QString& path);
+    void setupTableRow(int row, const GuardItem& item);
+    void updateButtonStates(int row);
     void loadSettings();
     void saveSettings();
     void applySavedTrayOptions();
@@ -50,6 +56,7 @@ private:
     void importConfig();
     void resetConfig();
     void rebuildTableFromItems();
+    void trySendNotification(GuardItem& item, const QString& event, const QString& detail);
 
 private slots:
     void toggleVisible();
@@ -64,8 +71,11 @@ private slots:
     void contextKillProgram(int row);
     void contextToggleGuard(int row);
     void contextRemoveItem(int row);
-    void contextSetScheduledRestart(const QList<int>& rows);
-    void contextSetGuardDelay(const QList<int>& rows);
+    void contextSetScheduleRules(const QList<int>& rows, bool forRun);
+    void contextSetStartDelay(const QList<int>& rows);
+    void contextSetRetryConfig(const QList<int>& rows);
+    void contextSetEmailNotify(const QList<int>& rows);
+    void showSmtpConfigDialog();
 
 protected:
     void closeEvent(QCloseEvent* event) override;

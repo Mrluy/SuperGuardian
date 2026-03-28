@@ -103,6 +103,7 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DialogHelpers.cpp" />
+    <ClCompile Include="EmailService.cpp" />
     <ClCompile Include="SuperGuardianActions.cpp" />
     <ClCompile Include="SuperGuardianProcess.cpp" />
     <ClCompile Include="SuperGuardianSettings.cpp" />
@@ -127,6 +128,7 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
   <ItemGroup>
     <ClInclude Include="AppStorage.h" />
     <ClInclude Include="DialogHelpers.h" />
+    <ClInclude Include="EmailService.h" />
     <ClInclude Include="GuardItem.h" />
     <ClInclude Include="GuardTableWidgets.h" />
     <ClInclude Include="ProcessUtils.h" />
