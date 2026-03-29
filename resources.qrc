@@ -5,5 +5,7 @@
         <file alias="dark.png">img/dark.png</file>
         <file alias="top_light.png">img/top_light.png</file>
         <file alias="top_dark.png">img/top_dark.png</file>
+        <file alias="check_dark.png">img/check_dark.png</file>
+        <file alias="check_light.png">img/check_light.png</file>
     </qresource>
 </RCC>

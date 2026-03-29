@@ -1,7 +1,6 @@
 #include "GuardTableWidgets.h"
 #include "ThemeManager.h"
 #include <QPainter>
-#include <QPainterPath>
 #include <QMouseEvent>
 #include <QApplication>
 
@@ -215,11 +214,4 @@ void DesktopSelectTable::focusInEvent(QFocusEvent* e) {
 void DesktopSelectTable::killCurrentIndex() {
     if (selectionModel())
         selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::NoUpdate);
-}
-
-void DesktopSelectTable::resizeEvent(QResizeEvent* e) {
-    QTableWidget::resizeEvent(e);
-    QPainterPath path;
-    path.addRoundedRect(QRectF(rect()), 6, 6);
-    setMask(QRegion(path.toFillPolygon().toPolygon()));
 }

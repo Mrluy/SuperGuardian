@@ -105,6 +105,10 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
     <ClCompile Include="DialogHelpers.cpp" />
     <ClCompile Include="EmailService.cpp" />
     <ClCompile Include="SuperGuardianActions.cpp" />
+    <ClCompile Include="SuperGuardianConfigMgmt.cpp" />
+    <ClCompile Include="SuperGuardianDialogs.cpp" />
+    <ClCompile Include="SuperGuardianDialogsEmail.cpp" />
+    <ClCompile Include="SuperGuardianMonitor.cpp" />
     <ClCompile Include="SuperGuardianProcess.cpp" />
     <ClCompile Include="SuperGuardianSettings.cpp" />
     <ClCompile Include="SuperGuardianTray.cpp" />

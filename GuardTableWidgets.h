@@ -23,7 +23,6 @@ protected:
     void mouseMoveEvent(QMouseEvent* e) override;
     void mouseReleaseEvent(QMouseEvent* e) override;
     void focusInEvent(QFocusEvent* e) override;
-    void resizeEvent(QResizeEvent* e) override;
 private:
     void killCurrentIndex();
     int dropTargetRow(const QPoint& pos);

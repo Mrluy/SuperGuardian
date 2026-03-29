@@ -138,6 +138,13 @@ if (Test-Path $readmePath) {
     Write-Host "     README.md" -ForegroundColor DarkGray
 }
 
+# 桌面快捷方式脚本（存在则附带）
+$batPath = Join-Path $root '一键创建桌面快捷方式.bat'
+if (Test-Path $batPath) {
+    Copy-Item $batPath (Join-Path $stagingDir '一键创建桌面快捷方式.bat') -Force
+    Write-Host "     一键创建桌面快捷方式.bat" -ForegroundColor DarkGray
+}
+
 # Debug 模式：部署 Qt 运行时
 if ($Configuration -eq 'Debug') {
     Write-Step "Debug 模式：部署 Qt 运行时 ..."

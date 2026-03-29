@@ -29,13 +29,14 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     lineEdit = new PathLineEdit(this);
     lineEdit->setPlaceholderText(QString::fromUtf8("请在此添加程序，可拖动程序到此处"));
     int lineH = lineEdit->fontMetrics().height();
-    lineEdit->setMinimumHeight(lineH * 2 + 10);
+    int inputH = (lineH * 2 + 10) * 3 / 4;
+    lineEdit->setMinimumHeight(inputH);
     btnBrowse = new QPushButton(QString::fromUtf8("选择程序"), this);
     btnCancel = new QPushButton(QString::fromUtf8("取消"), this);
     btnAdd = new QPushButton(QString::fromUtf8("添加"), this);
-    btnBrowse->setFixedHeight(lineEdit->minimumHeight());
-    btnCancel->setFixedHeight(lineEdit->minimumHeight());
-    btnAdd->setFixedHeight(lineEdit->minimumHeight());
+    btnBrowse->setFixedHeight(inputH);
+    btnCancel->setFixedHeight(inputH);
+    btnAdd->setFixedHeight(inputH);
     btnCancel->setEnabled(false);
     btnAdd->setEnabled(false);
     tableWidget = new DesktopSelectTable(this);
@@ -326,99 +327,4 @@ void SuperGuardian::toggleTheme() {
 QString SuperGuardian::formatStartDelay(int secs) const {
     if (secs <= 0) return QString::fromUtf8("\u5173\u95ed");
     return QString::number(secs) + QString::fromUtf8(" \u79d2");
-}
-
-void SuperGuardian::handleRowMoved(int fromRow, int toRow) {
-    QStringList pathOrder;
-    for (int r = 0; r < tableWidget->rowCount(); r++) {
-        QTableWidgetItem* it = tableWidget->item(r, 0);
-        if (!it) continue;
-        pathOrder << it->data(Qt::UserRole).toString();
-    }
-    if (fromRow < 0 || fromRow >= pathOrder.size()) return;
-    QString movedPath = pathOrder.takeAt(fromRow);
-    pathOrder.insert(toRow, movedPath);
-
-    // Rebuild items vector in the new order
-    QVector<GuardItem> newItems;
-    for (const QString& p : pathOrder) {
-        int idx = findItemIndexByPath(p);
-        if (idx >= 0) newItems.append(items[idx]);
-    }
-    items = newItems;
-    rebuildTableFromItems();
-    int newRow = findRowByPath(movedPath);
-    if (newRow >= 0) tableWidget->selectRow(newRow);
-    saveSettings();
-}
-
-void SuperGuardian::closeAllGuards() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b88\u62a4"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b88\u62a4\u5417\uff1f"), true))
-        return;
-    for (int i = 0; i < items.size(); ++i) {
-        if (items[i].guarding) {
-            items[i].guarding = false;
-            int row = findRowByPath(items[i].path);
-            if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
-                }
-                if (!items[i].restartRulesActive) {
-                    if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-                }
-                if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
-                updateButtonStates(row);
-            }
-        }
-    }
-    saveSettings();
-}
-
-void SuperGuardian::closeAllScheduledRestart() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u91cd\u542f"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b9a\u65f6\u91cd\u542f\u5417\uff1f"), true))
-        return;
-    for (int i = 0; i < items.size(); ++i) {
-        if (items[i].restartRulesActive) {
-            items[i].restartRulesActive = false;
-            int row = findRowByPath(items[i].path);
-            if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
-                }
-                if (tableWidget->item(row, 5)) tableWidget->item(row, 5)->setText("-");
-                if (tableWidget->item(row, 6)) tableWidget->item(row, 6)->setText("-");
-                updateButtonStates(row);
-            }
-        }
-    }
-    saveSettings();
-}
-
-void SuperGuardian::closeAllScheduledRun() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u8fd0\u884c"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b9a\u65f6\u8fd0\u884c\u5417\uff1f"), true))
-        return;
-    for (int i = 0; i < items.size(); ++i) {
-        if (items[i].scheduledRunEnabled) {
-            items[i].scheduledRunEnabled = false;
-            int row = findRowByPath(items[i].path);
-            if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
-                }
-                if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-                if (tableWidget->item(row, 7)) tableWidget->item(row, 7)->setText(formatStartDelay(items[i].startDelaySecs));
-                updateButtonStates(row);
-            }
-        }
-    }
-    saveSettings();
 }
