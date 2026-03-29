@@ -77,7 +77,7 @@ void SuperGuardian::loadSettings() {
         item.guarding = s.value("guard").toBool();
         item.startTime = QDateTime::fromString(s.value("startTime").toString());
         item.lastRestart = QDateTime::fromString(s.value("lastRestart").toString());
-        item.restartCount = s.value("restartCount").toInt();
+        item.restartCount = 0;
         item.startDelaySecs = s.value("startDelaySecs", 1).toInt();
         if (item.startDelaySecs < 0) item.startDelaySecs = 0;
 
@@ -117,6 +117,7 @@ void SuperGuardian::loadSettings() {
         item.emailNotify.onRetryExhausted = s.value("emailOnRetryExhausted", true).toBool();
 
         item.pinned = s.value("pinned", false).toBool();
+        item.note = s.value("note").toString();
 
         items.append(item);
     }
@@ -177,6 +178,7 @@ void SuperGuardian::saveSettings() {
         s.setValue("emailOnRetryExhausted", items[i].emailNotify.onRetryExhausted);
 
         s.setValue("pinned", items[i].pinned);
+        s.setValue("note", items[i].note);
     }
     s.endArray();
 }

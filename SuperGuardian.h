@@ -62,6 +62,7 @@ private:
     void closeAllScheduledRestart();
     void closeAllScheduledRun();
     QString formatStartDelay(int secs) const;
+    void createDesktopShortcut();
 
 private slots:
     void toggleVisible();
@@ -81,6 +82,7 @@ private slots:
     void contextSetRetryConfig(const QList<int>& rows);
     void contextSetEmailNotify(const QList<int>& rows);
     void contextSetLaunchArgs(const QList<int>& rows);
+    void contextSetNote(const QList<int>& rows);
     void contextOpenFileLocation(int row);
     void showSmtpConfigDialog();
     void contextTogglePin(const QList<int>& rows);

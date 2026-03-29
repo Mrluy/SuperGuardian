@@ -42,7 +42,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     };
 
     lineEdit = new PathLineEdit(this);
-    lineEdit->setPlaceholderText(QString::fromUtf8("\u8f93\u5165\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\uff0c\u53ef\u9644\u5e26\u53c2\u6570\uff0c\u652f\u6301\u62d6\u653e"));
+    lineEdit->setPlaceholderText(QString::fromUtf8("输入程序完整路径 / 系统程序名称（如 powershell、notepad，不区分大小写）/ 可附带启动参数，支持拖放 .exe 或 .lnk"));
     int lineH = lineEdit->fontMetrics().height();
     int inputH = (lineH * 2 + 10) * 3 / 4;
     lineEdit->setMinimumHeight(inputH);
@@ -57,7 +57,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(9);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("\u4e0a\u6b21\u91cd\u542f"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), QString::fromUtf8("\u4e0b\u6b21\u91cd\u542f"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("上次重启/运行"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), QString::fromUtf8("下次重启/运行"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     tableWidget->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
     tableWidget->setColumnWidth(8, 300);
@@ -154,6 +154,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b88\u62a4"), this, &SuperGuardian::closeAllGuards);
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u91cd\u542f"), this, &SuperGuardian::closeAllScheduledRestart);
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u8fd0\u884c"), this, &SuperGuardian::closeAllScheduledRun);
+    operationMenu->addSeparator();
+    operationMenu->addAction(QString::fromUtf8("添加桌面快捷方式"), this, &SuperGuardian::createDesktopShortcut);
 
     QMenu* testMenu = menuBar()->addMenu(QString::fromUtf8("测试"));
     testMenu->addAction(QString::fromUtf8("测试自我守护"), this, &SuperGuardian::runSelfGuardTest);
@@ -199,7 +201,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         btnAdd->setEnabled(hasText);
         btnCancel->setEnabled(hasText);
     });
-    connect(btnAdd, &QPushButton::clicked, this, [this]() {
+    auto doAddProgram = [this]() {
         QString text = lineEdit->text().trimmed();
         if (text.isEmpty()) return;
         QString progPath, progArgs;
@@ -225,7 +227,9 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         }
         addProgram(progPath.trimmed(), progArgs.trimmed());
         lineEdit->clear();
-    });
+    };
+    connect(btnAdd, &QPushButton::clicked, this, doAddProgram);
+    connect(lineEdit, &QLineEdit::returnPressed, this, doAddProgram);
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);

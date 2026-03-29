@@ -61,6 +61,8 @@ void SuperGuardian::checkProcesses() {
             };
             setCell(1, QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c"));
             setCell(2, "-");
+            setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(4, "-");
             QString rulesText = formatScheduleRules(item.runRules);
             setCell(5, rulesText);
             QDateTime nt = nextTriggerTime(item.runRules);

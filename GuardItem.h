@@ -36,6 +36,7 @@ struct GuardItem {
     QString targetPath;
     QString processName;
     QString launchArgs;
+    QString note;
     bool guarding = false;
     bool internalSelfGuard = false;
     bool pinned = false;

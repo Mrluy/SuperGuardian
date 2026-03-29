@@ -14,13 +14,16 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         it->setToolTip(t);
         return it;
     };
-    QString displayName = item.launchArgs.isEmpty() ? item.processName : (item.processName + " " + item.launchArgs);
+    QString displayName = item.note.isEmpty()
+        ? (item.launchArgs.isEmpty() ? item.processName : (item.processName + " " + item.launchArgs))
+        : item.note;
+    QString tooltipName = item.launchArgs.isEmpty() ? item.processName : (item.processName + " " + item.launchArgs);
     QTableWidgetItem* nameItem = new QTableWidgetItem(displayName);
     nameItem->setIcon(getFileIcon(item.targetPath));
     nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
     nameItem->setData(Qt::UserRole, item.path);
     nameItem->setData(Qt::UserRole + 2, item.pinned);
-    nameItem->setToolTip(displayName);
+    nameItem->setToolTip(tooltipName);
     tableWidget->setItem(row, 0, nameItem);
 
     QString initStatus;
@@ -32,7 +35,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     tableWidget->setItem(row, 1, makeItem(initStatus));
     tableWidget->setItem(row, 2, makeItem(item.guarding ? QStringLiteral("0") : QStringLiteral("-")));
     tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
-    tableWidget->setItem(row, 4, makeItem(QString::number(item.restartCount)));
+    tableWidget->setItem(row, 4, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : QString::number(item.restartCount)));
 
     // col 5/6 始终显示定时重启规则
     tableWidget->setItem(row, 5, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
@@ -83,10 +86,12 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
                 it.lastLaunchTime = QDateTime::currentDateTime();
             }
         } else {
+            it.restartCount = 0;
             if (!it.restartRulesActive) {
                 if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
             }
             if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
+            if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");
         }
         updateButtonStates(displayRow);
         saveSettings();

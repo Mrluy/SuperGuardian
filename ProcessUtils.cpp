@@ -123,10 +123,11 @@ void setAutostart(bool enable) {
     HKEY hKey;
     LPCWSTR runKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     if (RegOpenKeyExW(HKEY_CURRENT_USER, runKey, 0, KEY_WRITE, &hKey) != ERROR_SUCCESS) return;
-    wchar_t exePath[MAX_PATH];
-    wcscpy_s(exePath, (wchar_t*)QCoreApplication::applicationFilePath().utf16());
     if (enable) {
-        RegSetValueExW(hKey, L"SuperGuardian", 0, REG_SZ, (const BYTE*)exePath, (DWORD)((wcslen(exePath)+1)*sizeof(wchar_t)));
+        QString appPath = QCoreApplication::applicationFilePath();
+        QString quoted = QString("\"%1\"").arg(QDir::toNativeSeparators(appPath));
+        const wchar_t* wpath = (const wchar_t*)quoted.utf16();
+        RegSetValueExW(hKey, L"SuperGuardian", 0, REG_SZ, (const BYTE*)wpath, (DWORD)((wcslen(wpath)+1)*sizeof(wchar_t)));
     } else {
         RegDeleteValueW(hKey, L"SuperGuardian");
     }

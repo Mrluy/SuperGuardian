@@ -250,15 +250,24 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     saveSettings();
 }
 
-// ---- 启动参数设置对话框 ----
+// ---- 启动程序/参数设置对话框 ----
 
 void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u53c2\u6570"));
+    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u7a0b\u5e8f/\u53c2\u6570"));
     dlg.setFixedWidth(450);
-    dlg.setMinimumHeight(160);
+    dlg.setMinimumHeight(200);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8f93\u5165\u542f\u52a8\u53c2\u6570\uff08\u7559\u7a7a\u8868\u793a\u65e0\u53c2\u6570\uff09\uff1a")));
+
+    lay->addWidget(new QLabel(QString::fromUtf8("\u542f\u52a8\u7a0b\u5e8f\u8def\u5f84\uff1a")));
+    QLineEdit* pathEdit = new QLineEdit();
+    if (rows.size() == 1) {
+        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        if (itemIdx >= 0) pathEdit->setText(items[itemIdx].targetPath);
+    }
+    lay->addWidget(pathEdit);
+
+    lay->addWidget(new QLabel(QString::fromUtf8("\u542f\u52a8\u53c2\u6570\uff08\u7559\u7a7a\u8868\u793a\u65e0\u53c2\u6570\uff09\uff1a")));
     QLineEdit* argsEdit = new QLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
@@ -276,15 +285,25 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addLayout(btnLay);
     if (dlg.exec() != QDialog::Accepted) return;
 
+    QString newPath = pathEdit->text().trimmed();
     QString args = argsEdit->text().trimmed();
     for (int row : rows) {
         int itemIdx = findItemIndexByPath(rowPath(row));
         if (itemIdx < 0) continue;
-        items[itemIdx].launchArgs = args;
-        QString displayName = args.isEmpty() ? items[itemIdx].processName : (items[itemIdx].processName + " " + args);
+        GuardItem& item = items[itemIdx];
+        if (!newPath.isEmpty() && newPath != item.targetPath) {
+            item.targetPath = newPath;
+            item.processName = QFileInfo(newPath).fileName();
+        }
+        item.launchArgs = args;
+        QString displayName = item.note.isEmpty()
+            ? (args.isEmpty() ? item.processName : (item.processName + " " + args))
+            : item.note;
+        QString tooltipName = args.isEmpty() ? item.processName : (item.processName + " " + args);
         if (tableWidget->item(row, 0)) {
             tableWidget->item(row, 0)->setText(displayName);
-            tableWidget->item(row, 0)->setToolTip(displayName);
+            tableWidget->item(row, 0)->setToolTip(tooltipName);
+            tableWidget->item(row, 0)->setIcon(getFileIcon(item.targetPath));
         }
     }
     saveSettings();
