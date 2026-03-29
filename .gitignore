@@ -366,3 +366,4 @@ FodyWeavers.xsd
 /app.ico
 /SuperGuardian.vcxproj
 /SuperGuardian.vcxproj.filters
+/build_static_qt.bat
