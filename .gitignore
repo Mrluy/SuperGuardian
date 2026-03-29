@@ -367,3 +367,4 @@ FodyWeavers.xsd
 /SuperGuardian.vcxproj
 /SuperGuardian.vcxproj.filters
 /build_static_qt.bat
+/package.ps1
