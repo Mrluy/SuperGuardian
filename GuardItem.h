@@ -35,8 +35,10 @@ struct GuardItem {
     QString path;
     QString targetPath;
     QString processName;
+    QString launchArgs;
     bool guarding = false;
     bool internalSelfGuard = false;
+    bool pinned = false;
     QDateTime startTime;
     QDateTime lastRestart;
     QDateTime lastLaunchTime;

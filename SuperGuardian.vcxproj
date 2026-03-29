@@ -136,7 +136,6 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
   </ItemGroup>
   <ItemGroup>
     <None Include="SuperGuardian.ui.new" />
-    <None Include="_build_static_runner.bat" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="app.rc" />

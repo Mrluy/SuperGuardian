@@ -4,3 +4,4 @@
 
 QString detectSystemThemeName();
 void applyAppTheme(const QString& theme);
+QString currentThemeName();

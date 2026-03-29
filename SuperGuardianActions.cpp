@@ -10,6 +10,8 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     QModelIndex idx = tableWidget->indexAt(pos);
     if (!idx.isValid()) return;
     int row = idx.row();
+
+    // --- Item context menu ---
     int itemIndex = findItemIndexByPath(rowPath(row));
     if (itemIndex < 0) return;
 
@@ -36,6 +38,14 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     targetRows.erase(std::unique(targetRows.begin(), targetRows.end()), targetRows.end());
 
     QMenu menu(this);
+
+    // Pin toggle
+    bool allPinned = true;
+    for (int r : targetRows) { int ii = findItemIndexByPath(rowPath(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
+    menu.addAction(allPinned ? QString::fromUtf8("\u53d6\u6d88\u7f6e\u9876") : QString::fromUtf8("\u7f6e\u9876"),
+        this, [this, targetRows]() { contextTogglePin(targetRows); });
+    menu.addSeparator();
+
     menu.addAction(QString::fromUtf8("\u624b\u52a8\u542f\u52a8"), this, [this, targetRows]() { for (int row : targetRows) contextStartProgram(row); });
     menu.addAction(QString::fromUtf8("\u7ec8\u6b62\u8fdb\u7a0b"), this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
@@ -50,9 +60,15 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
     menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
     menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6"), this, [this, targetRows]() { contextSetStartDelay(targetRows); });
+    menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u53c2\u6570"), this, [this, targetRows]() { contextSetLaunchArgs(targetRows); });
     menu.addAction(QString::fromUtf8("\u91cd\u8bd5\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
     menu.addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
     menu.addSeparator();
+
+    menu.addSeparator();
+    if (targetRows.size() == 1) {
+        menu.addAction(QString::fromUtf8("\u6253\u5f00\u6587\u4ef6\u6240\u5728\u7684\u4f4d\u7f6e"), this, [this, row]() { contextOpenFileLocation(row); });
+    }
     menu.addAction(QString::fromUtf8("\u79fb\u9664\u9879"), this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
             ? tableWidget->item(targetRows[0], 0)->text() : QString();
@@ -70,7 +86,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 void SuperGuardian::contextStartProgram(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
-    launchProgram(items[idx].path);
+    launchProgram(items[idx].targetPath, items[idx].launchArgs);
 }
 
 void SuperGuardian::contextKillProgram(int row) {
@@ -93,7 +109,7 @@ void SuperGuardian::contextToggleGuard(int row) {
         int count = 0;
         bool running = isProcessRunning(items[idx].processName, count);
         if (!running && count == 0) {
-            launchProgram(items[idx].path);
+            launchProgram(items[idx].targetPath, items[idx].launchArgs);
             items[idx].lastLaunchTime = QDateTime::currentDateTime();
         }
     } else {
@@ -302,7 +318,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
             setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
         }
-        setCell(7, item.scheduledRunEnabled ? "-" : (QString::number(item.startDelaySecs) + QString::fromUtf8(" \u79d2")));
+        setCell(7, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
 
         // Update buttons
         QWidget* opw = tableWidget->cellWidget(row, 8);
@@ -340,7 +356,7 @@ void SuperGuardian::onTableDoubleClicked(int row, int col) {
         int count = 0;
         bool running = isProcessRunning(item.processName, count);
         if (!running && count == 0) {
-            launchProgram(item.path);
+            launchProgram(item.targetPath, item.launchArgs);
             item.lastLaunchTime = QDateTime::currentDateTime();
         }
     } else {
@@ -360,11 +376,12 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     dlg.setMinimumHeight(150);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
     lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6\uff08\u79d2\uff09\uff1a")));
-    lay->addWidget(new QLabel(QString::fromUtf8("\u7a0b\u5e8f\u91cd\u542f\u65f6\u7684\u5ef6\u65f6\uff0c\u6700\u5c0f 1 \u79d2\u3002\n\u5b88\u62a4\u91cd\u542f\u3001\u5b9a\u65f6\u91cd\u542f\u5747\u4f7f\u7528\u6b64\u5ef6\u65f6\u3002")));
+    lay->addWidget(new QLabel(QString::fromUtf8("\u7a0b\u5e8f\u91cd\u542f\u65f6\u7684\u5ef6\u65f6\uff0c\u8bbe\u7f6e\u4e3a 0 \u5173\u95ed\u5ef6\u65f6\u3002\n\u5b88\u62a4\u91cd\u542f\u3001\u5b9a\u65f6\u91cd\u542f\u5747\u4f7f\u7528\u6b64\u5ef6\u65f6\u3002")));
     QSpinBox* spin = new QSpinBox();
-    spin->setRange(1, 86400);
+    spin->setRange(0, 86400);
     spin->setValue(1);
     spin->setSuffix(QString::fromUtf8(" \u79d2"));
+    spin->setSpecialValueText(QString::fromUtf8("\u5173\u95ed"));
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
         if (itemIdx >= 0) spin->setValue(items[itemIdx].startDelaySecs);
@@ -394,7 +411,7 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
             if (item.scheduledRunEnabled)
                 tableWidget->item(row, 7)->setText("-");
             else
-                tableWidget->item(row, 7)->setText(QString::number(delaySecs) + QString::fromUtf8(" \u79d2"));
+                tableWidget->item(row, 7)->setText(formatStartDelay(delaySecs));
         }
     }
     saveSettings();
@@ -588,5 +605,66 @@ void SuperGuardian::showSmtpConfigDialog() {
     smtpConfig.fromAddress = fromEdit->text();
     smtpConfig.fromName = fromNameEdit->text();
     smtpConfig.toAddress = toEdit->text();
+    saveSettings();
+}
+
+void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u53c2\u6570"));
+    dlg.setFixedWidth(450);
+    dlg.setMinimumHeight(160);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8f93\u5165\u542f\u52a8\u53c2\u6570\uff08\u7559\u7a7a\u8868\u793a\u65e0\u53c2\u6570\uff09\uff1a")));
+    QLineEdit* argsEdit = new QLineEdit();
+    if (rows.size() == 1) {
+        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        if (itemIdx >= 0) argsEdit->setText(items[itemIdx].launchArgs);
+    }
+    lay->addWidget(argsEdit);
+    lay->addStretch();
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
+    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
+    lay->addLayout(btnLay);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    QString args = argsEdit->text().trimmed();
+    for (int row : rows) {
+        int itemIdx = findItemIndexByPath(rowPath(row));
+        if (itemIdx < 0) continue;
+        items[itemIdx].launchArgs = args;
+        QString displayName = args.isEmpty() ? items[itemIdx].processName : (items[itemIdx].processName + " " + args);
+        if (tableWidget->item(row, 0)) {
+            tableWidget->item(row, 0)->setText(displayName);
+            tableWidget->item(row, 0)->setToolTip(displayName);
+        }
+    }
+    saveSettings();
+}
+
+void SuperGuardian::contextOpenFileLocation(int row) {
+    int idx = findItemIndexByPath(rowPath(row));
+    if (idx < 0) return;
+    QString filePath = QDir::toNativeSeparators(items[idx].targetPath);
+    QProcess::startDetached("explorer.exe", QStringList() << "/select," << filePath);
+}
+
+// ---- 置顶操作 ----
+
+void SuperGuardian::contextTogglePin(const QList<int>& rows) {
+    bool allPinned = true;
+    for (int r : rows) {
+        int ii = findItemIndexByPath(rowPath(r));
+        if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; }
+    }
+    for (int r : rows) {
+        int ii = findItemIndexByPath(rowPath(r));
+        if (ii >= 0) items[ii].pinned = !allPinned;
+    }
+    rebuildTableFromItems();
     saveSettings();
 }

@@ -1,5 +1,9 @@
 <RCC>
     <qresource prefix="SuperGuardian">
-        <file alias="app.ico">app.ico</file>
+        <file alias="app.ico">img/app.ico</file>
+        <file alias="light.png">img/light.png</file>
+        <file alias="dark.png">img/dark.png</file>
+        <file alias="top_light.png">img/top_light.png</file>
+        <file alias="top_dark.png">img/top_dark.png</file>
     </qresource>
 </RCC>

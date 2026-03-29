@@ -1,6 +1,9 @@
 #include "GuardTableWidgets.h"
+#include "ThemeManager.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QMouseEvent>
+#include <QApplication>
 
 // --- BruteForceDelegate ---
 
@@ -10,16 +13,38 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
         painter->fillRect(option.rect, option.palette.highlight());
         painter->setPen(option.palette.highlightedText().color());
     } else {
-        painter->fillRect(option.rect, option.palette.base());
+        QVariant bgVar = index.data(Qt::BackgroundRole);
+        if (bgVar.isValid())
+            painter->fillRect(option.rect, qvariant_cast<QBrush>(bgVar));
+        else
+            painter->fillRect(option.rect, option.palette.base());
         painter->setPen(option.palette.text().color());
     }
+    QVariant fontVar = index.data(Qt::FontRole);
+    if (fontVar.isValid()) painter->setFont(qvariant_cast<QFont>(fontVar));
     QRect textRect = option.rect.adjusted(4, 0, -2, 0);
+
+    // Draw pin icon before program icon (column 0 only)
+    bool isPinned = index.data(Qt::UserRole + 2).toBool();
+    if (index.column() == 0 && isPinned) {
+        QString pinRes = (currentThemeName() == "dark")
+            ? QStringLiteral(":/SuperGuardian/top_light.png")
+            : QStringLiteral(":/SuperGuardian/top_dark.png");
+        QIcon pinIcon(pinRes);
+        if (!pinIcon.isNull()) {
+            int pinSz = qMin(option.rect.height() - 4, 16);
+            QRect pinRect(textRect.left(), option.rect.top() + (option.rect.height() - pinSz) / 2, pinSz, pinSz);
+            pinIcon.paint(painter, pinRect);
+            textRect.setLeft(pinRect.right() + 4);
+        }
+    }
+
     QVariant deco = index.data(Qt::DecorationRole);
     if (!deco.isNull()) {
         QIcon icon = qvariant_cast<QIcon>(deco);
         if (!icon.isNull()) {
             int iconSz = qMin(option.rect.height() - 4, 20);
-            QRect iconRect(option.rect.left() + 4, option.rect.top() + (option.rect.height() - iconSz) / 2, iconSz, iconSz);
+            QRect iconRect(textRect.left(), option.rect.top() + (option.rect.height() - iconSz) / 2, iconSz, iconSz);
             icon.paint(painter, iconRect);
             textRect.setLeft(iconRect.right() + 4);
         }
@@ -33,8 +58,35 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
 
 // --- DesktopSelectTable ---
 
+int DesktopSelectTable::dropTargetRow(const QPoint& pos) {
+    int rc = rowCount();
+    if (rc == 0) return 0;
+    for (int r = 0; r < rc; r++) {
+        QRect rr = visualRect(model()->index(r, 0));
+        rr.setLeft(0);
+        rr.setRight(viewport()->width());
+        if (pos.y() < rr.center().y()) return r;
+    }
+    return rc;
+}
+
 void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
+        QModelIndex idx = indexAt(e->pos());
+
+        // Check if clicking on an already-selected row (for drag-reorder)
+        if (idx.isValid() && selectionModel()->isRowSelected(idx.row(), QModelIndex())
+            && !(e->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))) {
+            m_pendingRowDrag = true;
+            m_rowDragMode = false;
+            m_dragSourceRow = idx.row();
+            m_origin = e->pos();
+            m_dragActive = false;
+            return;
+        }
+
+        m_pendingRowDrag = false;
+        m_rowDragMode = false;
         m_dragActive = true;
         m_origin = e->pos();
         if (!m_band)
@@ -54,7 +106,6 @@ void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
             clearSelection();
         }
 
-        QModelIndex idx = indexAt(e->pos());
         if (idx.isValid()) {
             if (m_mode == Mode::Toggle)
                 selectionModel()->select(model()->index(idx.row(), 0),
@@ -70,16 +121,46 @@ void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
 }
 
 void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
+    if (m_pendingRowDrag) {
+        if ((e->pos() - m_origin).manhattanLength() > QApplication::startDragDistance()) {
+            m_pendingRowDrag = false;
+            m_rowDragMode = true;
+            setCursor(Qt::ClosedHandCursor);
+        } else {
+            return;
+        }
+    }
+
+    if (m_rowDragMode) {
+        int target = dropTargetRow(e->pos());
+        if (!m_dropLine) {
+            m_dropLine = new QFrame(viewport());
+            m_dropLine->setFixedHeight(2);
+            m_dropLine->setStyleSheet("background-color: #3daee9;");
+        }
+        int y = 0;
+        if (target < rowCount()) {
+            QRect rr = visualRect(model()->index(target, 0));
+            y = rr.top();
+        } else if (rowCount() > 0) {
+            QRect rr = visualRect(model()->index(rowCount() - 1, 0));
+            y = rr.bottom() + 1;
+        }
+        m_dropLine->setGeometry(0, y - 1, viewport()->width(), 2);
+        m_dropLine->show();
+        return;
+    }
+
     if (m_dragActive && m_band) {
         QRect rect = QRect(m_origin, e->pos()).normalized();
         m_band->setGeometry(rect);
         QItemSelection bandSel;
         for (int row = 0; row < rowCount(); ++row) {
-            QRect rowRect = visualRect(model()->index(row, 0));
+            QModelIndex first = model()->index(row, 0);
+            QRect rowRect = visualRect(first);
             rowRect.setLeft(0);
             rowRect.setRight(viewport()->width());
             if (rect.intersects(rowRect)) {
-                QModelIndex first = model()->index(row, 0);
                 QModelIndex last = model()->index(row, columnCount() - 1);
                 bandSel.select(first, last);
             }
@@ -101,6 +182,24 @@ void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
 
 void DesktopSelectTable::mouseReleaseEvent(QMouseEvent* e) {
     Q_UNUSED(e);
+    if (m_pendingRowDrag) {
+        m_pendingRowDrag = false;
+        killCurrentIndex();
+        return;
+    }
+    if (m_rowDragMode) {
+        m_rowDragMode = false;
+        setCursor(Qt::ArrowCursor);
+        if (m_dropLine) m_dropLine->hide();
+        int insertBefore = dropTargetRow(e->pos());
+        int fromRow = m_dragSourceRow;
+        m_dragSourceRow = -1;
+        if (insertBefore != fromRow && insertBefore != fromRow + 1) {
+            int toRow = (insertBefore > fromRow) ? insertBefore - 1 : insertBefore;
+            if (onRowMoved) onRowMoved(fromRow, toRow);
+        }
+        return;
+    }
     if (m_dragActive && m_band) {
         m_band->hide();
         m_dragActive = false;
@@ -116,4 +215,11 @@ void DesktopSelectTable::focusInEvent(QFocusEvent* e) {
 void DesktopSelectTable::killCurrentIndex() {
     if (selectionModel())
         selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::NoUpdate);
+}
+
+void DesktopSelectTable::resizeEvent(QResizeEvent* e) {
+    QTableWidget::resizeEvent(e);
+    QPainterPath path;
+    path.addRoundedRect(QRectF(rect()), 6, 6);
+    setMask(QRegion(path.toFillPolygon().toPolygon()));
 }

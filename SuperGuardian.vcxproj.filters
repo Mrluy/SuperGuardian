@@ -78,11 +78,11 @@
     <ClInclude Include="ThemeManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="EmailService.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="SuperGuardian_new2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ThemeManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -93,6 +93,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProcessUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="EmailService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

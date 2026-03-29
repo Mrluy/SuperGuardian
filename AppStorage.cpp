@@ -48,14 +48,29 @@ void appendWatchdogLog(const QString& msg, unsigned long err) {
     ts << "\n";
 }
 
-QString operationLogFilePath() {
+QString scheduledRestartLogFilePath() {
     QDir dir(appLogsDirPath());
     dir.mkpath(".");
-    return dir.filePath("operation.log");
+    return dir.filePath("scheduled_restart.log");
 }
 
-void appendOperationLog(const QString& msg) {
-    QString logPath = operationLogFilePath();
+void appendScheduledRestartLog(const QString& msg) {
+    QString logPath = scheduledRestartLogFilePath();
+    if (logPath.isEmpty()) return;
+    QFile f(logPath);
+    if (!f.open(QIODevice::Append | QIODevice::Text)) return;
+    QTextStream ts(&f);
+    ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss") << " " << msg << "\n";
+}
+
+QString scheduledRunLogFilePath() {
+    QDir dir(appLogsDirPath());
+    dir.mkpath(".");
+    return dir.filePath("scheduled_run.log");
+}
+
+void appendScheduledRunLog(const QString& msg) {
+    QString logPath = scheduledRunLogFilePath();
     if (logPath.isEmpty()) return;
     QFile f(logPath);
     if (!f.open(QIODevice::Append | QIODevice::Text)) return;

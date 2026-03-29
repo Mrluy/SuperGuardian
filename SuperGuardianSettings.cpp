@@ -69,14 +69,18 @@ void SuperGuardian::loadSettings() {
         QString path = s.value("path").toString();
         GuardItem item;
         item.path = path;
-        item.targetPath = resolveShortcut(path);
+        QString shortcutArgs;
+        item.targetPath = resolveShortcut(path, &shortcutArgs);
+        item.launchArgs = s.value("launchArgs").toString();
+        if (item.launchArgs.isEmpty() && !shortcutArgs.isEmpty())
+            item.launchArgs = shortcutArgs;
         item.processName = QFileInfo(item.targetPath).fileName();
         item.guarding = s.value("guard").toBool();
         item.startTime = QDateTime::fromString(s.value("startTime").toString());
         item.lastRestart = QDateTime::fromString(s.value("lastRestart").toString());
         item.restartCount = s.value("restartCount").toInt();
         item.startDelaySecs = s.value("startDelaySecs", 1).toInt();
-        if (item.startDelaySecs < 1) item.startDelaySecs = 1;
+        if (item.startDelaySecs < 0) item.startDelaySecs = 0;
 
         // Load schedule rules (new format)
         if (s.contains("restartRulesJson")) {
@@ -113,12 +117,13 @@ void SuperGuardian::loadSettings() {
         item.emailNotify.onProcessExited = s.value("emailOnProcessExited", false).toBool();
         item.emailNotify.onRetryExhausted = s.value("emailOnRetryExhausted", true).toBool();
 
+        item.pinned = s.value("pinned", false).toBool();
+
         items.append(item);
-        int row = tableWidget->rowCount();
-        tableWidget->insertRow(row);
-        setupTableRow(row, item);
     }
     s.endArray();
+
+    rebuildTableFromItems();
     syncSelfGuardListEntry(selfGuardAct && selfGuardAct->isChecked());
 }
 
@@ -145,6 +150,7 @@ void SuperGuardian::saveSettings() {
     for (int i = 0; i < items.size(); ++i) {
         s.setArrayIndex(saveIndex++);
         s.setValue("path", items[i].path);
+        s.setValue("launchArgs", items[i].launchArgs);
         s.setValue("guard", items[i].guarding);
         s.setValue("lastRestart", items[i].lastRestart.toString());
         s.setValue("restartCount", items[i].restartCount);
@@ -170,6 +176,8 @@ void SuperGuardian::saveSettings() {
         s.setValue("emailOnRunFailed", items[i].emailNotify.onScheduledRunFailed);
         s.setValue("emailOnProcessExited", items[i].emailNotify.onProcessExited);
         s.setValue("emailOnRetryExhausted", items[i].emailNotify.onRetryExhausted);
+
+        s.setValue("pinned", items[i].pinned);
     }
     s.endArray();
 }
@@ -197,7 +205,7 @@ QString SuperGuardian::rowPath(int row) const {
 }
 
 void SuperGuardian::clearListWithConfirmation() {
-    if (!showMessageDialog(this, QString::fromUtf8("清空列表"), QString::fromUtf8("确认清空列表中的所有普通程序项吗？"), true)) {
+    if (!showMessageDialog(this, QString::fromUtf8("清空列表"), QString::fromUtf8("确认清空列表中的所有项吗？"), true)) {
         return;
     }
 
@@ -206,6 +214,7 @@ void SuperGuardian::clearListWithConfirmation() {
         if (row >= 0) tableWidget->removeRow(row);
         items.removeAt(i);
     }
+    rebuildTableFromItems();
     saveSettings();
 }
 
@@ -367,10 +376,20 @@ void SuperGuardian::resetConfig() {
 
 void SuperGuardian::rebuildTableFromItems() {
     tableWidget->setRowCount(0);
-    for (int i = 0; i < items.size(); ++i) {
-        const GuardItem& item = items[i];
-        int row = tableWidget->rowCount();
-        tableWidget->insertRow(row);
-        setupTableRow(row, item);
+    // Pinned items first
+    for (const GuardItem& item : items) {
+        if (item.pinned) {
+            int row = tableWidget->rowCount();
+            tableWidget->insertRow(row);
+            setupTableRow(row, item);
+        }
+    }
+    // Then unpinned
+    for (const GuardItem& item : items) {
+        if (!item.pinned) {
+            int row = tableWidget->rowCount();
+            tableWidget->insertRow(row);
+            setupTableRow(row, item);
+        }
     }
 }

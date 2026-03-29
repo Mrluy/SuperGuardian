@@ -57,6 +57,11 @@ private:
     void resetConfig();
     void rebuildTableFromItems();
     void trySendNotification(GuardItem& item, const QString& event, const QString& detail);
+    void handleRowMoved(int fromRow, int toRow);
+    void closeAllGuards();
+    void closeAllScheduledRestart();
+    void closeAllScheduledRun();
+    QString formatStartDelay(int secs) const;
 
 private slots:
     void toggleVisible();
@@ -75,7 +80,10 @@ private slots:
     void contextSetStartDelay(const QList<int>& rows);
     void contextSetRetryConfig(const QList<int>& rows);
     void contextSetEmailNotify(const QList<int>& rows);
+    void contextSetLaunchArgs(const QList<int>& rows);
+    void contextOpenFileLocation(int row);
     void showSmtpConfigDialog();
+    void contextTogglePin(const QList<int>& rows);
 
 protected:
     void closeEvent(QCloseEvent* event) override;

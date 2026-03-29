@@ -4,9 +4,6 @@
 #include "ProcessUtils.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
-#include <QPainter>
-#include <QPainterPath>
-#include <QtMath>
 #include <windows.h>
 
 // ---- 托盘选项、看门狗、主题 ----
@@ -46,58 +43,18 @@ void SuperGuardian::applySavedTrayOptions() {
     syncSelfGuardListEntry(self);
 }
 
-static QIcon createSunIconForTray(int size = 18) {
-    QPixmap pix(size, size);
-    pix.fill(Qt::transparent);
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-    QColor color(220, 160, 0);
-    qreal center = size / 2.0;
-    qreal bodyR = size / 5.0;
-    p.setPen(QPen(color, 1.5));
-    for (int i = 0; i < 8; i++) {
-        qreal angle = i * M_PI / 4.0;
-        qreal inner = bodyR + 1.5;
-        qreal outer = center - 1.0;
-        p.drawLine(QPointF(center + inner * qCos(angle), center + inner * qSin(angle)),
-                   QPointF(center + outer * qCos(angle), center + outer * qSin(angle)));
-    }
-    p.setPen(Qt::NoPen);
-    p.setBrush(color);
-    p.drawEllipse(QPointF(center, center), bodyR, bodyR);
-    return QIcon(pix);
-}
-
-static QIcon createMoonIconForTray(int size = 18) {
-    QPixmap pix(size, size);
-    pix.fill(Qt::transparent);
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-    QColor color(180, 200, 255);
-    qreal center = size / 2.0;
-    qreal r = size * 3.0 / 8.0;
-    QPainterPath moon;
-    moon.addEllipse(QPointF(center, center), r, r);
-    QPainterPath cutout;
-    cutout.addEllipse(QPointF(center + r * 0.45, center - r * 0.25), r * 0.75, r * 0.75);
-    moon -= cutout;
-    p.setPen(Qt::NoPen);
-    p.setBrush(color);
-    p.drawPath(moon);
-    return QIcon(pix);
-}
-
 void SuperGuardian::applyTheme(const QString& theme) {
     applyAppTheme(theme);
     if (themeToggleBtn) {
         if (theme == "dark") {
-            themeToggleBtn->setIcon(createMoonIconForTray());
-            themeToggleBtn->setToolTip(QString::fromUtf8("暗色模式"));
+            themeToggleBtn->setIcon(QIcon(":/SuperGuardian/light.png"));
+            themeToggleBtn->setToolTip(QString::fromUtf8("切换到浅色模式"));
         } else {
-            themeToggleBtn->setIcon(createSunIconForTray());
-            themeToggleBtn->setToolTip(QString::fromUtf8("浅色模式"));
+            themeToggleBtn->setIcon(QIcon(":/SuperGuardian/dark.png"));
+            themeToggleBtn->setToolTip(QString::fromUtf8("切换到暗色模式"));
         }
     }
+    rebuildTableFromItems();
 }
 
 void SuperGuardian::syncSelfGuardListEntry(bool enabled) {

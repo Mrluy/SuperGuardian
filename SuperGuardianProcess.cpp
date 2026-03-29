@@ -1,6 +1,7 @@
 #include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
+#include "AppStorage.h"
 #include <QtWidgets>
 #include <QThread>
 
@@ -14,11 +15,13 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         it->setToolTip(t);
         return it;
     };
-    QTableWidgetItem* nameItem = new QTableWidgetItem(item.processName);
+    QString displayName = item.launchArgs.isEmpty() ? item.processName : (item.processName + " " + item.launchArgs);
+    QTableWidgetItem* nameItem = new QTableWidgetItem(displayName);
     nameItem->setIcon(getFileIcon(item.targetPath));
     nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
     nameItem->setData(Qt::UserRole, item.path);
-    nameItem->setToolTip(item.processName);
+    nameItem->setData(Qt::UserRole + 2, item.pinned);
+    nameItem->setToolTip(displayName);
     tableWidget->setItem(row, 0, nameItem);
 
     QString initStatus;
@@ -36,7 +39,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     tableWidget->setItem(row, 5, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
     QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
     tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
-    tableWidget->setItem(row, 7, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : (QString::number(item.startDelaySecs) + QString::fromUtf8(" \u79d2"))));
+    tableWidget->setItem(row, 7, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : formatStartDelay(item.startDelaySecs)));
 
     // 3 buttons: 开始守护/关闭守护, 开启定时重启/关闭定时重启, 开启定时运行/关闭定时运行
     QWidget* opWidget = new QWidget();
@@ -47,12 +50,15 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     QPushButton* guardBtn = new QPushButton(item.guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
     guardBtn->setObjectName(QString("guardBtn_%1").arg(item.path));
     guardBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    guardBtn->setToolTip(QString::fromUtf8("\u4fdd\u62a4\u76ee\u6807\u7a0b\u5e8f\uff0c\u907f\u514d\u5176\u88ab\u610f\u5916\u6216\u5f02\u5e38\u5173\u95ed"));
     QPushButton* srBtn = new QPushButton(item.restartRulesActive ? QString::fromUtf8("\u5173\u95ed\u5b9a\u65f6\u91cd\u542f") : QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
     srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
     srBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    srBtn->setToolTip(QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u76ee\u6807\u7a0b\u5e8f\uff0c\u53ef\u6dfb\u52a0\u4efb\u610f\u7ec4\u5b9a\u65f6\u8ba1\u5212"));
     QPushButton* runBtn = new QPushButton(item.scheduledRunEnabled ? QString::fromUtf8("\u5173\u95ed\u5b9a\u65f6\u8fd0\u884c") : QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
     runBtn->setObjectName(QString("runBtn_%1").arg(item.path));
     runBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    runBtn->setToolTip(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u76ee\u6807\u7a0b\u5e8f\uff0c\u53ef\u6dfb\u52a0\u4efb\u610f\u7ec4\u5b9a\u65f6\u8ba1\u5212"));
 
     opLay->addWidget(guardBtn);
     opLay->addWidget(srBtn);
@@ -74,7 +80,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             int count = 0;
             bool running = isProcessRunning(it.processName, count);
             if (!running && count == 0) {
-                launchProgram(it.path);
+                launchProgram(it.targetPath, it.launchArgs);
                 it.lastLaunchTime = QDateTime::currentDateTime();
             }
         } else {
@@ -119,7 +125,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
             if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-            if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText(QString::number(it.startDelaySecs) + QString::fromUtf8(" \u79d2"));
+            if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText(formatStartDelay(it.startDelaySecs));
             updateButtonStates(displayRow);
             saveSettings();
         } else {
@@ -162,14 +168,15 @@ void SuperGuardian::addProgram(const QString& path) {
 
     GuardItem item;
     item.path = path;
-    item.targetPath = resolveShortcut(path);
+    QString shortcutArgs;
+    item.targetPath = resolveShortcut(path, &shortcutArgs);
+    item.launchArgs = shortcutArgs;
     item.processName = QFileInfo(item.targetPath).fileName();
     item.guarding = false;
     items.append(item);
 
-    int row = tableWidget->rowCount();
-    tableWidget->insertRow(row);
-    setupTableRow(row, item);
+    rebuildTableFromItems();
+    saveSettings();
 }
 
 // ---- 邮件通知 ----
@@ -242,10 +249,11 @@ void SuperGuardian::checkProcesses() {
                 }
             }
             if (anyDue) {
-                bool ok = launchProgram(item.path);
+                bool ok = launchProgram(item.targetPath, item.launchArgs);
                 item.lastLaunchTime = now;
                 item.lastRestart = now;
                 item.restartCount++;
+                appendScheduledRunLog(QString::fromUtf8("%1 \u5b9a\u65f6\u8fd0\u884c\u89e6\u53d1").arg(item.processName));
                 if (!ok) {
                     trySendNotification(item, "run_failed",
                         QString::fromUtf8("%1 \u5b9a\u65f6\u8fd0\u884c\u542f\u52a8\u5931\u8d25").arg(item.processName));
@@ -282,12 +290,15 @@ void SuperGuardian::checkProcesses() {
                 if (!cooldown) {
                     if (running) {
                         killProcessesByName(item.processName);
-                        QThread::msleep(static_cast<unsigned long>(item.startDelaySecs * 1000));
-                        bool ok = launchProgram(item.path);
+                        if (item.startDelaySecs > 0)
+                            QThread::msleep(static_cast<unsigned long>(item.startDelaySecs * 1000));
+                        bool ok = launchProgram(item.targetPath, item.launchArgs);
                         item.lastLaunchTime = now;
                         item.lastRestart = now;
+                        item.startTime = now;
                         scheduledRestarted = true;
                         running = true;
+                        appendScheduledRestartLog(QString::fromUtf8("%1 \u5b9a\u65f6\u91cd\u542f\u89e6\u53d1").arg(item.processName));
                         if (!ok) {
                             trySendNotification(item, "restart_failed",
                                 QString::fromUtf8("%1 \u5b9a\u65f6\u91cd\u542f\u540e\u542f\u52a8\u5931\u8d25").arg(item.processName));
@@ -319,11 +330,12 @@ void SuperGuardian::checkProcesses() {
                         }
                         if (item.startDelayExitTime.secsTo(now) >= item.startDelaySecs) {
                             item.startDelayExitTime = QDateTime();
-                            bool ok = launchProgram(item.path);
+                            bool ok = launchProgram(item.targetPath, item.launchArgs);
                             item.lastLaunchTime = now;
                             item.lastGuardRestartTime = now;
                             item.restartCount++;
                             item.lastRestart = now;
+                            item.startTime = now;
                             running = true;
                             trySendNotification(item, "guard_triggered",
                                 QString::fromUtf8("%1 \u5b88\u62a4\u89e6\u53d1\u91cd\u542f").arg(item.processName));
@@ -339,11 +351,12 @@ void SuperGuardian::checkProcesses() {
                             }
                         }
                     } else {
-                        bool ok = launchProgram(item.path);
+                        bool ok = launchProgram(item.targetPath, item.launchArgs);
                         item.lastLaunchTime = now;
                         item.lastGuardRestartTime = now;
                         item.restartCount++;
                         item.lastRestart = now;
+                        item.startTime = now;
                         running = true;
                         trySendNotification(item, "guard_triggered",
                             QString::fromUtf8("%1 \u5b88\u62a4\u89e6\u53d1\u91cd\u542f").arg(item.processName));
@@ -372,12 +385,13 @@ void SuperGuardian::checkProcesses() {
                 trySendNotification(item, "retry_exhausted",
                     QString::fromUtf8("%1 \u91cd\u8bd5\u5df2\u8017\u5c3d\uff0c\u5171\u91cd\u8bd5 %2 \u6b21").arg(item.processName).arg(item.currentRetryCount));
             } else if (item.lastRetryTime.secsTo(now) >= item.retryConfig.retryIntervalSecs) {
-                bool ok = launchProgram(item.path);
+                bool ok = launchProgram(item.targetPath, item.launchArgs);
                 item.lastRetryTime = now;
                 item.currentRetryCount++;
                 item.lastLaunchTime = now;
                 if (ok) {
                     item.retryActive = false;
+                    item.startTime = now;
                     running = true;
                 }
             }
@@ -419,7 +433,7 @@ void SuperGuardian::checkProcesses() {
         setCell(5, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
         setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
-        setCell(7, QString::number(item.startDelaySecs) + QString::fromUtf8(" \u79d2"));
+        setCell(7, formatStartDelay(item.startDelaySecs));
     }
     saveSettings();
 }

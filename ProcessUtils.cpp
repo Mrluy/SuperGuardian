@@ -13,7 +13,7 @@
 #include <QDir>
 #include <QSettings>
 
-QString resolveShortcut(const QString& path) {
+QString resolveShortcut(const QString& path, QString* outArgs) {
     if (!path.endsWith(".lnk", Qt::CaseInsensitive)) return path;
 
     CoInitialize(nullptr);
@@ -33,6 +33,12 @@ QString resolveShortcut(const QString& path) {
                 hr = psl->GetPath(wszTarget, MAX_PATH, &wfd, SLGP_RAWPATH);
                 if (SUCCEEDED(hr)) {
                     QString target = QString::fromWCharArray(wszTarget);
+                    if (outArgs) {
+                        wchar_t wszArgs[1024];
+                        HRESULT argsHr = psl->GetArguments(wszArgs, 1024);
+                        if (SUCCEEDED(argsHr))
+                            *outArgs = QString::fromWCharArray(wszArgs).trimmed();
+                    }
                     ppf->Release();
                     psl->Release();
                     CoUninitialize();
@@ -92,7 +98,7 @@ bool isProcessRunning(const QString& name, int& count) {
     return count > 0;
 }
 
-bool launchProgram(const QString& path) {
+bool launchProgram(const QString& path, const QString& args) {
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
     sei.fMask = SEE_MASK_NOASYNC;
@@ -100,6 +106,13 @@ bool launchProgram(const QString& path) {
     sei.lpVerb = L"open";
     std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();
     sei.lpFile = wpath.c_str();
+    std::wstring wargs;
+    if (!args.isEmpty()) {
+        wargs = args.toStdWString();
+        sei.lpParameters = wargs.c_str();
+    }
+    std::wstring wdir = QDir::toNativeSeparators(QFileInfo(path).absolutePath()).toStdWString();
+    sei.lpDirectory = wdir.c_str();
     sei.nShow = SW_SHOWNORMAL;
     BOOL ok = ShellExecuteExW(&sei);
     if (!ok) appendWatchdogLog(QString("launch guarded app failed: %1").arg(path), GetLastError());
