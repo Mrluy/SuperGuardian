@@ -24,10 +24,25 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     protected:
         void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
         void dropEvent(QDropEvent* e) override { const QList<QUrl> urls = e->mimeData()->urls(); if (!urls.isEmpty()) setText(urls.first().toLocalFile()); }
+        void contextMenuEvent(QContextMenuEvent* e) override {
+            QMenu m(this);
+            QAction* a;
+            a = m.addAction(QString::fromUtf8("\u64a4\u9500"), this, &QLineEdit::undo); a->setEnabled(isUndoAvailable());
+            a = m.addAction(QString::fromUtf8("\u91cd\u505a"), this, &QLineEdit::redo); a->setEnabled(isRedoAvailable());
+            m.addSeparator();
+            a = m.addAction(QString::fromUtf8("\u526a\u5207"), this, &QLineEdit::cut); a->setEnabled(hasSelectedText());
+            a = m.addAction(QString::fromUtf8("\u590d\u5236"), this, &QLineEdit::copy); a->setEnabled(hasSelectedText());
+            a = m.addAction(QString::fromUtf8("\u7c98\u8d34"), this, &QLineEdit::paste); a->setEnabled(!QApplication::clipboard()->text().isEmpty());
+            a = m.addAction(QString::fromUtf8("\u5220\u9664")); a->setEnabled(hasSelectedText());
+            connect(a, &QAction::triggered, this, [this]() { backspace(); });
+            m.addSeparator();
+            a = m.addAction(QString::fromUtf8("\u5168\u9009"), this, &QLineEdit::selectAll); a->setEnabled(!text().isEmpty());
+            m.exec(e->globalPos());
+        }
     };
 
     lineEdit = new PathLineEdit(this);
-    lineEdit->setPlaceholderText(QString::fromUtf8("请在此添加程序，可拖动程序到此处"));
+    lineEdit->setPlaceholderText(QString::fromUtf8("\u8f93\u5165\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\uff0c\u53ef\u9644\u5e26\u53c2\u6570\uff0c\u652f\u6301\u62d6\u653e"));
     int lineH = lineEdit->fontMetrics().height();
     int inputH = (lineH * 2 + 10) * 3 / 4;
     lineEdit->setMinimumHeight(inputH);
@@ -184,7 +199,33 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         btnAdd->setEnabled(hasText);
         btnCancel->setEnabled(hasText);
     });
-    connect(btnAdd, &QPushButton::clicked, this, [this]() { QString p=lineEdit->text().trimmed(); if(!p.isEmpty()) { addProgram(p); lineEdit->clear(); } });
+    connect(btnAdd, &QPushButton::clicked, this, [this]() {
+        QString text = lineEdit->text().trimmed();
+        if (text.isEmpty()) return;
+        QString progPath, progArgs;
+        if (text.startsWith('"')) {
+            int cq = text.indexOf('"', 1);
+            if (cq > 0) { progPath = text.mid(1, cq - 1); progArgs = text.mid(cq + 1).trimmed(); }
+            else progPath = text.mid(1);
+        } else if (QFileInfo::exists(text)) {
+            progPath = text;
+        } else {
+            bool found = false;
+            int searchFrom = 0;
+            while (searchFrom < text.length()) {
+                int sp = text.indexOf(' ', searchFrom);
+                if (sp < 0) break;
+                QString cand = text.left(sp);
+                if (QFileInfo::exists(cand) || !QStandardPaths::findExecutable(cand).isEmpty()) {
+                    progPath = cand; progArgs = text.mid(sp + 1).trimmed(); found = true; break;
+                }
+                searchFrom = sp + 1;
+            }
+            if (!found) progPath = text;
+        }
+        addProgram(progPath.trimmed(), progArgs.trimmed());
+        lineEdit->clear();
+    });
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);

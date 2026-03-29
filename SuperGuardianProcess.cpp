@@ -160,16 +160,24 @@ void SuperGuardian::updateButtonStates(int row) {
 
 // ---- 程序添加 ----
 
-void SuperGuardian::addProgram(const QString& path) {
+void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
+    QString resolvedPath = path;
     QFileInfo fi(path);
-    if (!fi.exists()) return;
-    for (const GuardItem& it : items) if (it.path == path) return;
+    if (!fi.exists()) {
+        QString found = QStandardPaths::findExecutable(path);
+        if (found.isEmpty()) return;
+        resolvedPath = found;
+    }
+    for (const GuardItem& it : items) if (it.path == resolvedPath) return;
 
     GuardItem item;
-    item.path = path;
+    item.path = resolvedPath;
     QString shortcutArgs;
-    item.targetPath = resolveShortcut(path, &shortcutArgs);
-    item.launchArgs = shortcutArgs;
+    item.targetPath = resolveShortcut(resolvedPath, &shortcutArgs);
+    if (!extraArgs.isEmpty())
+        item.launchArgs = shortcutArgs.isEmpty() ? extraArgs : (shortcutArgs + " " + extraArgs);
+    else
+        item.launchArgs = shortcutArgs;
     item.processName = QFileInfo(item.targetPath).fileName();
     item.guarding = false;
     items.append(item);

@@ -139,10 +139,10 @@ if (Test-Path $readmePath) {
 }
 
 # 桌面快捷方式脚本（存在则附带）
-$batPath = Join-Path $root '一键创建桌面快捷方式.bat'
-if (Test-Path $batPath) {
-    Copy-Item $batPath (Join-Path $stagingDir '一键创建桌面快捷方式.bat') -Force
-    Write-Host "     一键创建桌面快捷方式.bat" -ForegroundColor DarkGray
+$ps1Path = Join-Path $root '一键创建桌面快捷方式.ps1'
+if (Test-Path $ps1Path) {
+    Copy-Item $ps1Path (Join-Path $stagingDir '一键创建桌面快捷方式.ps1') -Force
+    Write-Host "     一键创建桌面快捷方式.ps1" -ForegroundColor DarkGray
 }
 
 # Debug 模式：部署 Qt 运行时

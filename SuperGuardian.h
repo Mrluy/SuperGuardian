@@ -33,7 +33,7 @@ private:
     int sortState = 0;
     bool autoResizingColumns = false;
 
-    void addProgram(const QString& path);
+    void addProgram(const QString& path, const QString& extraArgs = QString());
     void setupTableRow(int row, const GuardItem& item);
     void updateButtonStates(int row);
     void loadSettings();
