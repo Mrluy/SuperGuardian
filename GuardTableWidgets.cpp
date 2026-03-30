@@ -178,7 +178,7 @@ void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
         if (!m_dropLine) {
             m_dropLine = new QFrame(viewport());
             m_dropLine->setFixedHeight(2);
-            m_dropLine->setStyleSheet("background-color: #3daee9;");
+            m_dropLine->setStyleSheet("background-color: #0078d4;");
         }
         int y = 0;
         if (target < rowCount()) {

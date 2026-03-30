@@ -41,6 +41,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     btnAdd->setFixedHeight(inputH);
     btnCancel->setEnabled(false);
     btnAdd->setEnabled(false);
+    btnAdd->setObjectName("primaryBtn");
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(10);
@@ -75,6 +76,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     QHBoxLayout* topLayout = new QHBoxLayout(top);
     topLayout->setAlignment(Qt::AlignVCenter);
     topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->setSpacing(8);
     topLayout->addWidget(lineEdit);
     topLayout->addWidget(btnBrowse);
     topLayout->addWidget(btnCancel);
@@ -82,6 +84,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     QWidget* central = new QWidget(this);
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
+    mainLayout->setContentsMargins(12, 8, 12, 12);
+    mainLayout->setSpacing(10);
     mainLayout->addWidget(top);
     mainLayout->addWidget(tableWidget);
     setCentralWidget(central);
