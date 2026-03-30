@@ -249,6 +249,16 @@ void DesktopSelectTable::mouseReleaseEvent(QMouseEvent* e) {
     killCurrentIndex();
 }
 
+void DesktopSelectTable::mouseDoubleClickEvent(QMouseEvent* e) {
+    if (e->button() == Qt::LeftButton) {
+        QModelIndex idx = indexAt(e->pos());
+        if (idx.isValid() && onCellDoubleClicked)
+            onCellDoubleClicked(idx.row(), idx.column());
+        return;
+    }
+    QTableWidget::mouseDoubleClickEvent(e);
+}
+
 void DesktopSelectTable::focusInEvent(QFocusEvent* e) {
     QTableWidget::focusInEvent(e);
     killCurrentIndex();

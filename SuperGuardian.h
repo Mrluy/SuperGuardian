@@ -34,6 +34,7 @@ private:
     int sortState = 0;
     int activeSortSection = -1;
     bool autoResizingColumns = false;
+    bool m_revertingHeader = false;
 
     void addProgram(const QString& path, const QString& extraArgs = QString());
     void parseAndAddFromInput();
@@ -65,6 +66,7 @@ private:
     void closeAllScheduledRestart();
     void closeAllScheduledRun();
     QString formatStartDelay(int secs) const;
+    QString formatDuration(qint64 secs) const;
     void createDesktopShortcut();
     void showUpdateDialog();
     void performSort();
@@ -72,6 +74,9 @@ private:
     void saveColumnVisibility();
     void restoreColumnVisibility();
     void onHeaderContextMenu(const QPoint& pos);
+    void saveHeaderOrder();
+    void restoreHeaderOrder();
+    void resetHeaderDisplay();
 
 private slots:
     void toggleVisible();

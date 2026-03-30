@@ -172,17 +172,17 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             }
         };
         if (item.scheduledRunEnabled) {
-            setCell(5, formatScheduleRules(item.runRules));
+            setCell(6, formatScheduleRules(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
         } else {
-            setCell(5, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
+            setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
             QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-            setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
         }
-        setCell(7, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
+        setCell(8, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
 
-        QWidget* opw = tableWidget->cellWidget(row, 8);
+        QWidget* opw = tableWidget->cellWidget(row, 9);
         if (opw) {
             QPushButton* gBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.path));
             QPushButton* sBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(item.path));
@@ -240,11 +240,11 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
         GuardItem& item = items[itemIdx];
         item.startDelaySecs = delaySecs;
         item.startDelayExitTime = QDateTime();
-        if (tableWidget->item(row, 7)) {
+        if (tableWidget->item(row, 8)) {
             if (item.scheduledRunEnabled)
-                tableWidget->item(row, 7)->setText("-");
+                tableWidget->item(row, 8)->setText("-");
             else
-                tableWidget->item(row, 7)->setText(formatStartDelay(delaySecs));
+                tableWidget->item(row, 8)->setText(formatStartDelay(delaySecs));
         }
     }
     saveSettings();

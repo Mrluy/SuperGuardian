@@ -60,14 +60,18 @@ void SuperGuardian::checkProcesses() {
                 }
             };
             setCell(1, QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c"));
-            setCell(2, "-");
+            {
+                QDateTime procStart = getProcessStartTime(item.processName);
+                setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+            }
             setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
             setCell(4, "-");
+            setCell(5, "-");
             QString rulesText = formatScheduleRules(item.runRules);
-            setCell(5, rulesText);
+            setCell(6, rulesText);
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
-            setCell(7, "-");
+            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(8, "-");
             continue;
         }
 
@@ -208,29 +212,28 @@ void SuperGuardian::checkProcesses() {
         };
         if (hasGuard) {
             setCell(1, running ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u5df2\u91cd\u542f"));
-            qint64 secs = item.startTime.isValid() ? item.startTime.secsTo(now) : 0;
-            setCell(2, [&](qint64 s) -> QString {
-                qint64 days = s / 86400;
-                qint64 hours = (s % 86400) / 3600;
-                qint64 mins = (s % 3600) / 60;
-                if (days > 0) return QString::number(days) + QString::fromUtf8("\u5929") + QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-                if (hours > 0) return QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-                return QString::number(mins) + QString::fromUtf8("\u5206");
-            }(secs));
         } else if (hasScheduledRestart) {
             setCell(1, running ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u672a\u8fd0\u884c"));
-            setCell(2, "-");
+        }
+        {
+            QDateTime procStart = getProcessStartTime(item.processName);
+            setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+        }
+        if (item.guarding && item.guardStartTime.isValid()) {
+            setCell(5, formatDuration(item.guardStartTime.secsTo(now)));
+        } else {
+            setCell(5, "-");
         }
         setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
         setCell(4, QString::number(item.restartCount));
-        setCell(5, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
+        setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-        setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
-        setCell(7, formatStartDelay(item.startDelaySecs));
+        setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+        setCell(8, formatStartDelay(item.startDelaySecs));
     }
 
     // 动态列排序：当排序列内容变化时更新排序
-    if (sortState != 0 && activeSortSection >= 1 && activeSortSection <= 7) {
+    if (sortState != 0 && activeSortSection >= 1 && activeSortSection <= 8) {
         Qt::SortOrder order = (sortState == 1) ? Qt::AscendingOrder : Qt::DescendingOrder;
         bool orderChanged = false;
         for (int r = 0; r < tableWidget->rowCount() - 1; r++) {

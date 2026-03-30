@@ -200,3 +200,13 @@ QString SuperGuardian::formatStartDelay(int secs) const {
     if (secs <= 0) return QString::fromUtf8("\u5173\u95ed");
     return QString::number(secs) + QString::fromUtf8(" \u79d2");
 }
+
+QString SuperGuardian::formatDuration(qint64 secs) const {
+    if (secs < 0) secs = 0;
+    qint64 days = secs / 86400;
+    qint64 hours = (secs % 86400) / 3600;
+    qint64 mins = (secs % 3600) / 60;
+    if (days > 0) return QString::number(days) + QString::fromUtf8("\u5929") + QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
+    if (hours > 0) return QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
+    return QString::number(mins) + QString::fromUtf8("\u5206");
+}

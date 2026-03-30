@@ -43,11 +43,13 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     btnAdd->setEnabled(false);
     tableWidget = new DesktopSelectTable(this);
 
-    tableWidget->setColumnCount(9);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("上次重启/运行"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f/\u8fd0\u884c\u89c4\u5219"), QString::fromUtf8("下次重启/运行"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
+    tableWidget->setColumnCount(10);
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("\u4e0a\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u88ab\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u6301\u7eed\u5b88\u62a4\u65f6\u957f"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f(\u8fd0\u884c)\u89c4\u5219"), QString::fromUtf8("\u4e0b\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    tableWidget->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
-    tableWidget->setColumnWidth(8, 300);
+    tableWidget->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
+    tableWidget->setColumnWidth(9, 300);
+    tableWidget->horizontalHeader()->setSectionsMovable(true);
+    tableWidget->horizontalHeader()->setHighlightSections(false);
     tableWidget->setSortingEnabled(false);
     tableWidget->horizontalHeader()->setSortIndicatorShown(false);
     tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -59,7 +61,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget->setItemDelegate(new BruteForceDelegate(tableWidget));
     tableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tableWidget, &QTableWidget::customContextMenuRequested, this, &SuperGuardian::onTableContextMenuRequested);
-    if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(7)) {
+    if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(8)) {
         hdr->setToolTip(QString::fromUtf8("\u7a0b\u5e8f\u91cd\u542f\u65f6\u7684\u542f\u52a8\u5ef6\u65f6\uff0c\u5355\u4f4d\u4e3a\u79d2\u3002\n\u9ed8\u8ba4 1 \u79d2\uff0c\u53ef\u8bbe\u7f6e\u4e3a 0 \u5173\u95ed\u5ef6\u65f6\u3002\n\u5b88\u62a4\u91cd\u542f\u3001\u5b9a\u65f6\u91cd\u542f\u5747\u4f7f\u7528\u6b64\u5ef6\u65f6\u3002\n\u5b9a\u65f6\u8fd0\u884c\u4e0d\u4f7f\u7528\u6b64\u9879\u3002"));
     }
     tableWidget->verticalHeader()->setSectionsClickable(false);
@@ -139,7 +141,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     QMenu* operationMenu = menuBar()->addMenu(QString::fromUtf8("操作"));
     operationMenu->addAction(QString::fromUtf8("清空列表"), this, &SuperGuardian::clearListWithConfirmation);
-    operationMenu->addAction(QString::fromUtf8("重置列宽"), this, &SuperGuardian::resetColumnWidths);
+    operationMenu->addAction(QString::fromUtf8("\u91cd\u7f6e\u5217\u8868\u6240\u6709\u5217\u5bbd"), this, &SuperGuardian::resetColumnWidths);
+    operationMenu->addAction(QString::fromUtf8("\u91cd\u7f6e\u8868\u5934\u663e\u793a"), this, &SuperGuardian::resetHeaderDisplay);
     operationMenu->addSeparator();
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b88\u62a4"), this, &SuperGuardian::closeAllGuards);
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u91cd\u542f"), this, &SuperGuardian::closeAllScheduledRestart);
@@ -206,13 +209,16 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);
     timer->start(2000);
 
-    connect(tableWidget, &QTableWidget::cellDoubleClicked, this, &SuperGuardian::onTableDoubleClicked);
     connect(tray, &QSystemTrayIcon::activated, this, &SuperGuardian::onTrayActivated);
+    static_cast<DesktopSelectTable*>(tableWidget)->onCellDoubleClicked = [this](int row, int col) {
+        if (col == 9) return;
+        onTableDoubleClicked(row, col);
+    };
     static_cast<DesktopSelectTable*>(tableWidget)->onRowMoved = [this](int from, int to) { handleRowMoved(from, to); };
 
     // 表头排序（点击列标题循环：升序→降序→默认）
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {
-        if (section == 8) return;
+        if (section == 9) return;
         QHeaderView* header = tableWidget->horizontalHeader();
         if (activeSortSection == section && sortState == 2) {
             sortState = 0;
@@ -243,38 +249,29 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     // 恢复排序状态
     activeSortSection = s.value("sortSection", -1).toInt();
     sortState = s.value("sortState", 0).toInt();
-    if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 8)
+    if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 9)
         performSort();
 
     restoreColumnVisibility();
+    restoreHeaderOrder();
 
-    // 列宽调整：操作列固定在最右侧，未调整的列按原占比重新分配
-    connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int newSize) {
-        if (autoResizingColumns || logicalIndex >= 8) return;
-        autoResizingColumns = true;
-        int col8w = tableWidget->columnWidth(8);
-        int available = tableWidget->viewport()->width() - col8w;
-        int remaining = available - newSize;
-        QVector<int> others;
-        double othersTotal = 0;
-        for (int i = 0; i < 8; i++) {
-            if (i == logicalIndex || tableWidget->isColumnHidden(i)) continue;
-            others.append(i);
-            othersTotal += tableWidget->columnWidth(i);
+    // 表头拖动排序：操作列始终在最右
+    connect(tableWidget->horizontalHeader(), &QHeaderView::sectionMoved, this, [this](int, int, int) {
+        if (m_revertingHeader) return;
+        QHeaderView* header = tableWidget->horizontalHeader();
+        int lastVisual = header->count() - 1;
+        if (header->visualIndex(9) != lastVisual) {
+            m_revertingHeader = true;
+            header->moveSection(header->visualIndex(9), lastVisual);
+            m_revertingHeader = false;
         }
-        if (others.isEmpty() || othersTotal <= 0 || remaining < others.size() * 40) {
-            autoResizingColumns = false;
-            return;
-        }
-        int distributed = 0;
-        for (int k = 0; k < others.size() - 1; k++) {
-            int w = qMax(40, (int)(remaining * tableWidget->columnWidth(others[k]) / othersTotal));
-            tableWidget->setColumnWidth(others[k], w);
-            distributed += w;
-        }
-        tableWidget->setColumnWidth(others.last(), qMax(40, remaining - distributed));
+        saveHeaderOrder();
+    });
+
+    // 列宽调整：保存列宽
+    connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int) {
+        if (autoResizingColumns || logicalIndex == 9) return;
         saveColumnWidths();
-        autoResizingColumns = false;
     });
 }
 

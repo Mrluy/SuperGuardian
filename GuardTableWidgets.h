@@ -29,10 +29,12 @@ class DesktopSelectTable : public QTableWidget {
 public:
     using QTableWidget::QTableWidget;
     std::function<void(int, int)> onRowMoved;
+    std::function<void(int, int)> onCellDoubleClicked;
 protected:
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
     void mouseReleaseEvent(QMouseEvent* e) override;
+    void mouseDoubleClickEvent(QMouseEvent* e) override;
     void focusInEvent(QFocusEvent* e) override;
 private:
     void killCurrentIndex();

@@ -42,6 +42,7 @@ struct GuardItem {
     bool pinned = false;
     int insertionOrder = 0;
     QDateTime startTime;
+    QDateTime guardStartTime;
     QDateTime lastRestart;
     QDateTime lastLaunchTime;
     QDateTime lastGuardRestartTime;

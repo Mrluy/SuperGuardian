@@ -64,35 +64,40 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 
     tableWidget->setItem(row, 1, makeItem(initStatus));
 
-    // col 2: 持续运行时长 — 守护中时从 startTime 计算实际时长
+    // col 2: 持续运行时长 — 操作系统中的进程持续运行时间
     QString durText = QStringLiteral("-");
-    if (item.guarding && item.startTime.isValid()) {
-        qint64 secs = item.startTime.secsTo(QDateTime::currentDateTime());
+    QDateTime procStart = getProcessStartTime(item.processName);
+    if (procStart.isValid()) {
+        qint64 secs = procStart.secsTo(QDateTime::currentDateTime());
         if (secs < 0) secs = 0;
-        qint64 days = secs / 86400;
-        qint64 hours = (secs % 86400) / 3600;
-        qint64 mins = (secs % 3600) / 60;
-        if (days > 0) durText = QString::number(days) + QString::fromUtf8("\u5929") + QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-        else if (hours > 0) durText = QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-        else durText = QString::number(mins) + QString::fromUtf8("\u5206");
+        durText = formatDuration(secs);
     }
     tableWidget->setItem(row, 2, makeItem(durText));
 
     tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
     tableWidget->setItem(row, 4, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : QString::number(item.restartCount)));
 
-    // col 5/6: 定时运行时显示 runRules，否则显示 restartRules
+    // col 5: 持续守护时长
+    QString guardDurText = QStringLiteral("-");
+    if (item.guarding && item.guardStartTime.isValid()) {
+        qint64 secs = item.guardStartTime.secsTo(QDateTime::currentDateTime());
+        if (secs < 0) secs = 0;
+        guardDurText = formatDuration(secs);
+    }
+    tableWidget->setItem(row, 5, makeItem(guardDurText));
+
+    // col 6/7: 定时运行时显示 runRules，否则显示 restartRules
     if (item.scheduledRunEnabled && !item.runRules.isEmpty()) {
-        tableWidget->setItem(row, 5, makeItem(formatScheduleRules(item.runRules)));
+        tableWidget->setItem(row, 6, makeItem(formatScheduleRules(item.runRules)));
         QDateTime nt = nextTriggerTime(item.runRules);
-        tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+        tableWidget->setItem(row, 7, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
     } else {
-        tableWidget->setItem(row, 5, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
+        tableWidget->setItem(row, 6, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-        tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+        tableWidget->setItem(row, 7, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
     }
 
-    tableWidget->setItem(row, 7, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : formatStartDelay(item.startDelaySecs)));
+    tableWidget->setItem(row, 8, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : formatStartDelay(item.startDelaySecs)));
 
     // 3 buttons: 开始守护/关闭守护, 开启定时重启/关闭定时重启, 开启定时运行/关闭定时运行
     QWidget* opWidget = new QWidget();
@@ -116,7 +121,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     opLay->addWidget(guardBtn);
     opLay->addWidget(srBtn);
     opLay->addWidget(runBtn);
-    tableWidget->setCellWidget(row, 8, opWidget);
+    tableWidget->setCellWidget(row, 9, opWidget);
 
     // Guard button
     connect(guardBtn, &QPushButton::clicked, this, [this, itemPath = item.path]() {
@@ -130,6 +135,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         if (b) b->setText(it.guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
         if (it.guarding) {
             it.startTime = QDateTime::currentDateTime();
+            it.guardStartTime = QDateTime::currentDateTime();
             int count = 0;
             bool running = isProcessRunning(it.processName, count);
             if (!running && count == 0) {
@@ -138,11 +144,13 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             }
         } else {
             it.restartCount = 0;
+            it.guardStartTime = QDateTime();
             if (!it.restartRulesActive) {
                 if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
             }
             if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
             if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");
+            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
         }
         updateButtonStates(displayRow);
         saveSettings();
@@ -159,8 +167,8 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             it.restartRulesActive = false;
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
-            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
             if (tableWidget->item(displayRow, 6)) tableWidget->item(displayRow, 6)->setText("-");
+            if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText("-");
             updateButtonStates(displayRow);
             saveSettings();
         } else {
@@ -180,7 +188,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
             if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-            if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText(formatStartDelay(it.startDelaySecs));
+            if (tableWidget->item(displayRow, 8)) tableWidget->item(displayRow, 8)->setText(formatStartDelay(it.startDelaySecs));
             updateButtonStates(displayRow);
             saveSettings();
         } else {
@@ -195,7 +203,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 }
 
 void SuperGuardian::updateButtonStates(int row) {
-    QWidget* opw = tableWidget->cellWidget(row, 8);
+    QWidget* opw = tableWidget->cellWidget(row, 9);
     if (!opw) return;
     QString path = rowPath(row);
     int idx = findItemIndexByPath(path);

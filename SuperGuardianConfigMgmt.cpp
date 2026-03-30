@@ -282,7 +282,7 @@ void SuperGuardian::createDesktopShortcut() {
 // ---- 排序管理 ----
 
 void SuperGuardian::performSort() {
-    if (sortState == 0 || activeSortSection < 0 || activeSortSection >= 8) {
+    if (sortState == 0 || activeSortSection < 0 || activeSortSection >= 9) {
         std::sort(items.begin(), items.end(), [](const GuardItem& a, const GuardItem& b) {
             if (a.pinned != b.pinned) return a.pinned > b.pinned;
             return a.insertionOrder < b.insertionOrder;

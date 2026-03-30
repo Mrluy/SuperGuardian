@@ -39,14 +39,14 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 
     QMenu menu(this);
 
+    // 备注（最上方）
+    menu.addAction(QString::fromUtf8("\u5907\u6ce8"), this, [this, targetRows]() { contextSetNote(targetRows); });
+
     // Pin toggle
     bool allPinned = true;
     for (int r : targetRows) { int ii = findItemIndexByPath(rowPath(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
     menu.addAction(allPinned ? QString::fromUtf8("\u53d6\u6d88\u7f6e\u9876") : QString::fromUtf8("\u7f6e\u9876"),
         this, [this, targetRows]() { contextTogglePin(targetRows); });
-
-    // 备注（最上方区域，紧跟置顶后）
-    menu.addAction(QString::fromUtf8("\u5907\u6ce8"), this, [this, targetRows]() { contextSetNote(targetRows); });
     menu.addSeparator();
 
     // 检查是否有任一目标行处于定时运行模式或守护/定时重启模式
@@ -125,13 +125,14 @@ void SuperGuardian::contextToggleGuard(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
     items[idx].guarding = !items[idx].guarding;
-    QWidget* opw = tableWidget->cellWidget(row, 8);
+    QWidget* opw = tableWidget->cellWidget(row, 9);
     if (opw) {
         QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[idx].path));
         if (b) b->setText(items[idx].guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
     }
     if (items[idx].guarding) {
         items[idx].startTime = QDateTime::currentDateTime();
+        items[idx].guardStartTime = QDateTime::currentDateTime();
         int count = 0;
         bool running = isProcessRunning(items[idx].processName, count);
         if (!running && count == 0) {
@@ -140,6 +141,7 @@ void SuperGuardian::contextToggleGuard(int row) {
         }
     } else {
         items[idx].restartCount = 0;
+        items[idx].guardStartTime = QDateTime();
         int displayRow = findRowByPath(items[idx].path);
         if (displayRow >= 0) {
             if (!items[idx].restartRulesActive) {
@@ -147,6 +149,7 @@ void SuperGuardian::contextToggleGuard(int row) {
             }
             if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
             if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");
+            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
         }
     }
     updateButtonStates(row);
@@ -212,6 +215,8 @@ void SuperGuardian::handleRowMoved(int fromRow, int toRow) {
         if (idx >= 0) newItems.append(items[idx]);
     }
     items = newItems;
+    for (int i = 0; i < items.size(); i++)
+        items[i].insertionOrder = i;
     rebuildTableFromItems();
     int newRow = findRowByPath(movedPath);
     if (newRow >= 0) tableWidget->selectRow(newRow);
@@ -226,9 +231,10 @@ void SuperGuardian::closeAllGuards() {
         if (items[i].guarding) {
             items[i].guarding = false;
             items[i].restartCount = 0;
+            items[i].guardStartTime = QDateTime();
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
+                QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[i].path));
                     if (b) b->setText(QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
@@ -238,6 +244,7 @@ void SuperGuardian::closeAllGuards() {
                 }
                 if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
                 if (tableWidget->item(row, 4)) tableWidget->item(row, 4)->setText("0");
+                if (tableWidget->item(row, 5)) tableWidget->item(row, 5)->setText("-");
                 updateButtonStates(row);
             }
         }
@@ -254,13 +261,13 @@ void SuperGuardian::closeAllScheduledRestart() {
             items[i].restartRulesActive = false;
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
+                QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[i].path));
                     if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
                 }
-                if (tableWidget->item(row, 5)) tableWidget->item(row, 5)->setText("-");
                 if (tableWidget->item(row, 6)) tableWidget->item(row, 6)->setText("-");
+                if (tableWidget->item(row, 7)) tableWidget->item(row, 7)->setText("-");
                 updateButtonStates(row);
             }
         }
@@ -277,13 +284,13 @@ void SuperGuardian::closeAllScheduledRun() {
             items[i].scheduledRunEnabled = false;
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 8);
+                QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[i].path));
                     if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
                 }
                 if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-                if (tableWidget->item(row, 7)) tableWidget->item(row, 7)->setText(formatStartDelay(items[i].startDelaySecs));
+                if (tableWidget->item(row, 8)) tableWidget->item(row, 8)->setText(formatStartDelay(items[i].startDelaySecs));
                 updateButtonStates(row);
             }
         }
