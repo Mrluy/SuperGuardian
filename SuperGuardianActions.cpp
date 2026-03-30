@@ -49,13 +49,15 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     menu.addAction(QString::fromUtf8("\u5907\u6ce8"), this, [this, targetRows]() { contextSetNote(targetRows); });
     menu.addSeparator();
 
-    // 检查是否有任一目标行处于定时运行模式
+    // 检查是否有任一目标行处于定时运行模式或守护/定时重启模式
     bool anyScheduledRun = false;
+    bool anyGuardOrRestart = false;
     bool anyActive = false;
     for (int r : targetRows) {
         int ii = findItemIndexByPath(rowPath(r));
         if (ii >= 0) {
             if (items[ii].scheduledRunEnabled) anyScheduledRun = true;
+            if (items[ii].guarding || items[ii].restartRulesActive) anyGuardOrRestart = true;
             if (items[ii].guarding || items[ii].restartRulesActive || items[ii].scheduledRunEnabled) anyActive = true;
         }
     }
@@ -73,14 +75,18 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     QAction* launchConfigAct = menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u7a0b\u5e8f/\u53c2\u6570"), this, [this, targetRows]() { contextSetLaunchArgs(targetRows); });
     QAction* restartRulesAct = menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
     QAction* startDelayAct = menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6"), this, [this, targetRows]() { contextSetStartDelay(targetRows); });
-    menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
+    QAction* runRulesAct = menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
     menu.addAction(QString::fromUtf8("\u91cd\u8bd5\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
     menu.addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
 
-    // Task 6: 定时运行时禁用定时重启规则和设置启动延时
+    // 定时运行时禁用定时重启规则和设置启动延时
     if (anyScheduledRun) {
         restartRulesAct->setEnabled(false);
         startDelayAct->setEnabled(false);
+    }
+    // 守护或定时重启时禁用定时运行规则
+    if (anyGuardOrRestart) {
+        runRulesAct->setEnabled(false);
     }
 
     menu.addSeparator();
@@ -283,78 +289,4 @@ void SuperGuardian::closeAllScheduledRun() {
         }
     }
     saveSettings();
-}
-
-// ---- 备注设置 ----
-
-void SuperGuardian::contextSetNote(const QList<int>& rows) {
-    QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u5907\u6ce8"));
-    dlg.setFixedWidth(400);
-    dlg.setMinimumHeight(140);
-    QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8f93\u5165\u5907\u6ce8\u540d\u79f0\uff08\u7559\u7a7a\u8868\u793a\u6e05\u9664\u5907\u6ce8\uff09\uff1a")));
-    QLineEdit* noteEdit = new QLineEdit();
-    if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
-        if (itemIdx >= 0) noteEdit->setText(items[itemIdx].note);
-    }
-    lay->addWidget(noteEdit);
-    lay->addStretch();
-    QHBoxLayout* btnLay = new QHBoxLayout();
-    btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
-    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
-    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
-    btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
-    lay->addLayout(btnLay);
-    if (dlg.exec() != QDialog::Accepted) return;
-
-    QString note = noteEdit->text().trimmed();
-    for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
-        if (itemIdx < 0) continue;
-        items[itemIdx].note = note;
-        QString displayName = note.isEmpty()
-            ? (items[itemIdx].launchArgs.isEmpty() ? items[itemIdx].processName : (items[itemIdx].processName + " " + items[itemIdx].launchArgs))
-            : note;
-        QString tooltipName = items[itemIdx].launchArgs.isEmpty() ? items[itemIdx].processName : (items[itemIdx].processName + " " + items[itemIdx].launchArgs);
-        if (tableWidget->item(row, 0)) {
-            tableWidget->item(row, 0)->setText(displayName);
-            tableWidget->item(row, 0)->setToolTip(tooltipName);
-        }
-    }
-    saveSettings();
-}
-
-// ---- 添加桌面快捷方式 ----
-
-void SuperGuardian::createDesktopShortcut() {
-    QString exePath = QCoreApplication::applicationFilePath();
-    QString exeDir = QCoreApplication::applicationDirPath();
-    QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    QString lnkPath = desktop + QString::fromUtf8("/\u8d85\u7ea7\u5b88\u62a4.lnk");
-
-    QString ps = QString(
-        "$ws = New-Object -ComObject WScript.Shell; "
-        "$sc = $ws.CreateShortcut('%1'); "
-        "$sc.TargetPath = '%2'; "
-        "$sc.WorkingDirectory = '%3'; "
-        "$sc.IconLocation = '%2,0'; "
-        "$sc.Save()"
-    ).arg(lnkPath.replace("'", "''"),
-          QDir::toNativeSeparators(exePath).replace("'", "''"),
-          QDir::toNativeSeparators(exeDir).replace("'", "''"));
-
-    QProcess proc;
-    proc.start("powershell", QStringList() << "-NoProfile" << "-Command" << ps);
-    proc.waitForFinished(10000);
-    if (proc.exitCode() == 0) {
-        showMessageDialog(this, QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f"),
-            QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f\u5df2\u521b\u5efa\uff1a\u8d85\u7ea7\u5b88\u62a4"));
-    } else {
-        showMessageDialog(this, QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f"),
-            QString::fromUtf8("\u521b\u5efa\u5feb\u6377\u65b9\u5f0f\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u6743\u9650\u3002"));
-    }
 }

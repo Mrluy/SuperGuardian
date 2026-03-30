@@ -32,9 +32,11 @@ private:
 
     QToolButton* themeToggleBtn = nullptr;
     int sortState = 0;
+    int activeSortSection = -1;
     bool autoResizingColumns = false;
 
     void addProgram(const QString& path, const QString& extraArgs = QString());
+    void parseAndAddFromInput();
     void setupTableRow(int row, const GuardItem& item);
     void updateButtonStates(int row);
     void loadSettings();
@@ -64,6 +66,12 @@ private:
     void closeAllScheduledRun();
     QString formatStartDelay(int secs) const;
     void createDesktopShortcut();
+    void showUpdateDialog();
+    void performSort();
+    void saveSortState();
+    void saveColumnVisibility();
+    void restoreColumnVisibility();
+    void onHeaderContextMenu(const QPoint& pos);
 
 private slots:
     void toggleVisible();

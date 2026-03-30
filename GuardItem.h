@@ -40,6 +40,7 @@ struct GuardItem {
     bool guarding = false;
     bool internalSelfGuard = false;
     bool pinned = false;
+    int insertionOrder = 0;
     QDateTime startTime;
     QDateTime lastRestart;
     QDateTime lastLaunchTime;

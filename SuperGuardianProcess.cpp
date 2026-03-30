@@ -4,6 +4,36 @@
 #include "AppStorage.h"
 #include <QtWidgets>
 
+// ---- 输入解析 ----
+
+void SuperGuardian::parseAndAddFromInput() {
+    QString text = lineEdit->text().trimmed();
+    if (text.isEmpty()) return;
+    QString progPath, progArgs;
+    if (text.startsWith('"')) {
+        int cq = text.indexOf('"', 1);
+        if (cq > 0) { progPath = text.mid(1, cq - 1); progArgs = text.mid(cq + 1).trimmed(); }
+        else progPath = text.mid(1);
+    } else if (QFileInfo::exists(text)) {
+        progPath = text;
+    } else {
+        bool found = false;
+        int searchFrom = 0;
+        while (searchFrom < text.length()) {
+            int sp = text.indexOf(' ', searchFrom);
+            if (sp < 0) break;
+            QString cand = text.left(sp);
+            if (QFileInfo::exists(cand) || !QStandardPaths::findExecutable(cand).isEmpty()) {
+                progPath = cand; progArgs = text.mid(sp + 1).trimmed(); found = true; break;
+            }
+            searchFrom = sp + 1;
+        }
+        if (!found) progPath = text;
+    }
+    addProgram(progPath.trimmed(), progArgs.trimmed());
+    lineEdit->clear();
+}
+
 // ---- 表格行创建与按钮状态管理 ----
 
 void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
@@ -206,6 +236,9 @@ void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
         item.launchArgs = shortcutArgs;
     item.processName = QFileInfo(item.targetPath).fileName();
     item.guarding = false;
+    int maxOrder = 0;
+    for (const auto& it : items) maxOrder = qMax(maxOrder, it.insertionOrder);
+    item.insertionOrder = maxOrder + 1;
     items.append(item);
 
     rebuildTableFromItems();

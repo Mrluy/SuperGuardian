@@ -119,3 +119,84 @@ void SuperGuardian::stopWatchdogHelper() {
         s.remove("watchdog_pid");
     }
 }
+
+// ---- 窗口事件处理 ----
+
+void SuperGuardian::toggleVisible() {
+    if (isVisible() && !(windowState() & Qt::WindowMinimized)) {
+        hide();
+    } else {
+        showNormal();
+        raise();
+        activateWindow();
+    }
+}
+
+void SuperGuardian::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
+    if (reason == QSystemTrayIcon::Trigger) toggleVisible();
+}
+
+void SuperGuardian::onExit() {
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    s.setValue("self_guard_manual_exit", true);
+    stopWatchdogHelper();
+    qApp->quit();
+}
+
+void SuperGuardian::closeEvent(QCloseEvent* event) {
+    if (tray) {
+        hide();
+        event->ignore();
+    } else {
+        QMainWindow::closeEvent(event);
+    }
+}
+
+void SuperGuardian::changeEvent(QEvent* event) {
+    if (event->type() == QEvent::WindowStateChange) {
+        if (!(windowState() & Qt::WindowMinimized) && isVisible()) {
+            show();
+        }
+    }
+    QMainWindow::changeEvent(event);
+}
+
+void SuperGuardian::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    distributeColumnWidths();
+}
+
+void SuperGuardian::showEvent(QShowEvent* event) {
+    QMainWindow::showEvent(event);
+    static bool firstShow = true;
+    if (firstShow) {
+        firstShow = false;
+        QTimer::singleShot(0, this, &SuperGuardian::distributeColumnWidths);
+    }
+}
+
+bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
+    static const UINT WM_SG_SHOW = RegisterWindowMessageW(L"SuperGuardianShowMainWindow");
+    MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_SG_SHOW) {
+        showNormal();
+        raise();
+        activateWindow();
+        if (result) *result = 0;
+        return true;
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
+}
+
+void SuperGuardian::toggleTheme() {
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    QString current = s.value("theme", "light").toString();
+    QString next = (current == "dark") ? "light" : "dark";
+    s.setValue("theme", next);
+    applyTheme(next);
+}
+
+QString SuperGuardian::formatStartDelay(int secs) const {
+    if (secs <= 0) return QString::fromUtf8("\u5173\u95ed");
+    return QString::number(secs) + QString::fromUtf8(" \u79d2");
+}

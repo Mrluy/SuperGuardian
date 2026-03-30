@@ -27,8 +27,6 @@ QString appSettingsFilePath() {
 
 void initializeAppStorage() {
     QDir().mkpath(appConfigDirPath());
-    QDir().mkpath(appLogsDirPath());
-    QDir().mkpath(appCacheDirPath());
 }
 
 QString watchdogLogFilePath() {

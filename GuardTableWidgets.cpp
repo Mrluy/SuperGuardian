@@ -4,6 +4,49 @@
 #include <QMouseEvent>
 #include <QApplication>
 
+// --- ChineseContextMenuFilter ---
+
+bool ChineseContextMenuFilter::eventFilter(QObject* obj, QEvent* event) {
+    if (event->type() != QEvent::ContextMenu) return false;
+    QLineEdit* le = qobject_cast<QLineEdit*>(obj);
+    QAbstractSpinBox* sb = nullptr;
+    if (!le) {
+        sb = qobject_cast<QAbstractSpinBox*>(obj);
+        if (sb) le = sb->findChild<QLineEdit*>();
+    }
+    if (!le) return false;
+    QContextMenuEvent* ce = static_cast<QContextMenuEvent*>(event);
+    QMenu* m = le->createStandardContextMenu();
+    if (!m) return false;
+    for (QAction* a : m->actions()) {
+        if (a->isSeparator()) continue;
+        QString t = a->text();
+        int tab = t.indexOf(QLatin1Char('\t'));
+        QString label = tab >= 0 ? t.left(tab) : t;
+        QString shortcut = tab >= 0 ? t.mid(tab) : QString();
+        if (label == "&Undo") label = QString::fromUtf8("\u64a4\u9500");
+        else if (label == "&Redo") label = QString::fromUtf8("\u91cd\u505a");
+        else if (label == "Cu&t") label = QString::fromUtf8("\u526a\u5207");
+        else if (label == "&Copy") label = QString::fromUtf8("\u590d\u5236");
+        else if (label == "&Paste") label = QString::fromUtf8("\u7c98\u8d34");
+        else if (label == "Delete") label = QString::fromUtf8("\u5220\u9664");
+        else if (label == "Select All") label = QString::fromUtf8("\u5168\u9009");
+        else continue;
+        a->setText(label + shortcut);
+    }
+    if (!sb) sb = qobject_cast<QAbstractSpinBox*>(le->parentWidget());
+    if (sb) {
+        m->addSeparator();
+        QAction* upAct = m->addAction(QString::fromUtf8("\u589e\u5927"));
+        QAction* downAct = m->addAction(QString::fromUtf8("\u51cf\u5c0f"));
+        QObject::connect(upAct, &QAction::triggered, sb, &QAbstractSpinBox::stepUp);
+        QObject::connect(downAct, &QAction::triggered, sb, &QAbstractSpinBox::stepDown);
+    }
+    m->exec(ce->globalPos());
+    delete m;
+    return true;
+}
+
 // --- BruteForceDelegate ---
 
 void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {

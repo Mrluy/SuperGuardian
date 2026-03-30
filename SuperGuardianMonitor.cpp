@@ -228,5 +228,28 @@ void SuperGuardian::checkProcesses() {
         setCell(6, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
         setCell(7, formatStartDelay(item.startDelaySecs));
     }
+
+    // 动态列排序：当排序列内容变化时更新排序
+    if (sortState != 0 && activeSortSection >= 1 && activeSortSection <= 7) {
+        Qt::SortOrder order = (sortState == 1) ? Qt::AscendingOrder : Qt::DescendingOrder;
+        bool orderChanged = false;
+        for (int r = 0; r < tableWidget->rowCount() - 1; r++) {
+            int idx1 = findItemIndexByPath(rowPath(r));
+            int idx2 = findItemIndexByPath(rowPath(r + 1));
+            if (idx1 < 0 || idx2 < 0) continue;
+            if (items[idx1].pinned != items[idx2].pinned) continue;
+            QTableWidgetItem* it1 = tableWidget->item(r, activeSortSection);
+            QTableWidgetItem* it2 = tableWidget->item(r + 1, activeSortSection);
+            QString t1 = it1 ? it1->text() : QString();
+            QString t2 = it2 ? it2->text() : QString();
+            int cmp = t1.localeAwareCompare(t2);
+            if ((order == Qt::AscendingOrder && cmp > 0) || (order == Qt::DescendingOrder && cmp < 0)) {
+                orderChanged = true;
+                break;
+            }
+        }
+        if (orderChanged) performSort();
+    }
+
     saveSettings();
 }

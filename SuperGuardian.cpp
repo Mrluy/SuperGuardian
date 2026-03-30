@@ -4,59 +4,9 @@
 #include "ThemeManager.h"
 #include "DialogHelpers.h"
 #include <QtWidgets>
-#include <QActionGroup>
 #include <QDesktopServices>
 #include <QUrl>
-#include <QAbstractSpinBox>
 #include <windows.h>
-
-// ---- 全局中文右键菜单过滤器 ----
-
-class ChineseContextMenuFilter : public QObject {
-public:
-    using QObject::QObject;
-protected:
-    bool eventFilter(QObject* obj, QEvent* event) override {
-        if (event->type() != QEvent::ContextMenu) return false;
-        QLineEdit* le = qobject_cast<QLineEdit*>(obj);
-        QAbstractSpinBox* sb = nullptr;
-        if (!le) {
-            sb = qobject_cast<QAbstractSpinBox*>(obj);
-            if (sb) le = sb->findChild<QLineEdit*>();
-        }
-        if (!le) return false;
-        QContextMenuEvent* ce = static_cast<QContextMenuEvent*>(event);
-        QMenu* m = le->createStandardContextMenu();
-        if (!m) return false;
-        for (QAction* a : m->actions()) {
-            if (a->isSeparator()) continue;
-            QString t = a->text();
-            int tab = t.indexOf(QLatin1Char('\t'));
-            QString label = tab >= 0 ? t.left(tab) : t;
-            QString shortcut = tab >= 0 ? t.mid(tab) : QString();
-            if (label == "&Undo") label = QString::fromUtf8("\u64a4\u9500");
-            else if (label == "&Redo") label = QString::fromUtf8("\u91cd\u505a");
-            else if (label == "Cu&t") label = QString::fromUtf8("\u526a\u5207");
-            else if (label == "&Copy") label = QString::fromUtf8("\u590d\u5236");
-            else if (label == "&Paste") label = QString::fromUtf8("\u7c98\u8d34");
-            else if (label == "Delete") label = QString::fromUtf8("\u5220\u9664");
-            else if (label == "Select All") label = QString::fromUtf8("\u5168\u9009");
-            else continue;
-            a->setText(label + shortcut);
-        }
-        if (!sb) sb = qobject_cast<QAbstractSpinBox*>(le->parentWidget());
-        if (sb) {
-            m->addSeparator();
-            QAction* upAct = m->addAction(QString::fromUtf8("\u589e\u5927"));
-            QAction* downAct = m->addAction(QString::fromUtf8("\u51cf\u5c0f"));
-            QObject::connect(upAct, &QAction::triggered, sb, &QAbstractSpinBox::stepUp);
-            QObject::connect(downAct, &QAction::triggered, sb, &QAbstractSpinBox::stepDown);
-        }
-        m->exec(ce->globalPos());
-        delete m;
-        return true;
-    }
-};
 
 // ---- 主窗口核心：构造、析构、窗口事件 ----
 
@@ -94,7 +44,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(9);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("上次重启/运行"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), QString::fromUtf8("下次重启/运行"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("上次重启/运行"), QString::fromUtf8("\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f/\u8fd0\u884c\u89c4\u5219"), QString::fromUtf8("下次重启/运行"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     tableWidget->horizontalHeader()->setSectionResizeMode(8, QHeaderView::Fixed);
     tableWidget->setColumnWidth(8, 300);
@@ -200,6 +150,9 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     QMenu* testMenu = menuBar()->addMenu(QString::fromUtf8("测试"));
     testMenu->addAction(QString::fromUtf8("测试自我守护"), this, &SuperGuardian::runSelfGuardTest);
 
+    QMenu* aboutMenu = menuBar()->addMenu(QString::fromUtf8("\u5173\u4e8e"));
+    aboutMenu->addAction(QString::fromUtf8("\u66f4\u65b0"), this, &SuperGuardian::showUpdateDialog);
+
     // ---- 主题切换按钮（菜单栏右侧角落） ----
     themeToggleBtn = new QToolButton(this);
     themeToggleBtn->setObjectName("themeToggleBtn");
@@ -246,35 +199,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         btnAdd->setEnabled(hasText);
         btnCancel->setEnabled(hasText);
     });
-    auto doAddProgram = [this]() {
-        QString text = lineEdit->text().trimmed();
-        if (text.isEmpty()) return;
-        QString progPath, progArgs;
-        if (text.startsWith('"')) {
-            int cq = text.indexOf('"', 1);
-            if (cq > 0) { progPath = text.mid(1, cq - 1); progArgs = text.mid(cq + 1).trimmed(); }
-            else progPath = text.mid(1);
-        } else if (QFileInfo::exists(text)) {
-            progPath = text;
-        } else {
-            bool found = false;
-            int searchFrom = 0;
-            while (searchFrom < text.length()) {
-                int sp = text.indexOf(' ', searchFrom);
-                if (sp < 0) break;
-                QString cand = text.left(sp);
-                if (QFileInfo::exists(cand) || !QStandardPaths::findExecutable(cand).isEmpty()) {
-                    progPath = cand; progArgs = text.mid(sp + 1).trimmed(); found = true; break;
-                }
-                searchFrom = sp + 1;
-            }
-            if (!found) progPath = text;
-        }
-        addProgram(progPath.trimmed(), progArgs.trimmed());
-        lineEdit->clear();
-    };
-    connect(btnAdd, &QPushButton::clicked, this, doAddProgram);
-    connect(lineEdit, &QLineEdit::returnPressed, this, doAddProgram);
+    connect(btnAdd, &QPushButton::clicked, this, &SuperGuardian::parseAndAddFromInput);
+    connect(lineEdit, &QLineEdit::returnPressed, this, &SuperGuardian::parseAndAddFromInput);
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);
@@ -283,58 +209,29 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     connect(tableWidget, &QTableWidget::cellDoubleClicked, this, &SuperGuardian::onTableDoubleClicked);
     connect(tray, &QSystemTrayIcon::activated, this, &SuperGuardian::onTrayActivated);
     static_cast<DesktopSelectTable*>(tableWidget)->onRowMoved = [this](int from, int to) { handleRowMoved(from, to); };
+
+    // 表头排序（点击列标题循环：升序→降序→默认）
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {
         if (section == 8) return;
-
         QHeaderView* header = tableWidget->horizontalHeader();
-        if (header->sortIndicatorSection() == section && sortState == 2) {
+        if (activeSortSection == section && sortState == 2) {
             sortState = 0;
+            activeSortSection = -1;
             header->setSortIndicatorShown(false);
-            rebuildTableFromItems();
+        } else if (activeSortSection == section && sortState == 1) {
+            sortState = 2;
         } else {
-            Qt::SortOrder order;
-            if (header->sortIndicatorSection() == section && sortState == 1) {
-                sortState = 2;
-                order = Qt::DescendingOrder;
-            } else {
-                sortState = 1;
-                order = Qt::AscendingOrder;
-            }
-            header->setSortIndicatorShown(true);
-            header->setSortIndicator(section, order);
-
-            // Pin-aware sort: pinned items sort among themselves at top,
-            // unpinned items sort among themselves below
-            auto collectRows = [&](bool pinned) -> QVector<QPair<QString, int>> {
-                QVector<QPair<QString, int>> rows;
-                for (int r = 0; r < tableWidget->rowCount(); r++) {
-                    int idx = findItemIndexByPath(rowPath(r));
-                    if (idx < 0) continue;
-                    if (items[idx].pinned != pinned) continue;
-                    QTableWidgetItem* it = tableWidget->item(r, section);
-                    rows.append({ it ? it->text() : QString(), idx });
-                }
-                return rows;
-            };
-            auto sortRows = [&](QVector<QPair<QString, int>>& rows) {
-                std::sort(rows.begin(), rows.end(), [order](const QPair<QString, int>& a, const QPair<QString, int>& b) {
-                    return (order == Qt::AscendingOrder) ? (a.first.localeAwareCompare(b.first) < 0)
-                                                        : (a.first.localeAwareCompare(b.first) > 0);
-                });
-            };
-
-            auto pinnedRows = collectRows(true);
-            auto unpinnedRows = collectRows(false);
-            sortRows(pinnedRows);
-            sortRows(unpinnedRows);
-
-            QVector<GuardItem> newItems;
-            for (const auto& p : pinnedRows) newItems.append(items[p.second]);
-            for (const auto& p : unpinnedRows) newItems.append(items[p.second]);
-            items = newItems;
-            rebuildTableFromItems();
+            sortState = 1;
+            activeSortSection = section;
         }
+        performSort();
+        saveSortState();
     });
+
+    // 表头右键菜单：选择显示/隐藏列
+    tableWidget->horizontalHeader()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(tableWidget->horizontalHeader(), &QHeaderView::customContextMenuRequested,
+        this, &SuperGuardian::onHeaderContextMenu);
 
     loadSettings();
     applySavedTrayOptions();
@@ -343,91 +240,44 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     if (!s.contains("theme")) s.setValue("theme", theme);
     applyTheme(theme);
 
-    connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int) {
-        if (logicalIndex < 8 && !autoResizingColumns)
-            saveColumnWidths();
+    // 恢复排序状态
+    activeSortSection = s.value("sortSection", -1).toInt();
+    sortState = s.value("sortState", 0).toInt();
+    if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 8)
+        performSort();
+
+    restoreColumnVisibility();
+
+    // 列宽调整：操作列固定在最右侧，未调整的列按原占比重新分配
+    connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int newSize) {
+        if (autoResizingColumns || logicalIndex >= 8) return;
+        autoResizingColumns = true;
+        int col8w = tableWidget->columnWidth(8);
+        int available = tableWidget->viewport()->width() - col8w;
+        int remaining = available - newSize;
+        QVector<int> others;
+        double othersTotal = 0;
+        for (int i = 0; i < 8; i++) {
+            if (i == logicalIndex || tableWidget->isColumnHidden(i)) continue;
+            others.append(i);
+            othersTotal += tableWidget->columnWidth(i);
+        }
+        if (others.isEmpty() || othersTotal <= 0 || remaining < others.size() * 40) {
+            autoResizingColumns = false;
+            return;
+        }
+        int distributed = 0;
+        for (int k = 0; k < others.size() - 1; k++) {
+            int w = qMax(40, (int)(remaining * tableWidget->columnWidth(others[k]) / othersTotal));
+            tableWidget->setColumnWidth(others[k], w);
+            distributed += w;
+        }
+        tableWidget->setColumnWidth(others.last(), qMax(40, remaining - distributed));
+        saveColumnWidths();
+        autoResizingColumns = false;
     });
 }
 
 SuperGuardian::~SuperGuardian()
 {
-}
-
-void SuperGuardian::toggleVisible() {
-    if (isVisible() && !(windowState() & Qt::WindowMinimized)) {
-        hide();
-    } else {
-        showNormal();
-        raise();
-        activateWindow();
-    }
-}
-
-void SuperGuardian::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
-    if (reason == QSystemTrayIcon::Trigger) toggleVisible();
-}
-
-void SuperGuardian::onExit() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("self_guard_manual_exit", true);
-    stopWatchdogHelper();
-    qApp->quit();
-}
-
-void SuperGuardian::closeEvent(QCloseEvent* event) {
-    if (tray) {
-        hide();
-        event->ignore();
-    } else {
-        QMainWindow::closeEvent(event);
-    }
-}
-
-void SuperGuardian::changeEvent(QEvent* event) {
-    if (event->type() == QEvent::WindowStateChange) {
-        if (!(windowState() & Qt::WindowMinimized) && isVisible()) {
-            show();
-        }
-    }
-    QMainWindow::changeEvent(event);
-}
-
-void SuperGuardian::resizeEvent(QResizeEvent* event) {
-    QMainWindow::resizeEvent(event);
-    distributeColumnWidths();
-}
-
-void SuperGuardian::showEvent(QShowEvent* event) {
-    QMainWindow::showEvent(event);
-    static bool firstShow = true;
-    if (firstShow) {
-        firstShow = false;
-        QTimer::singleShot(0, this, &SuperGuardian::distributeColumnWidths);
-    }
-}
-
-bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
-    static const UINT WM_SG_SHOW = RegisterWindowMessageW(L"SuperGuardianShowMainWindow");
-    MSG* msg = static_cast<MSG*>(message);
-    if (msg->message == WM_SG_SHOW) {
-        showNormal();
-        raise();
-        activateWindow();
-        if (result) *result = 0;
-        return true;
-    }
-    return QMainWindow::nativeEvent(eventType, message, result);
-}
-
-void SuperGuardian::toggleTheme() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    QString current = s.value("theme", "light").toString();
-    QString next = (current == "dark") ? "light" : "dark";
-    s.setValue("theme", next);
-    applyTheme(next);
-}
-
-QString SuperGuardian::formatStartDelay(int secs) const {
-    if (secs <= 0) return QString::fromUtf8("\u5173\u95ed");
-    return QString::number(secs) + QString::fromUtf8(" \u79d2");
 }

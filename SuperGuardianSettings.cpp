@@ -118,6 +118,7 @@ void SuperGuardian::loadSettings() {
 
         item.pinned = s.value("pinned", false).toBool();
         item.note = s.value("note").toString();
+        item.insertionOrder = s.value("insertionOrder", i).toInt();
 
         items.append(item);
     }
@@ -179,6 +180,7 @@ void SuperGuardian::saveSettings() {
 
         s.setValue("pinned", items[i].pinned);
         s.setValue("note", items[i].note);
+        s.setValue("insertionOrder", items[i].insertionOrder);
     }
     s.endArray();
 }
@@ -248,13 +250,28 @@ void SuperGuardian::distributeColumnWidths() {
         for (int i = 0; i < 8; i++) ratios[i] /= sum;
     }
 
-    int remaining = available;
-    for (int i = 0; i < 7; i++) {
-        int w = qMax(40, (int)(available * ratios[i]));
-        tableWidget->setColumnWidth(i, w);
-        remaining -= w;
+    // 仅分配可见列的宽度
+    double visibleSum = 0;
+    for (int i = 0; i < 8; i++) {
+        if (!tableWidget->isColumnHidden(i)) visibleSum += ratios[i];
     }
-    tableWidget->setColumnWidth(7, qMax(40, remaining));
+    if (visibleSum <= 0.001) { autoResizingColumns = false; return; }
+
+    int remaining = available;
+    int lastVisible = -1;
+    for (int i = 0; i < 8; i++) {
+        if (!tableWidget->isColumnHidden(i)) lastVisible = i;
+    }
+    for (int i = 0; i < 8; i++) {
+        if (tableWidget->isColumnHidden(i)) continue;
+        if (i == lastVisible) {
+            tableWidget->setColumnWidth(i, qMax(40, remaining));
+        } else {
+            int w = qMax(40, (int)(available * ratios[i] / visibleSum));
+            tableWidget->setColumnWidth(i, w);
+            remaining -= w;
+        }
+    }
     autoResizingColumns = false;
 }
 
@@ -274,4 +291,46 @@ void SuperGuardian::resetColumnWidths() {
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
     s.remove("columnRatios");
     distributeColumnWidths();
+}
+
+// ---- 列显示/隐藏管理 ----
+
+void SuperGuardian::saveColumnVisibility() {
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    QStringList hidden;
+    for (int i = 0; i < 8; i++) {
+        if (tableWidget->isColumnHidden(i)) hidden << QString::number(i);
+    }
+    s.setValue("hiddenColumns", hidden.join(","));
+}
+
+void SuperGuardian::restoreColumnVisibility() {
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    QString hidden = s.value("hiddenColumns").toString();
+    if (hidden.isEmpty()) return;
+    for (const QString& col : hidden.split(",")) {
+        int i = col.toInt();
+        if (i >= 0 && i < 8) tableWidget->setColumnHidden(i, true);
+    }
+}
+
+void SuperGuardian::onHeaderContextMenu(const QPoint& pos) {
+    QHeaderView* header = tableWidget->horizontalHeader();
+    int clickedSection = header->logicalIndexAt(pos);
+    if (clickedSection == 8) return;
+
+    QMenu menu(this);
+    for (int i = 0; i < 8; i++) {
+        QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(i);
+        if (!hdr) continue;
+        QAction* act = menu.addAction(hdr->text());
+        act->setCheckable(true);
+        act->setChecked(!tableWidget->isColumnHidden(i));
+        connect(act, &QAction::toggled, this, [this, i](bool checked) {
+            tableWidget->setColumnHidden(i, !checked);
+            saveColumnVisibility();
+            distributeColumnWidths();
+        });
+    }
+    menu.exec(header->mapToGlobal(pos));
 }

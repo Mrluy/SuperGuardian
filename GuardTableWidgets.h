@@ -5,7 +5,18 @@
 #include <QRubberBand>
 #include <QItemSelection>
 #include <QFrame>
+#include <QLineEdit>
+#include <QAbstractSpinBox>
+#include <QMenu>
+#include <QContextMenuEvent>
 #include <functional>
+
+class ChineseContextMenuFilter : public QObject {
+public:
+    using QObject::QObject;
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+};
 
 class BruteForceDelegate : public QStyledItemDelegate {
 public:
