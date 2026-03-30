@@ -155,38 +155,13 @@ void SuperGuardian::contextRemoveItem(int row) {
     saveSettings();
 }
 
-// ---- 双击切换守护 ----
+// ---- 双击打开设置启动程序/参数 ----
 
 void SuperGuardian::onTableDoubleClicked(int row, int col) {
     Q_UNUSED(col);
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
-    GuardItem& item = items[idx];
-    if (item.scheduledRunEnabled) return; // run mode, don't toggle guard
-    item.guarding = !item.guarding;
-    QWidget* opw = tableWidget->cellWidget(row, 8);
-    if (opw) {
-        QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.path));
-        if (b) b->setText(item.guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
-    }
-    if (item.guarding) {
-        item.startTime = QDateTime::currentDateTime();
-        int count = 0;
-        bool running = isProcessRunning(item.processName, count);
-        if (!running && count == 0) {
-            launchProgram(item.targetPath, item.launchArgs);
-            item.lastLaunchTime = QDateTime::currentDateTime();
-        }
-    } else {
-        item.restartCount = 0;
-        if (!item.restartRulesActive) {
-            if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
-        }
-        if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
-        if (tableWidget->item(row, 4)) tableWidget->item(row, 4)->setText("0");
-    }
-    updateButtonStates(row);
-    saveSettings();
+    contextSetLaunchArgs(QList<int>{row});
 }
 
 void SuperGuardian::contextOpenFileLocation(int row) {

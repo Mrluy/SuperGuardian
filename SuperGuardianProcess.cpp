@@ -33,14 +33,35 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     else initStatus = QString::fromUtf8("\u672a\u5b88\u62a4");
 
     tableWidget->setItem(row, 1, makeItem(initStatus));
-    tableWidget->setItem(row, 2, makeItem(item.guarding ? QStringLiteral("0") : QStringLiteral("-")));
+
+    // col 2: 持续运行时长 — 守护中时从 startTime 计算实际时长
+    QString durText = QStringLiteral("-");
+    if (item.guarding && item.startTime.isValid()) {
+        qint64 secs = item.startTime.secsTo(QDateTime::currentDateTime());
+        if (secs < 0) secs = 0;
+        qint64 days = secs / 86400;
+        qint64 hours = (secs % 86400) / 3600;
+        qint64 mins = (secs % 3600) / 60;
+        if (days > 0) durText = QString::number(days) + QString::fromUtf8("\u5929") + QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
+        else if (hours > 0) durText = QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
+        else durText = QString::number(mins) + QString::fromUtf8("\u5206");
+    }
+    tableWidget->setItem(row, 2, makeItem(durText));
+
     tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
     tableWidget->setItem(row, 4, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : QString::number(item.restartCount)));
 
-    // col 5/6 始终显示定时重启规则
-    tableWidget->setItem(row, 5, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
-    QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-    tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+    // col 5/6: 定时运行时显示 runRules，否则显示 restartRules
+    if (item.scheduledRunEnabled && !item.runRules.isEmpty()) {
+        tableWidget->setItem(row, 5, makeItem(formatScheduleRules(item.runRules)));
+        QDateTime nt = nextTriggerTime(item.runRules);
+        tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+    } else {
+        tableWidget->setItem(row, 5, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-")));
+        QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
+        tableWidget->setItem(row, 6, makeItem(nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-"));
+    }
+
     tableWidget->setItem(row, 7, makeItem(item.scheduledRunEnabled ? QStringLiteral("-") : formatStartDelay(item.startDelaySecs)));
 
     // 3 buttons: 开始守护/关闭守护, 开启定时重启/关闭定时重启, 开启定时运行/关闭定时运行

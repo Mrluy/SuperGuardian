@@ -26,6 +26,7 @@ private:
     QAction* autostartAct;
     QAction* emailEnabledAct = nullptr;
     QAction* trayEmailAct = nullptr;
+    QAction* minimizeToTrayAct = nullptr;
     QTimer* timer;
     SmtpConfig smtpConfig;
 
@@ -92,5 +93,6 @@ protected:
     void changeEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 };
 

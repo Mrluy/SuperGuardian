@@ -9,6 +9,7 @@
 #include "SuperGuardian.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
+#include <windows.h>
 
 int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName("SuperGuardian");
@@ -25,28 +26,17 @@ int main(int argc, char* argv[]) {
 
     QSharedMemory shared("SuperGuardianSingleton");
     if (!shared.create(1)) {
-        {
-            QDialog dlg(nullptr, Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-            dlg.setWindowTitle(QString::fromUtf8("提示"));
-            dlg.setFixedSize(300, 200);
-            QVBoxLayout* lay = new QVBoxLayout(&dlg);
-            QLabel* lbl = new QLabel(QString::fromUtf8("程序已运行"));
-            lbl->setWordWrap(true);
-            lbl->setAlignment(Qt::AlignCenter);
-            lay->addWidget(lbl, 1);
-            QHBoxLayout* btnLay = new QHBoxLayout();
-            btnLay->addStretch();
-            QPushButton* okBtn = new QPushButton(QString::fromUtf8("确定"));
-            QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
-            btnLay->addWidget(okBtn);
-            btnLay->addStretch();
-            lay->addLayout(btnLay);
-            dlg.exec();
+        HWND hwnd = FindWindowW(nullptr, L"\x8d85\x7ea7\x5b88\x62a4");
+        if (hwnd) {
+            static const UINT WM_SG_SHOW = RegisterWindowMessageW(L"SuperGuardianShowMainWindow");
+            PostMessageW(hwnd, WM_SG_SHOW, 0, 0);
         }
         return 0;
     }
 
     SuperGuardian w;
-    w.show();
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    if (!s.value("minimizeToTray", false).toBool())
+        w.show();
     return a.exec();
 }

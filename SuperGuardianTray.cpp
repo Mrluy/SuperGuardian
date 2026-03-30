@@ -27,12 +27,18 @@ void SuperGuardian::applySavedTrayOptions() {
     bool self = s.value("self_guard_enabled", false).toBool();
     bool autoRun = s.value("autostart", false).toBool();
     bool emailOn = s.value("emailEnabled", false).toBool();
+    bool minToTray = s.value("minimizeToTray", false).toBool();
     if (selfGuardAct) selfGuardAct->setChecked(self);
     if (autostartAct) autostartAct->setChecked(autoRun);
     if (trayEmailAct) {
         trayEmailAct->blockSignals(true);
         trayEmailAct->setChecked(emailOn);
         trayEmailAct->blockSignals(false);
+    }
+    if (minimizeToTrayAct) {
+        minimizeToTrayAct->blockSignals(true);
+        minimizeToTrayAct->setChecked(minToTray);
+        minimizeToTrayAct->blockSignals(false);
     }
     if (self) {
         // Ensure watchdog is running even if QAction::toggled is not emitted by setChecked in some environments.

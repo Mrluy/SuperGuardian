@@ -7,6 +7,56 @@
 #include <QActionGroup>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QAbstractSpinBox>
+#include <windows.h>
+
+// ---- 全局中文右键菜单过滤器 ----
+
+class ChineseContextMenuFilter : public QObject {
+public:
+    using QObject::QObject;
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override {
+        if (event->type() != QEvent::ContextMenu) return false;
+        QLineEdit* le = qobject_cast<QLineEdit*>(obj);
+        QAbstractSpinBox* sb = nullptr;
+        if (!le) {
+            sb = qobject_cast<QAbstractSpinBox*>(obj);
+            if (sb) le = sb->findChild<QLineEdit*>();
+        }
+        if (!le) return false;
+        QContextMenuEvent* ce = static_cast<QContextMenuEvent*>(event);
+        QMenu* m = le->createStandardContextMenu();
+        if (!m) return false;
+        for (QAction* a : m->actions()) {
+            if (a->isSeparator()) continue;
+            QString t = a->text();
+            int tab = t.indexOf(QLatin1Char('\t'));
+            QString label = tab >= 0 ? t.left(tab) : t;
+            QString shortcut = tab >= 0 ? t.mid(tab) : QString();
+            if (label == "&Undo") label = QString::fromUtf8("\u64a4\u9500");
+            else if (label == "&Redo") label = QString::fromUtf8("\u91cd\u505a");
+            else if (label == "Cu&t") label = QString::fromUtf8("\u526a\u5207");
+            else if (label == "&Copy") label = QString::fromUtf8("\u590d\u5236");
+            else if (label == "&Paste") label = QString::fromUtf8("\u7c98\u8d34");
+            else if (label == "Delete") label = QString::fromUtf8("\u5220\u9664");
+            else if (label == "Select All") label = QString::fromUtf8("\u5168\u9009");
+            else continue;
+            a->setText(label + shortcut);
+        }
+        if (!sb) sb = qobject_cast<QAbstractSpinBox*>(le->parentWidget());
+        if (sb) {
+            m->addSeparator();
+            QAction* upAct = m->addAction(QString::fromUtf8("\u589e\u5927"));
+            QAction* downAct = m->addAction(QString::fromUtf8("\u51cf\u5c0f"));
+            QObject::connect(upAct, &QAction::triggered, sb, &QAbstractSpinBox::stepUp);
+            QObject::connect(downAct, &QAction::triggered, sb, &QAbstractSpinBox::stepDown);
+        }
+        m->exec(ce->globalPos());
+        delete m;
+        return true;
+    }
+};
 
 // ---- 主窗口核心：构造、析构、窗口事件 ----
 
@@ -18,31 +68,18 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     resize(1280, 720);
 
     // ---- UI 控件 ----
+    qApp->installEventFilter(new ChineseContextMenuFilter(this));
+
     class PathLineEdit : public QLineEdit {
     public:
         PathLineEdit(QWidget* p=nullptr) : QLineEdit(p) { setAcceptDrops(true); }
     protected:
         void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
         void dropEvent(QDropEvent* e) override { const QList<QUrl> urls = e->mimeData()->urls(); if (!urls.isEmpty()) setText(urls.first().toLocalFile()); }
-        void contextMenuEvent(QContextMenuEvent* e) override {
-            QMenu m(this);
-            QAction* a;
-            a = m.addAction(QString::fromUtf8("\u64a4\u9500"), this, &QLineEdit::undo); a->setEnabled(isUndoAvailable());
-            a = m.addAction(QString::fromUtf8("\u91cd\u505a"), this, &QLineEdit::redo); a->setEnabled(isRedoAvailable());
-            m.addSeparator();
-            a = m.addAction(QString::fromUtf8("\u526a\u5207"), this, &QLineEdit::cut); a->setEnabled(hasSelectedText());
-            a = m.addAction(QString::fromUtf8("\u590d\u5236"), this, &QLineEdit::copy); a->setEnabled(hasSelectedText());
-            a = m.addAction(QString::fromUtf8("\u7c98\u8d34"), this, &QLineEdit::paste); a->setEnabled(!QApplication::clipboard()->text().isEmpty());
-            a = m.addAction(QString::fromUtf8("\u5220\u9664")); a->setEnabled(hasSelectedText());
-            connect(a, &QAction::triggered, this, [this]() { backspace(); });
-            m.addSeparator();
-            a = m.addAction(QString::fromUtf8("\u5168\u9009"), this, &QLineEdit::selectAll); a->setEnabled(!text().isEmpty());
-            m.exec(e->globalPos());
-        }
     };
 
     lineEdit = new PathLineEdit(this);
-    lineEdit->setPlaceholderText(QString::fromUtf8("输入程序完整路径 / 系统程序名称（如 powershell、notepad，不区分大小写）/ 可附带启动参数，支持拖放 .exe 或 .lnk"));
+    lineEdit->setPlaceholderText(QString::fromUtf8("输入文件完整路径；支持鼠标拖放文件到此处；系统内置工具（如 PowerShell）可仅输入名称；支持携带参数；支持识别快捷方式"));
     int lineH = lineEdit->fontMetrics().height();
     int inputH = (lineH * 2 + 10) * 3 / 4;
     lineEdit->setMinimumHeight(inputH);
@@ -107,6 +144,8 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     autostartAct->setCheckable(true);
     trayEmailAct = trayMenu->addAction(QString::fromUtf8("邮件提醒"));
     trayEmailAct->setCheckable(true);
+    minimizeToTrayAct = trayMenu->addAction(QString::fromUtf8("\u542f\u52a8\u65f6\u6700\u5c0f\u5316\u5230\u6258\u76d8"));
+    minimizeToTrayAct->setCheckable(true);
     trayMenu->addSeparator();
     QAction* exitAct = trayMenu->addAction(QString::fromUtf8("退出"), this, &SuperGuardian::onExit);
     tray->setContextMenu(trayMenu);
@@ -139,6 +178,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     emailEnabledAct = optionsMenu->addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192"));
     emailEnabledAct->setCheckable(true);
     emailEnabledAct->setChecked(false);
+    optionsMenu->addAction(minimizeToTrayAct);
 
     QMenu* configMenu = menuBar()->addMenu(QString::fromUtf8("\u914d\u7f6e"));
     configMenu->addAction(QString::fromUtf8("\u5bfc\u5165"), this, &SuperGuardian::importConfig);
@@ -189,6 +229,11 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         emailEnabledAct->blockSignals(false);
         QSettings s(appSettingsFilePath(), QSettings::IniFormat);
         s.setValue("emailEnabled", on);
+    });
+
+    connect(minimizeToTrayAct, &QAction::toggled, this, [this](bool on) {
+        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+        s.setValue("minimizeToTray", on);
     });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
@@ -359,6 +404,19 @@ void SuperGuardian::showEvent(QShowEvent* event) {
         firstShow = false;
         QTimer::singleShot(0, this, &SuperGuardian::distributeColumnWidths);
     }
+}
+
+bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
+    static const UINT WM_SG_SHOW = RegisterWindowMessageW(L"SuperGuardianShowMainWindow");
+    MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_SG_SHOW) {
+        showNormal();
+        raise();
+        activateWindow();
+        if (result) *result = 0;
+        return true;
+    }
+    return QMainWindow::nativeEvent(eventType, message, result);
 }
 
 void SuperGuardian::toggleTheme() {
