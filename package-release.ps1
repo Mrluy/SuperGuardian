@@ -20,7 +20,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$Version = '',
+    [string]$Version = '1.0',
     [switch]$NoZip,
     [switch]$SkipQtDeploy
 )

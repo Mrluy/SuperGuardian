@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -108,11 +108,18 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
     <ClCompile Include="SuperGuardianConfigMgmt.cpp" />
     <ClCompile Include="SuperGuardianDialogs.cpp" />
     <ClCompile Include="SuperGuardianDialogsEmail.cpp" />
+    <ClCompile Include="SuperGuardianInit.cpp" />
     <ClCompile Include="SuperGuardianMonitor.cpp" />
     <ClCompile Include="SuperGuardianProcess.cpp" />
     <ClCompile Include="SuperGuardianSettings.cpp" />
     <ClCompile Include="SuperGuardianTray.cpp" />
     <ClCompile Include="ThemeManager.cpp" />
+    <ClCompile Include="ThemeManagerLight.cpp" />
+    <ClCompile Include="SuperGuardianUpdate.cpp" />
+    <ClCompile Include="SuperGuardianWhitelist.cpp" />
+    <ClCompile Include="SuperGuardianColumns.cpp" />
+    <ClCompile Include="SuperGuardianBatchOps.cpp" />
+    <ClCompile Include="SuperGuardianItemDialogs.cpp" />
     <QtRcc Include="resources.qrc" />
     <QtRcc Include="SuperGuardian.qrc" />
     <QtUic Include="SuperGuardian.ui" />

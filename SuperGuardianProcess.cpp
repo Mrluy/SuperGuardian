@@ -4,8 +4,6 @@
 #include "AppStorage.h"
 #include <QtWidgets>
 
-// ---- 输入解析 ----
-
 void SuperGuardian::parseAndAddFromInput() {
     QString text = lineEdit->text().trimmed();
     if (text.isEmpty()) return;
@@ -33,8 +31,6 @@ void SuperGuardian::parseAndAddFromInput() {
     addProgram(progPath.trimmed(), progArgs.trimmed());
     lineEdit->clear();
 }
-
-// ---- 表格行创建与按钮状态管理 ----
 
 void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     auto makeItem = [](const QString& t) {
@@ -224,8 +220,6 @@ void SuperGuardian::updateButtonStates(int row) {
     if (runBtn) runBtn->setEnabled(!guardOrRestartActive);
 }
 
-// ---- 程序添加 ----
-
 void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     QString resolvedPath = path;
     QFileInfo fi(path);
@@ -264,8 +258,6 @@ void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     rebuildTableFromItems();
     saveSettings();
 }
-
-// ---- 邮件通知 ----
 
 void SuperGuardian::trySendNotification(GuardItem& item, const QString& event, const QString& detail) {
     if (!emailEnabledAct || !emailEnabledAct->isChecked()) return;

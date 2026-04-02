@@ -87,6 +87,8 @@ private:
     void saveHeaderOrder();
     void restoreHeaderOrder();
     void resetHeaderDisplay();
+    void showAboutDialog();
+    void initSignals();
 
 private slots:
     void toggleVisible();

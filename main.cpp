@@ -1,11 +1,6 @@
-// simplified main: instantiate SuperGuardian window
-
 #include <QtWidgets/QApplication>
 #include <QtCore/QCoreApplication>
-#include <QtWidgets/QDialog>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QPushButton>
+#include <QtCore/QThread>
 #include "SuperGuardian.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
@@ -14,6 +9,7 @@
 int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName("SuperGuardian");
     QCoreApplication::setOrganizationName("SuperGuardian");
+    QCoreApplication::setApplicationVersion("1.0");
 
     if (argc > 1 && QString::fromUtf8(argv[1]) == "--watchdog") {
         QCoreApplication app(argc, argv);
@@ -21,8 +17,24 @@ int main(int argc, char* argv[]) {
         return runWatchdogMode(argc, argv);
     }
 
+    bool isRestart = false;
+    for (int i = 1; i < argc; i++) {
+        if (QString::fromUtf8(argv[i]) == "--restart") {
+            isRestart = true;
+            break;
+        }
+    }
+
     QApplication a(argc, argv);
     initializeAppStorage();
+
+    if (isRestart) {
+        for (int attempt = 0; attempt < 20; ++attempt) {
+            QSharedMemory test("SuperGuardianSingleton");
+            if (test.create(1)) { test.detach(); break; }
+            QThread::msleep(250);
+        }
+    }
 
     QSharedMemory shared("SuperGuardianSingleton");
     if (!shared.create(1)) {
