@@ -66,11 +66,13 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 
     // col 2: 持续运行时长 — 操作系统中的进程持续运行时间
     QString durText = QStringLiteral("-");
-    QDateTime procStart = getProcessStartTime(item.processName);
-    if (procStart.isValid()) {
-        qint64 secs = procStart.secsTo(QDateTime::currentDateTime());
-        if (secs < 0) secs = 0;
-        durText = formatDuration(secs);
+    if (!(item.scheduledRunEnabled && !item.trackRunDuration)) {
+        QDateTime procStart = getProcessStartTime(item.processName);
+        if (procStart.isValid()) {
+            qint64 secs = procStart.secsTo(QDateTime::currentDateTime());
+            if (secs < 0) secs = 0;
+            durText = formatDuration(secs);
+        }
     }
     tableWidget->setItem(row, 2, makeItem(durText));
 
@@ -227,12 +229,22 @@ void SuperGuardian::updateButtonStates(int row) {
 void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     QString resolvedPath = path;
     QFileInfo fi(path);
+    bool isSystemTool = false;
     if (!fi.exists()) {
         QString found = QStandardPaths::findExecutable(path);
         if (found.isEmpty()) return;
         resolvedPath = found;
+        isSystemTool = true;
     }
-    for (const GuardItem& it : items) if (it.path == resolvedPath) return;
+    if (!isSystemTool) {
+        QString nameOnly = QFileInfo(resolvedPath).fileName();
+        QString found = QStandardPaths::findExecutable(nameOnly);
+        if (!found.isEmpty() && QFileInfo(found).canonicalFilePath() == QFileInfo(resolvedPath).canonicalFilePath())
+            isSystemTool = true;
+    }
+    if (!isSystemTool && !duplicateWhitelist.contains(resolvedPath, Qt::CaseInsensitive)) {
+        for (const GuardItem& it : items) if (it.path == resolvedPath) return;
+    }
 
     GuardItem item;
     item.path = resolvedPath;

@@ -9,6 +9,7 @@
 #include <QAbstractSpinBox>
 #include <QMenu>
 #include <QContextMenuEvent>
+#include <QKeyEvent>
 #include <functional>
 
 class ChineseContextMenuFilter : public QObject {
@@ -29,13 +30,17 @@ class DesktopSelectTable : public QTableWidget {
 public:
     using QTableWidget::QTableWidget;
     std::function<void(int, int)> onRowMoved;
+    std::function<void(const QList<int>&, int)> onRowsMoved;
     std::function<void(int, int)> onCellDoubleClicked;
+    std::function<void(int, int)> onKeyPressed;
+    std::function<void(const QList<int>&)> onDeletePressed;
 protected:
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
     void mouseReleaseEvent(QMouseEvent* e) override;
     void mouseDoubleClickEvent(QMouseEvent* e) override;
     void focusInEvent(QFocusEvent* e) override;
+    void keyPressEvent(QKeyEvent* e) override;
 private:
     void killCurrentIndex();
     int dropTargetRow(const QPoint& pos);

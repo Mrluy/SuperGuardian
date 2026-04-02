@@ -61,8 +61,12 @@ void SuperGuardian::checkProcesses() {
             };
             setCell(1, QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c"));
             {
-                QDateTime procStart = getProcessStartTime(item.processName);
-                setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+                if (item.trackRunDuration) {
+                    QDateTime procStart = getProcessStartTime(item.processName);
+                    setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+                } else {
+                    setCell(2, "-");
+                }
             }
             setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
             setCell(4, "-");
@@ -215,9 +219,11 @@ void SuperGuardian::checkProcesses() {
         } else if (hasScheduledRestart) {
             setCell(1, running ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u672a\u8fd0\u884c"));
         }
-        {
+        if (hasGuard) {
             QDateTime procStart = getProcessStartTime(item.processName);
             setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+        } else {
+            setCell(2, "-");
         }
         if (item.guarding && item.guardStartTime.isValid()) {
             setCell(5, formatDuration(item.guardStartTime.secsTo(now)));

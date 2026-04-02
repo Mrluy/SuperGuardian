@@ -97,6 +97,7 @@ void SuperGuardian::loadSettings() {
         item.restartRulesActive = s.value("restartRulesActive", !item.restartRules.isEmpty()).toBool();
 
         item.scheduledRunEnabled = s.value("scheduledRunEnabled", false).toBool();
+        item.trackRunDuration = s.value("trackRunDuration", false).toBool();
         if (s.contains("runRulesJson")) {
             QJsonDocument doc = QJsonDocument::fromJson(s.value("runRulesJson").toString().toUtf8());
             item.runRules = jsonToScheduleRules(doc.array());
@@ -124,6 +125,10 @@ void SuperGuardian::loadSettings() {
         items.append(item);
     }
     s.endArray();
+
+    // Load duplicate whitelist
+    QString wl = s.value("duplicateWhitelist").toString();
+    duplicateWhitelist = wl.isEmpty() ? QStringList() : wl.split("|");
 
     rebuildTableFromItems();
     syncSelfGuardListEntry(selfGuardAct && selfGuardAct->isChecked());
@@ -164,6 +169,7 @@ void SuperGuardian::saveSettings() {
         s.setValue("restartRulesActive", items[i].restartRulesActive);
 
         s.setValue("scheduledRunEnabled", items[i].scheduledRunEnabled);
+        s.setValue("trackRunDuration", items[i].trackRunDuration);
         QJsonDocument runDoc(scheduleRulesToJson(items[i].runRules));
         s.setValue("runRulesJson", QString::fromUtf8(runDoc.toJson(QJsonDocument::Compact)));
 

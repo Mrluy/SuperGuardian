@@ -139,6 +139,7 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
     <ClInclude Include="ThemeManager.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="package-release.ps1" />
     <None Include="SuperGuardian.ui.new" />
   </ItemGroup>
   <ItemGroup>

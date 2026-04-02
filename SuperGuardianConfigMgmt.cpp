@@ -133,19 +133,55 @@ void SuperGuardian::showUpdateDialog() {
     QVBoxLayout* layout = new QVBoxLayout(&dialog);
 
     layout->addWidget(new QLabel(QString::fromUtf8(
-        "\u9009\u62e9\u65b0\u7248\u672c\u7684 SuperGuardian.exe \u8fdb\u884c\u66f4\u65b0\u3002\n"
+        "\u9009\u62e9\u65b0\u7248\u672c\u7684 SuperGuardian.exe \u6216 ZIP \u538b\u7f29\u5305\u8fdb\u884c\u66f4\u65b0\u3002\n"
+        "\u652f\u6301\u62d6\u653e\u6587\u4ef6\u5230\u8f93\u5165\u6846\u3002\n"
         "\u66f4\u65b0\u65f6\u5c06\u81ea\u52a8\u5907\u4efd\u65e7\u7248\u672c\u5230 bak \u6587\u4ef6\u5939\uff0c\u6700\u591a\u4fdd\u7559 5 \u4e2a\u65e7\u7248\u672c\u3002")));
 
     QHBoxLayout* fileLayout = new QHBoxLayout();
-    QLineEdit* fileEdit = new QLineEdit();
-    fileEdit->setPlaceholderText(QString::fromUtf8("\u9009\u62e9\u65b0\u7248\u672c SuperGuardian.exe \u7684\u8def\u5f84"));
-    fileEdit->setReadOnly(true);
+
+    class UpdatePathLineEdit : public QLineEdit {
+    public:
+        UpdatePathLineEdit(QWidget* p=nullptr) : QLineEdit(p) { setAcceptDrops(true); }
+    protected:
+        void dragEnterEvent(QDragEnterEvent* e) override {
+            if (e->mimeData()->hasUrls()) {
+                for (const QUrl& url : e->mimeData()->urls()) {
+                    QString path = url.toLocalFile().toLower();
+                    if (path.endsWith(".exe") || path.endsWith(".zip")) {
+                        e->acceptProposedAction();
+                        return;
+                    }
+                }
+            }
+        }
+        void dropEvent(QDropEvent* e) override {
+            for (const QUrl& url : e->mimeData()->urls()) {
+                QString path = url.toLocalFile();
+                QString lower = path.toLower();
+                if (lower.endsWith(".exe") || lower.endsWith(".zip")) {
+                    setText(path);
+                    return;
+                }
+            }
+        }
+    };
+
+    UpdatePathLineEdit* fileEdit = new UpdatePathLineEdit();
+    fileEdit->setPlaceholderText(QString::fromUtf8("\u9009\u62e9\u6216\u62d6\u653e\u65b0\u7248\u672c .exe \u6216 .zip \u6587\u4ef6"));
     QPushButton* browseBtn = new QPushButton(QString::fromUtf8("\u6d4f\u89c8"));
     fileLayout->addWidget(fileEdit);
     fileLayout->addWidget(browseBtn);
     layout->addLayout(fileLayout);
 
     layout->addStretch();
+
+    // 恢复旧版本区域
+    QHBoxLayout* restoreLayout = new QHBoxLayout();
+    restoreLayout->addStretch();
+    QPushButton* restoreBtn = new QPushButton(QString::fromUtf8("\u6062\u590d\u65e7\u7248\u672c"));
+    restoreLayout->addWidget(restoreBtn);
+    layout->addLayout(restoreLayout);
+
     QHBoxLayout* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
     QPushButton* updateBtn = new QPushButton(QString::fromUtf8("\u5f00\u59cb\u66f4\u65b0"));
@@ -155,19 +191,146 @@ void SuperGuardian::showUpdateDialog() {
     btnLayout->addWidget(cancelBtn);
     layout->addLayout(btnLayout);
 
+    connect(fileEdit, &QLineEdit::textChanged, &dialog, [updateBtn, fileEdit]() {
+        QString path = fileEdit->text().trimmed().toLower();
+        updateBtn->setEnabled(!path.isEmpty() && (path.endsWith(".exe") || path.endsWith(".zip")));
+    });
+
     connect(browseBtn, &QPushButton::clicked, &dialog, [&]() {
         QString file = QFileDialog::getOpenFileName(&dialog,
-            QString::fromUtf8("\u9009\u62e9\u65b0\u7248\u672c\u7a0b\u5e8f"), "", "Executable (*.exe)");
+            QString::fromUtf8("\u9009\u62e9\u65b0\u7248\u672c\u7a0b\u5e8f"), "",
+            QString::fromUtf8("Executable / ZIP (*.exe *.zip);;All Files (*)"));
         if (!file.isEmpty()) {
-            fileEdit->setText(file);
-            updateBtn->setEnabled(true);
+            QString lower = file.toLower();
+            if (lower.endsWith(".exe") || lower.endsWith(".zip"))
+                fileEdit->setText(file);
+            else
+                showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
+                    QString::fromUtf8("\u4ec5\u652f\u6301 .exe \u548c .zip \u6587\u4ef6\u3002"));
         }
     });
     connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
 
+    // 恢复旧版本
+    connect(restoreBtn, &QPushButton::clicked, &dialog, [&]() {
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString bakDir = QDir(appDir).filePath("bak");
+        QDir bakDirObj(bakDir);
+        if (!bakDirObj.exists()) {
+            showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
+                QString::fromUtf8("\u6ca1\u6709\u627e\u5230\u4efb\u4f55\u5907\u4efd\u7248\u672c\u3002"));
+            return;
+        }
+        QStringList entries = bakDirObj.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
+        if (entries.isEmpty()) {
+            showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
+                QString::fromUtf8("\u6ca1\u6709\u627e\u5230\u4efb\u4f55\u5907\u4efd\u7248\u672c\u3002"));
+            return;
+        }
+
+        QDialog restoreDlg(&dialog, kDialogFlags);
+        restoreDlg.setWindowTitle(QString::fromUtf8("\u6062\u590d\u65e7\u7248\u672c"));
+        restoreDlg.setMinimumSize(360, 300);
+        QVBoxLayout* rlay = new QVBoxLayout(&restoreDlg);
+        rlay->addWidget(new QLabel(QString::fromUtf8("\u9009\u62e9\u8981\u6062\u590d\u7684\u5907\u4efd\u7248\u672c\uff1a")));
+        QListWidget* backupList = new QListWidget();
+        for (const QString& entry : entries) {
+            QString bakExe = QDir(bakDirObj.filePath(entry)).filePath("SuperGuardian.exe.bak");
+            if (QFile::exists(bakExe)) {
+                QString displayDate = entry;
+                if (entry.length() == 15 && entry.contains('_')) {
+                    QDateTime dt = QDateTime::fromString(entry, "yyyyMMdd_HHmmss");
+                    if (dt.isValid())
+                        displayDate = dt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 HH:mm:ss"));
+                }
+                QListWidgetItem* item = new QListWidgetItem(displayDate);
+                item->setData(Qt::UserRole, entry);
+                backupList->addItem(item);
+            }
+        }
+        rlay->addWidget(backupList);
+        QHBoxLayout* rbtnLay = new QHBoxLayout();
+        rbtnLay->addStretch();
+        QPushButton* restoreOkBtn = new QPushButton(QString::fromUtf8("\u6062\u590d"));
+        QPushButton* restoreCancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+        restoreOkBtn->setEnabled(false);
+        QObject::connect(backupList, &QListWidget::currentRowChanged, [restoreOkBtn](int row) {
+            restoreOkBtn->setEnabled(row >= 0);
+        });
+        QObject::connect(restoreOkBtn, &QPushButton::clicked, &restoreDlg, &QDialog::accept);
+        QObject::connect(restoreCancelBtn, &QPushButton::clicked, &restoreDlg, &QDialog::reject);
+        rbtnLay->addWidget(restoreOkBtn); rbtnLay->addWidget(restoreCancelBtn);
+        rlay->addLayout(rbtnLay);
+
+        if (restoreDlg.exec() != QDialog::Accepted) return;
+        QListWidgetItem* selected = backupList->currentItem();
+        if (!selected) return;
+        QString selectedDir = selected->data(Qt::UserRole).toString();
+        QString bakExe = QDir(bakDirObj.filePath(selectedDir)).filePath("SuperGuardian.exe.bak");
+        QString currentExe = QCoreApplication::applicationFilePath();
+
+        QString newBakDir = QDir(bakDir).filePath(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
+        QDir().mkpath(newBakDir);
+        QString newBakPath = QDir(newBakDir).filePath("SuperGuardian.exe.bak");
+        if (!QFile::rename(currentExe, newBakPath)) {
+            showMessageDialog(&dialog, QString::fromUtf8("\u6062\u590d\u5931\u8d25"),
+                QString::fromUtf8("\u65e0\u6cd5\u5907\u4efd\u5f53\u524d\u7a0b\u5e8f\u6587\u4ef6\u3002"));
+            return;
+        }
+        if (!QFile::copy(bakExe, currentExe)) {
+            QFile::rename(newBakPath, currentExe);
+            showMessageDialog(&dialog, QString::fromUtf8("\u6062\u590d\u5931\u8d25"),
+                QString::fromUtf8("\u65e0\u6cd5\u590d\u5236\u5907\u4efd\u6587\u4ef6\u3002"));
+            return;
+        }
+        dialog.accept();
+        if (showMessageDialog(this, QString::fromUtf8("\u6062\u590d\u6210\u529f"),
+            QString::fromUtf8("\u5df2\u6062\u590d\u5230\u5907\u4efd\u7248\u672c\u3002\u662f\u5426\u7acb\u5373\u91cd\u542f\u8f6f\u4ef6\uff1f"), true)) {
+            QProcess::startDetached(currentExe, QStringList());
+            onExit();
+        }
+    });
+
     connect(updateBtn, &QPushButton::clicked, &dialog, [&]() {
-        QString newExe = fileEdit->text();
-        if (newExe.isEmpty()) return;
+        QString selectedFile = fileEdit->text().trimmed();
+        if (selectedFile.isEmpty()) return;
+
+        QString newExe = selectedFile;
+        QString tempDir;
+
+        // ZIP 文件处理
+        if (selectedFile.toLower().endsWith(".zip")) {
+            tempDir = QDir::temp().filePath("SuperGuardian_update_" + QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
+            QDir().mkpath(tempDir);
+            QProcess proc;
+            proc.start("powershell", QStringList() << "-NoProfile" << "-Command"
+                << QString("Expand-Archive -Path '%1' -DestinationPath '%2' -Force").arg(
+                    QDir::toNativeSeparators(selectedFile).replace("'", "''"),
+                    QDir::toNativeSeparators(tempDir).replace("'", "''")));
+            proc.waitForFinished(60000);
+            if (proc.exitCode() != 0) {
+                showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
+                    QString::fromUtf8("\u89e3\u538b ZIP \u6587\u4ef6\u5931\u8d25\u3002"));
+                QDir(tempDir).removeRecursively();
+                return;
+            }
+            newExe.clear();
+            QDirIterator it(tempDir, QStringList() << "SuperGuardian.exe", QDir::Files, QDirIterator::Subdirectories);
+            if (it.hasNext()) {
+                newExe = it.next();
+            } else {
+                QDirIterator it2(tempDir, QStringList() << "*.exe", QDir::Files, QDirIterator::Subdirectories);
+                QStringList exeFiles;
+                while (it2.hasNext()) exeFiles << it2.next();
+                if (exeFiles.size() == 1) newExe = exeFiles.first();
+            }
+            if (newExe.isEmpty()) {
+                showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
+                    QString::fromUtf8("ZIP \u5305\u4e2d\u672a\u627e\u5230 SuperGuardian.exe\u3002"));
+                QDir(tempDir).removeRecursively();
+                return;
+            }
+        }
 
         QString currentExe = QCoreApplication::applicationFilePath();
         QString appDir = QCoreApplication::applicationDirPath();
@@ -180,14 +343,18 @@ void SuperGuardian::showUpdateDialog() {
         if (!QFile::rename(currentExe, bakPath)) {
             showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
                 QString::fromUtf8("\u65e0\u6cd5\u5907\u4efd\u5f53\u524d\u7a0b\u5e8f\u6587\u4ef6\u3002"));
+            if (!tempDir.isEmpty()) QDir(tempDir).removeRecursively();
             return;
         }
         if (!QFile::copy(newExe, currentExe)) {
             QFile::rename(bakPath, currentExe);
             showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
                 QString::fromUtf8("\u65e0\u6cd5\u590d\u5236\u65b0\u7248\u672c\u7a0b\u5e8f\u3002"));
+            if (!tempDir.isEmpty()) QDir(tempDir).removeRecursively();
             return;
         }
+
+        if (!tempDir.isEmpty()) QDir(tempDir).removeRecursively();
 
         // 清理旧备份，最多保留5个
         QDir bakDirObj(bakDir);
@@ -198,11 +365,10 @@ void SuperGuardian::showUpdateDialog() {
 
         dialog.accept();
 
-        if (showMessageDialog(this, QString::fromUtf8("\u66f4\u65b0\u6210\u529f"),
-            QString::fromUtf8("\u7a0b\u5e8f\u5df2\u66f4\u65b0\u6210\u529f\u3002\u65e7\u7248\u672c\u5df2\u5907\u4efd\u5230 bak/%1/\n\u662f\u5426\u7acb\u5373\u91cd\u542f\u8f6f\u4ef6\u4ee5\u5e94\u7528\u66f4\u65b0\uff1f").arg(timestamp), true)) {
-            QProcess::startDetached(currentExe, QStringList());
-            onExit();
-        }
+        showMessageDialog(this, QString::fromUtf8("\u66f4\u65b0\u6210\u529f"),
+            QString::fromUtf8("\u7a0b\u5e8f\u5df2\u66f4\u65b0\u6210\u529f\u3002\u65e7\u7248\u672c\u5df2\u5907\u4efd\u5230 bak/%1/\n\u8f6f\u4ef6\u5c06\u81ea\u52a8\u91cd\u542f\u4ee5\u5e94\u7528\u66f4\u65b0\u3002").arg(timestamp));
+        QProcess::startDetached(currentExe, QStringList());
+        onExit();
     });
 
     dialog.exec();
@@ -248,6 +414,86 @@ void SuperGuardian::contextSetNote(const QList<int>& rows) {
         }
     }
     saveSettings();
+}
+
+// ---- 允许重复添加的程序白名单 ----
+
+void SuperGuardian::showDuplicateWhitelistDialog() {
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(QString::fromUtf8("\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u7684\u7a0b\u5e8f"));
+    dlg.setMinimumSize(500, 360);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->addWidget(new QLabel(QString::fromUtf8("\u4ee5\u4e0b\u7a0b\u5e8f\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u5230\u5217\u8868\u4e2d\uff1a\n\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff08\u5982 PowerShell\uff09\u9ed8\u8ba4\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002\n\u652f\u6301\u62d6\u653e\u7a0b\u5e8f\u6216\u5feb\u6377\u65b9\u5f0f\u5230\u5217\u8868\u4e2d\u6dfb\u52a0\u3002")));
+
+    class DropListWidget : public QListWidget {
+    public:
+        std::function<void(const QString&)> onFileDropped;
+        DropListWidget(QWidget* p = nullptr) : QListWidget(p) { setAcceptDrops(true); }
+    protected:
+        void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
+        void dragMoveEvent(QDragMoveEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
+        void dropEvent(QDropEvent* e) override {
+            for (const QUrl& url : e->mimeData()->urls()) {
+                QString file = url.toLocalFile();
+                if (!file.isEmpty() && onFileDropped) onFileDropped(file);
+            }
+        }
+    };
+
+    DropListWidget* listWidget = new DropListWidget();
+    for (const QString& path : duplicateWhitelist)
+        listWidget->addItem(path);
+
+    auto addFileToList = [&](const QString& rawPath) {
+        QString file = rawPath;
+        QFileInfo fi(file);
+        if (fi.suffix().toLower() == "lnk") {
+            file = resolveShortcut(file);
+        }
+        if (file.isEmpty()) return;
+        for (int i = 0; i < listWidget->count(); i++) {
+            if (listWidget->item(i)->text().compare(file, Qt::CaseInsensitive) == 0) return;
+        }
+        listWidget->addItem(file);
+    };
+    listWidget->onFileDropped = addFileToList;
+
+    lay->addWidget(listWidget);
+
+    QHBoxLayout* editLay = new QHBoxLayout();
+    QPushButton* addBtn = new QPushButton(QString::fromUtf8("\u6dfb\u52a0\u7a0b\u5e8f"));
+    QPushButton* removeBtn = new QPushButton(QString::fromUtf8("\u5220\u9664\u9009\u4e2d"));
+    editLay->addWidget(addBtn);
+    editLay->addWidget(removeBtn);
+    editLay->addStretch();
+    lay->addLayout(editLay);
+
+    QObject::connect(addBtn, &QPushButton::clicked, [&]() {
+        QString file = QFileDialog::getOpenFileName(&dlg,
+            QString::fromUtf8("\u9009\u62e9\u7a0b\u5e8f"), "", "Executable (*.exe);;Shortcut (*.lnk);;All Files (*)");
+        if (!file.isEmpty()) addFileToList(file);
+    });
+    QObject::connect(removeBtn, &QPushButton::clicked, [&]() {
+        int ci = listWidget->currentRow();
+        if (ci >= 0) delete listWidget->takeItem(ci);
+    });
+
+    lay->addStretch();
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
+    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
+    lay->addLayout(btnLay);
+
+    if (dlg.exec() != QDialog::Accepted) return;
+    duplicateWhitelist.clear();
+    for (int i = 0; i < listWidget->count(); i++)
+        duplicateWhitelist.append(listWidget->item(i)->text());
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    s.setValue("duplicateWhitelist", duplicateWhitelist.join("|"));
 }
 
 // ---- 桌面快捷方式 ----
@@ -334,4 +580,83 @@ void SuperGuardian::saveSortState() {
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
     s.setValue("sortSection", activeSortSection);
     s.setValue("sortState", sortState);
+}
+
+// ---- 测试程序是否允许重复添加 ----
+
+void SuperGuardian::testDuplicateAdd() {
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(QString::fromUtf8("\u6d4b\u8bd5\u7a0b\u5e8f\u662f\u5426\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0"));
+    dlg.setFixedWidth(500);
+    dlg.setMinimumHeight(160);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->addWidget(new QLabel(QString::fromUtf8("\u8f93\u5165\u7a0b\u5e8f\u5b8c\u6574\u8def\u5f84\u6216\u540d\u79f0\uff0c\u6216\u62d6\u653e\u6587\u4ef6\u5230\u8f93\u5165\u6846\uff1a")));
+
+    class DropLineEdit : public QLineEdit {
+    public:
+        DropLineEdit(QWidget* p = nullptr) : QLineEdit(p) { setAcceptDrops(true); }
+    protected:
+        void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
+        void dropEvent(QDropEvent* e) override {
+            const QList<QUrl> urls = e->mimeData()->urls();
+            if (!urls.isEmpty()) setText(urls.first().toLocalFile());
+        }
+    };
+
+    DropLineEdit* input = new DropLineEdit();
+    input->setPlaceholderText(QString::fromUtf8("\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\uff0c\u652f\u6301\u62d6\u653e"));
+    lay->addWidget(input);
+
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u68c0\u6d4b"));
+    QPushButton* closeBtn = new QPushButton(QString::fromUtf8("\u5173\u95ed"));
+    btnLay->addWidget(okBtn);
+    btnLay->addWidget(closeBtn);
+    btnLay->addStretch();
+    lay->addLayout(btnLay);
+
+    QObject::connect(closeBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    QObject::connect(okBtn, &QPushButton::clicked, [&]() {
+        QString path = input->text().trimmed();
+        if (path.isEmpty()) {
+            showMessageDialog(&dlg, QString::fromUtf8("\u63d0\u793a"), QString::fromUtf8("\u8bf7\u8f93\u5165\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\u3002"));
+            return;
+        }
+        QString resolvedPath = path;
+        QFileInfo fi(path);
+        bool isSystemTool = false;
+        if (!fi.exists()) {
+            QString found = QStandardPaths::findExecutable(path);
+            if (found.isEmpty()) {
+                showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
+                    QString::fromUtf8("\u7a0b\u5e8f\u4e0d\u5b58\u5728\uff0c\u4e5f\u4e0d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u65e0\u6cd5\u6dfb\u52a0\u3002"));
+                return;
+            }
+            resolvedPath = found;
+            isSystemTool = true;
+        }
+        if (!isSystemTool) {
+            QString nameOnly = QFileInfo(resolvedPath).fileName();
+            QString found = QStandardPaths::findExecutable(nameOnly);
+            if (!found.isEmpty() && QFileInfo(found).canonicalFilePath() == QFileInfo(resolvedPath).canonicalFilePath())
+                isSystemTool = true;
+        }
+        QString targetPath = resolveShortcut(resolvedPath);
+        QString displayName = QFileInfo(targetPath).fileName();
+        if (isSystemTool) {
+            showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
+                QString::fromUtf8("\u300c%1\u300d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+            return;
+        }
+        if (duplicateWhitelist.contains(resolvedPath, Qt::CaseInsensitive)) {
+            showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
+                QString::fromUtf8("\u300c%1\u300d\u5728\u91cd\u590d\u6dfb\u52a0\u767d\u540d\u5355\u4e2d\uff0c\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+            return;
+        }
+        showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
+            QString::fromUtf8("\u300c%1\u300d\u4e0d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u4e5f\u4e0d\u5728\u767d\u540d\u5355\u4e2d\uff0c\u4e0d\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+    });
+
+    dlg.exec();
 }

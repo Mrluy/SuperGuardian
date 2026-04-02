@@ -20,6 +20,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     lay->addWidget(new QLabel(QString::fromUtf8("\u89c4\u5219\u5217\u8868\uff08\u53ef\u6dfb\u52a0\u591a\u4e2a\uff0c\u65f6\u95f4\u91cd\u590d\u65f6\u53ea\u6267\u884c\u4e00\u6b21\uff09\uff1a")));
 
     QListWidget* ruleList = new QListWidget();
+    ruleList->setContextMenuPolicy(Qt::CustomContextMenu);
     lay->addWidget(ruleList);
 
     auto formatRule = [](const ScheduleRule& r) -> QString {
@@ -35,6 +36,35 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     };
     refreshList();
 
+    QObject::connect(ruleList, &QListWidget::customContextMenuRequested, [&](const QPoint& pos) {
+        QMenu ctxMenu(ruleList);
+        int ci = ruleList->currentRow();
+        if (ci >= 0 && ci < editRules->size()) {
+            ctxMenu.addAction(QString::fromUtf8("\u590d\u5236\u89c4\u5219"), [&, ci]() {
+                copiedScheduleRules.clear();
+                copiedScheduleRules.append((*editRules)[ci]);
+                copiedRulesTime = QDateTime::currentDateTime();
+            });
+        }
+        bool canPaste = !copiedScheduleRules.isEmpty() && copiedRulesTime.isValid()
+            && copiedRulesTime.secsTo(QDateTime::currentDateTime()) < 7200;
+        QAction* pasteAct = ctxMenu.addAction(QString::fromUtf8("\u7c98\u8d34\u89c4\u5219"), [&]() {
+            if (copiedScheduleRules.isEmpty()) return;
+            if (!copiedRulesTime.isValid() || copiedRulesTime.secsTo(QDateTime::currentDateTime()) >= 7200) {
+                copiedScheduleRules.clear();
+                return;
+            }
+            for (const ScheduleRule& r : copiedScheduleRules) {
+                ScheduleRule nr = r;
+                nr.nextTrigger = calculateNextTrigger(nr);
+                editRules->append(nr);
+            }
+            refreshList();
+        });
+        pasteAct->setEnabled(canPaste);
+        ctxMenu.exec(ruleList->viewport()->mapToGlobal(pos));
+    });
+
     QHBoxLayout* btnRow = new QHBoxLayout();
     QPushButton* addBtn = new QPushButton(QString::fromUtf8("\u6dfb\u52a0"));
     QPushButton* removeBtn = new QPushButton(QString::fromUtf8("\u5220\u9664"));
@@ -43,9 +73,11 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     btnRow->addStretch();
     lay->addLayout(btnRow);
 
-    QObject::connect(addBtn, &QPushButton::clicked, [&]() {
+    // editIndex < 0 表示添加新规则，>= 0 表示编辑已有规则
+    auto openRuleDialog = [&](int editIndex) {
+        const ScheduleRule* existing = (editIndex >= 0 && editIndex < editRules->size()) ? &(*editRules)[editIndex] : nullptr;
         QDialog addDlg(&dlg, kDialogFlags);
-        addDlg.setWindowTitle(QString::fromUtf8("\u6dfb\u52a0\u89c4\u5219"));
+        addDlg.setWindowTitle(existing ? QString::fromUtf8("\u7f16\u8f91\u89c4\u5219") : QString::fromUtf8("\u6dfb\u52a0\u89c4\u5219"));
         addDlg.setFixedWidth(360);
         addDlg.setMinimumHeight(280);
         QVBoxLayout* al = new QVBoxLayout(&addDlg);
@@ -59,7 +91,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         QHBoxLayout* pLay = new QHBoxLayout(periodicWidget);
         pLay->setContentsMargins(0, 4, 0, 0);
         QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 365); daySpin->setSuffix(QString::fromUtf8(" \u5929"));
-        QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setValue(1); hourSpin->setSuffix(QString::fromUtf8(" \u5c0f\u65f6"));
+        QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setValue(0); hourSpin->setSuffix(QString::fromUtf8(" \u5c0f\u65f6"));
         QSpinBox* minSpin = new QSpinBox(); minSpin->setRange(0, 59); minSpin->setSuffix(QString::fromUtf8(" \u5206\u949f"));
         pLay->addWidget(daySpin); pLay->addWidget(hourSpin); pLay->addWidget(minSpin);
         al->addWidget(periodicWidget);
@@ -82,6 +114,26 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         fLay->addLayout(dowLay);
         fixedWidget->setVisible(false);
         al->addWidget(fixedWidget);
+
+        // 编辑模式：预填已有规则的值
+        if (existing) {
+            if (existing->type == ScheduleRule::Periodic) {
+                typeCombo->setCurrentIndex(0);
+                int total = existing->intervalSecs;
+                daySpin->setValue(total / 86400);
+                hourSpin->setValue((total % 86400) / 3600);
+                minSpin->setValue((total % 3600) / 60);
+            } else {
+                typeCombo->setCurrentIndex(1);
+                periodicWidget->setVisible(false);
+                fixedWidget->setVisible(true);
+                timeEdit->setTime(existing->fixedTime);
+                for (int d = 0; d < 7; d++) {
+                    if (existing->daysOfWeek.contains(d + 1))
+                        dowChecks[d]->setChecked(true);
+                }
+            }
+        }
 
         QObject::connect(typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [periodicWidget, fixedWidget](int ci) {
             periodicWidget->setVisible(ci == 0);
@@ -116,8 +168,20 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             }
         }
         rule.nextTrigger = calculateNextTrigger(rule);
-        editRules->append(rule);
+        if (editIndex >= 0 && editIndex < editRules->size()) {
+            (*editRules)[editIndex] = rule;
+        } else {
+            editRules->append(rule);
+        }
         refreshList();
+    };
+
+    QObject::connect(addBtn, &QPushButton::clicked, [&]() { openRuleDialog(-1); });
+
+    QObject::connect(ruleList, &QListWidget::itemDoubleClicked, [&](QListWidgetItem*) {
+        int ci = ruleList->currentRow();
+        if (ci >= 0 && ci < editRules->size())
+            openRuleDialog(ci);
     });
 
     QObject::connect(removeBtn, &QPushButton::clicked, [&]() {
@@ -127,6 +191,19 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             refreshList();
         }
     });
+
+    // 定时运行模式下添加"持续运行时长"选项
+    QCheckBox* trackDurationCheck = nullptr;
+    if (forRun) {
+        trackDurationCheck = new QCheckBox(QString::fromUtf8("\u76d1\u63a7\u6301\u7eed\u8fd0\u884c\u65f6\u957f"));
+        trackDurationCheck->setToolTip(QString::fromUtf8("\u9009\u4e2d\u65f6\u5728\u7a0b\u5e8f\u5217\u8868\u4e2d\u663e\u793a\u201c\u6301\u7eed\u8fd0\u884c\u65f6\u957f\u201d\uff0c\u672a\u9009\u4e2d\u5219\u59cb\u7ec8\u663e\u793a\u201c-\u201d"));
+        if (rows.size() == 1) {
+            int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+            if (itemIdx >= 0)
+                trackDurationCheck->setChecked(items[itemIdx].trackRunDuration);
+        }
+        lay->addWidget(trackDurationCheck);
+    }
 
     lay->addStretch();
     QHBoxLayout* dlgBtnLay = new QHBoxLayout();
@@ -155,6 +232,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         if (forRun) {
             item.runRules = finalRules;
             item.scheduledRunEnabled = !finalRules.isEmpty();
+            if (trackDurationCheck)
+                item.trackRunDuration = trackDurationCheck->isChecked();
             if (item.scheduledRunEnabled) {
                 item.guarding = false;
                 item.restartRulesActive = false;

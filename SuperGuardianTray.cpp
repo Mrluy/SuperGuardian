@@ -60,6 +60,12 @@ void SuperGuardian::applyTheme(const QString& theme) {
             themeToggleBtn->setToolTip(QString::fromUtf8("切换到暗色模式"));
         }
     }
+    if (pinToggleBtn) {
+        if (theme == "dark")
+            pinToggleBtn->setIcon(QIcon(":/SuperGuardian/top_light.png"));
+        else
+            pinToggleBtn->setIcon(QIcon(":/SuperGuardian/top_dark.png"));
+    }
     rebuildTableFromItems();
 }
 
@@ -194,6 +200,33 @@ void SuperGuardian::toggleTheme() {
     QString next = (current == "dark") ? "light" : "dark";
     s.setValue("theme", next);
     applyTheme(next);
+}
+
+void SuperGuardian::centerWindow() {
+    QScreen* screen = QGuiApplication::primaryScreen();
+    if (!screen) return;
+    QRect screenGeom = screen->availableGeometry();
+    int x = screenGeom.x() + (screenGeom.width() - width()) / 2;
+    int y = screenGeom.y() + (screenGeom.height() - height()) / 2;
+    move(x, y);
+    showNormal();
+    raise();
+    activateWindow();
+}
+
+void SuperGuardian::toggleAlwaysOnTop() {
+    HWND hwnd = (HWND)winId();
+    DWORD exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+    bool isOnTop = (exStyle & WS_EX_TOPMOST) != 0;
+    if (isOnTop) {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        if (pinToggleBtn) pinToggleBtn->setChecked(false);
+    } else {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        if (pinToggleBtn) pinToggleBtn->setChecked(true);
+    }
+    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    s.setValue("alwaysOnTop", !isOnTop);
 }
 
 QString SuperGuardian::formatStartDelay(int secs) const {

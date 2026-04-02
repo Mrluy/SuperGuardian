@@ -56,6 +56,7 @@ struct GuardItem {
 
     bool scheduledRunEnabled = false;
     QList<ScheduleRule> runRules;
+    bool trackRunDuration = false;
 
     RetryConfig retryConfig;
     int currentRetryCount = 0;

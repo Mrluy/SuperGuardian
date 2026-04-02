@@ -45,7 +45,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(10);
-    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("\u4e0a\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u88ab\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u6301\u7eed\u5b88\u62a4\u65f6\u957f"), QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f(\u8fd0\u884c)\u89c4\u5219"), QString::fromUtf8("\u4e0b\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
+    tableWidget->setHorizontalHeaderLabels({ QString::fromUtf8("\u7a0b\u5e8f"), QString::fromUtf8("\u8fd0\u884c\u72b6\u6001"), QString::fromUtf8("\u6301\u7eed\u8fd0\u884c\u65f6\u957f"), QString::fromUtf8("\u4e0a\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u88ab\u5b88\u62a4\u6b21\u6570"), QString::fromUtf8("\u6301\u7eed\u5b88\u62a4\u65f6\u957f"), QString::fromUtf8("\u5b9a\u65f6\u89c4\u5219"), QString::fromUtf8("\u4e0b\u6b21\u91cd\u542f(\u8fd0\u884c)"), QString::fromUtf8("\u542f\u52a8\u5ef6\u65f6"), QString::fromUtf8("\u64cd\u4f5c") });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     tableWidget->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
     tableWidget->setColumnWidth(9, 300);
@@ -140,6 +140,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     configMenu->addAction(QString::fromUtf8("\u5bfc\u5165"), this, &SuperGuardian::importConfig);
     configMenu->addAction(QString::fromUtf8("\u5bfc\u51fa"), this, &SuperGuardian::exportConfig);
     configMenu->addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192\u914d\u7f6e"), this, &SuperGuardian::showSmtpConfigDialog);
+    configMenu->addAction(QString::fromUtf8("\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u7684\u7a0b\u5e8f"), this, &SuperGuardian::showDuplicateWhitelistDialog);
     configMenu->addSeparator();
     configMenu->addAction(QString::fromUtf8("\u91cd\u7f6e\u5168\u90e8\u914d\u7f6e"), this, &SuperGuardian::resetConfig);
 
@@ -152,15 +153,28 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u91cd\u542f"), this, &SuperGuardian::closeAllScheduledRestart);
     operationMenu->addAction(QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u8fd0\u884c"), this, &SuperGuardian::closeAllScheduledRun);
     operationMenu->addSeparator();
+    operationMenu->addAction(QString::fromUtf8("\u79fb\u52a8\u8f6f\u4ef6\u7a97\u53e3\u5230\u5c45\u4e2d\u4f4d\u7f6e"), this, &SuperGuardian::centerWindow);
     operationMenu->addAction(QString::fromUtf8("添加桌面快捷方式"), this, &SuperGuardian::createDesktopShortcut);
 
     QMenu* testMenu = menuBar()->addMenu(QString::fromUtf8("测试"));
     testMenu->addAction(QString::fromUtf8("测试自我守护"), this, &SuperGuardian::runSelfGuardTest);
+    testMenu->addAction(QString::fromUtf8("\u6d4b\u8bd5\u7a0b\u5e8f\u662f\u5426\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0"), this, &SuperGuardian::testDuplicateAdd);
 
     QMenu* aboutMenu = menuBar()->addMenu(QString::fromUtf8("\u5173\u4e8e"));
     aboutMenu->addAction(QString::fromUtf8("\u66f4\u65b0"), this, &SuperGuardian::showUpdateDialog);
 
-    // ---- 主题切换按钮（菜单栏右侧角落） ----
+    // ---- 置顶按钮 + 主题切换按钮（菜单栏右侧角落） ----
+    pinToggleBtn = new QToolButton(this);
+    pinToggleBtn->setObjectName("pinToggleBtn");
+    pinToggleBtn->setAutoRaise(true);
+    pinToggleBtn->setCheckable(true);
+    pinToggleBtn->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    pinToggleBtn->setCursor(Qt::PointingHandCursor);
+    pinToggleBtn->setIconSize(QSize(20, 20));
+    pinToggleBtn->setFixedSize(28, 28);
+    pinToggleBtn->setToolTip(QString::fromUtf8("\u7f6e\u9876\u7a97\u53e3"));
+    connect(pinToggleBtn, &QToolButton::clicked, this, &SuperGuardian::toggleAlwaysOnTop);
+
     themeToggleBtn = new QToolButton(this);
     themeToggleBtn->setObjectName("themeToggleBtn");
     themeToggleBtn->setAutoRaise(true);
@@ -169,7 +183,14 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     themeToggleBtn->setIconSize(QSize(20, 20));
     themeToggleBtn->setFixedSize(28, 28);
     connect(themeToggleBtn, &QToolButton::clicked, this, &SuperGuardian::toggleTheme);
-    menuBar()->setCornerWidget(themeToggleBtn, Qt::TopRightCorner);
+
+    QWidget* cornerWidget = new QWidget(this);
+    QHBoxLayout* cornerLayout = new QHBoxLayout(cornerWidget);
+    cornerLayout->setContentsMargins(0, 0, 0, 0);
+    cornerLayout->setSpacing(5);
+    cornerLayout->addWidget(pinToggleBtn);
+    cornerLayout->addWidget(themeToggleBtn);
+    menuBar()->setCornerWidget(cornerWidget, Qt::TopRightCorner);
 
     // ---- 信号连接 ----
     connect(selfGuardAct, &QAction::toggled, this, &SuperGuardian::onSelfGuardToggled);
@@ -219,6 +240,26 @@ SuperGuardian::SuperGuardian(QWidget *parent)
         onTableDoubleClicked(row, col);
     };
     static_cast<DesktopSelectTable*>(tableWidget)->onRowMoved = [this](int from, int to) { handleRowMoved(from, to); };
+    static_cast<DesktopSelectTable*>(tableWidget)->onRowsMoved = [this](const QList<int>& rows, int insertBefore) { handleRowsMoved(rows, insertBefore); };
+    static_cast<DesktopSelectTable*>(tableWidget)->onKeyPressed = [this](int row, int key) {
+        if (key == Qt::Key_F2) {
+            contextSetNote(QList<int>{row});
+        }
+    };
+    static_cast<DesktopSelectTable*>(tableWidget)->onDeletePressed = [this](const QList<int>& rows) {
+        if (rows.isEmpty()) return;
+        QString msg = rows.size() == 1
+            ? QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u6b64\u7a0b\u5e8f\u5417\uff1f")
+            : QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u9009\u4e2d\u7684 %1 \u4e2a\u7a0b\u5e8f\u5417\uff1f").arg(rows.size());
+        if (!showMessageDialog(this, QString::fromUtf8("\u79fb\u9664"), msg, true)) return;
+        for (int i = rows.size() - 1; i >= 0; --i) {
+            int row = rows[i];
+            int idx = findItemIndexByPath(rowPath(row));
+            if (idx >= 0) items.removeAt(idx);
+            tableWidget->removeRow(row);
+        }
+        saveSettings();
+    };
 
     // 表头排序（点击列标题循环：升序→降序→默认）
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {
@@ -258,6 +299,15 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     restoreColumnVisibility();
     restoreHeaderOrder();
+
+    // 恢复置顶状态
+    if (s.value("alwaysOnTop", false).toBool()) {
+        QTimer::singleShot(0, this, [this]() {
+            HWND hwnd = (HWND)winId();
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            if (pinToggleBtn) pinToggleBtn->setChecked(true);
+        });
+    }
 
     // 表头拖动排序：操作列始终在最右
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionMoved, this, [this](int, int, int) {

@@ -53,8 +53,8 @@ void applyAppTheme(const QString& theme) {
                 "border-radius: 4px; }"
             "#primaryBtn:hover:!disabled { background-color: #77d5ff; border-color: #60cdff; }"
             "#primaryBtn:pressed { background-color: #4cc2ff; color: #004060; }"
-            "#primaryBtn:disabled { background-color: #2a5a6e; color: #555; "
-                "border-color: #204050; border-bottom-color: #204050; }"
+            "#primaryBtn:disabled { background-color: #2a2a2a; color: #555; "
+                "border-color: #404040; border-bottom-color: #404040; }"
 
             /* Tool Button */
             "QToolButton { background-color: #323232; color: #ffffff; "
@@ -128,7 +128,7 @@ void applyAppTheme(const QString& theme) {
 
             /* CheckBox */
             "QCheckBox { spacing: 6px; background: transparent; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; "
+            "QCheckBox::indicator { width: 15px; height: 15px; "
                 "border: 2px solid #9d9d9d; border-radius: 4px; background-color: transparent; }"
             "QCheckBox::indicator:hover { border-color: #bbb; }"
             "QCheckBox::indicator:checked { background-color: #60cdff; border-color: #60cdff; "
@@ -138,7 +138,7 @@ void applyAppTheme(const QString& theme) {
             "QListWidget { background-color: #2d2d2d; color: #ffffff; "
                 "border: 1px solid #3d3d3d; border-radius: 4px; outline: none; }"
             "QListWidget::item { padding: 5px 8px; border-radius: 3px; margin: 1px 2px; }"
-            "QListWidget::item:selected { background-color: #0078d4; color: #ffffff; }"
+            "QListWidget::item:selected { background-color: #005fb8; color: #ffffff; }"
             "QListWidget::item:hover:!selected { background-color: #383838; }"
 
             /* Dialog */
@@ -158,6 +158,13 @@ void applyAppTheme(const QString& theme) {
                 "border-radius: 6px; padding: 0px; margin: 3px; }"
             "#themeToggleBtn:hover { background-color: #3a3a3a; }"
             "#themeToggleBtn:pressed { background-color: #333; }"
+
+            /* Pin Toggle */
+            "#pinToggleBtn { background: transparent; border: 1px solid #555; "
+                "border-radius: 6px; padding: 0px; margin: 3px; }"
+            "#pinToggleBtn:hover { background-color: #3a3a3a; }"
+            "#pinToggleBtn:pressed { background-color: #333; }"
+            "#pinToggleBtn:checked { background-color: #0078d4; border-color: #0078d4; }"
         );
     } else {
         qApp->setStyleSheet(
@@ -191,8 +198,8 @@ void applyAppTheme(const QString& theme) {
                 "border-radius: 4px; }"
             "#primaryBtn:hover:!disabled { background-color: #0067c0; border-color: #005fb7; }"
             "#primaryBtn:pressed { background-color: #004a90; color: #c0dcf0; }"
-            "#primaryBtn:disabled { background-color: #b4d6ec; color: #f0f0f0; "
-                "border-color: #a0c4d8; border-bottom-color: #a0c4d8; }"
+            "#primaryBtn:disabled { background-color: #f5f5f5; color: #b8b8b8; "
+                "border-color: #e0e0e0; border-bottom-color: #e0e0e0; }"
 
             /* Tool Button */
             "QToolButton { background-color: #fbfbfb; color: #1a1a1a; "
@@ -266,7 +273,7 @@ void applyAppTheme(const QString& theme) {
 
             /* CheckBox */
             "QCheckBox { spacing: 6px; background: transparent; }"
-            "QCheckBox::indicator { width: 18px; height: 18px; "
+            "QCheckBox::indicator { width: 15px; height: 15px; "
                 "border: 2px solid #8a8a8a; border-radius: 4px; background-color: #ffffff; }"
             "QCheckBox::indicator:hover { border-color: #616161; }"
             "QCheckBox::indicator:checked { background-color: #005fb7; border-color: #005fb7; "
@@ -276,7 +283,7 @@ void applyAppTheme(const QString& theme) {
             "QListWidget { background-color: #ffffff; "
                 "border: 1px solid #e0e0e0; border-radius: 4px; outline: none; }"
             "QListWidget::item { padding: 5px 8px; border-radius: 3px; margin: 1px 2px; }"
-            "QListWidget::item:selected { background-color: #cce4f7; color: #1a1a1a; }"
+            "QListWidget::item:selected { background-color: #005fb8; color: #ffffff; }"
             "QListWidget::item:hover:!selected { background-color: #f5f5f5; }"
 
             /* Dialog */
@@ -296,6 +303,13 @@ void applyAppTheme(const QString& theme) {
                 "border-radius: 6px; padding: 0px; margin: 3px; }"
             "#themeToggleBtn:hover { background-color: #e8e8e8; }"
             "#themeToggleBtn:pressed { background-color: #e0e0e0; }"
+
+            /* Pin Toggle */
+            "#pinToggleBtn { background: transparent; border: 1px solid #d1d1d1; "
+                "border-radius: 6px; padding: 0px; margin: 3px; }"
+            "#pinToggleBtn:hover { background-color: #e8e8e8; }"
+            "#pinToggleBtn:pressed { background-color: #e0e0e0; }"
+            "#pinToggleBtn:checked { background-color: #005fb7; border-color: #005fb7; }"
         );
     }
 }

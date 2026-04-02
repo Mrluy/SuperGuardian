@@ -98,9 +98,22 @@
     <ClCompile Include="EmailService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SuperGuardianConfigMgmt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianDialogs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianDialogsEmail.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianMonitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="SuperGuardian.ui.new" />
+    <None Include="package-release.ps1" />
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="SuperGuardian_fixed.ui">

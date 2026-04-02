@@ -31,10 +31,15 @@ private:
     SmtpConfig smtpConfig;
 
     QToolButton* themeToggleBtn = nullptr;
+    QToolButton* pinToggleBtn = nullptr;
     int sortState = 0;
     int activeSortSection = -1;
     bool autoResizingColumns = false;
     bool m_revertingHeader = false;
+
+    QStringList duplicateWhitelist;
+    QList<ScheduleRule> copiedScheduleRules;
+    QDateTime copiedRulesTime;
 
     void addProgram(const QString& path, const QString& extraArgs = QString());
     void parseAndAddFromInput();
@@ -62,6 +67,7 @@ private:
     void rebuildTableFromItems();
     void trySendNotification(GuardItem& item, const QString& event, const QString& detail);
     void handleRowMoved(int fromRow, int toRow);
+    void handleRowsMoved(const QList<int>& rows, int insertBefore);
     void closeAllGuards();
     void closeAllScheduledRestart();
     void closeAllScheduledRun();
@@ -69,6 +75,10 @@ private:
     QString formatDuration(qint64 secs) const;
     void createDesktopShortcut();
     void showUpdateDialog();
+    void centerWindow();
+    void showDuplicateWhitelistDialog();
+    void toggleAlwaysOnTop();
+    void testDuplicateAdd();
     void performSort();
     void saveSortState();
     void saveColumnVisibility();

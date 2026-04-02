@@ -86,12 +86,12 @@ QString formatRestartInterval(int secs) {
     int days = totalMins / 1440;
     int hours = (totalMins % 1440) / 60;
     int mins = totalMins % 60;
-    QString result;
-    if (days > 0) result += QString::number(days) + QString::fromUtf8("\u5929");
-    if (hours > 0) result += QString::number(hours) + QString::fromUtf8("\u5c0f\u65f6");
-    if (mins > 0) result += QString::number(mins) + QString::fromUtf8("\u5206\u949f");
-    if (result.isEmpty()) result = QString::fromUtf8("1\u5206\u949f");
-    return result;
+    QString detail;
+    if (days > 0) detail += QString::number(days) + QString::fromUtf8("\u5929");
+    if (hours > 0) detail += QString::number(hours) + QString::fromUtf8("\u5c0f\u65f6");
+    if (mins > 0) detail += QString::number(mins) + QString::fromUtf8("\u5206\u949f");
+    if (detail.isEmpty()) detail = QString::fromUtf8("1\u5206\u949f");
+    return QString::fromUtf8("\u5468\u671f ") + detail;
 }
 
 QString formatDaysShort(const QSet<int>& days) {

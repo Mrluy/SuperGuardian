@@ -91,6 +91,25 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 
     menu.addSeparator();
 
+    // 复制定时规则
+    if (targetRows.size() == 1) {
+        int ii = findItemIndexByPath(rowPath(targetRows[0]));
+        if (ii >= 0) {
+            QAction* copyRestartAct = menu.addAction(QString::fromUtf8("\u590d\u5236\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), this, [this, ii]() {
+                copiedScheduleRules = items[ii].restartRules;
+                copiedRulesTime = QDateTime::currentDateTime();
+            });
+            if (items[ii].restartRules.isEmpty()) copyRestartAct->setEnabled(false);
+            QAction* copyRunAct = menu.addAction(QString::fromUtf8("\u590d\u5236\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, ii]() {
+                copiedScheduleRules = items[ii].runRules;
+                copiedRulesTime = QDateTime::currentDateTime();
+            });
+            if (items[ii].runRules.isEmpty()) copyRunAct->setEnabled(false);
+        }
+    }
+
+    menu.addSeparator();
+
     if (targetRows.size() == 1) {
         menu.addAction(QString::fromUtf8("\u6253\u5f00\u6587\u4ef6\u6240\u5728\u7684\u4f4d\u7f6e"), this, [this, row]() { contextOpenFileLocation(row); });
     }
@@ -199,18 +218,45 @@ void SuperGuardian::contextTogglePin(const QList<int>& rows) {
 // ---- 行拖动与批量操作 ----
 
 void SuperGuardian::handleRowMoved(int fromRow, int toRow) {
+    handleRowsMoved(QList<int>{fromRow}, (toRow > fromRow) ? toRow + 1 : toRow);
+}
+
+void SuperGuardian::handleRowsMoved(const QList<int>& rows, int insertBefore) {
     QStringList pathOrder;
     for (int r = 0; r < tableWidget->rowCount(); r++) {
         QTableWidgetItem* it = tableWidget->item(r, 0);
         if (!it) continue;
         pathOrder << it->data(Qt::UserRole).toString();
     }
-    if (fromRow < 0 || fromRow >= pathOrder.size()) return;
-    QString movedPath = pathOrder.takeAt(fromRow);
-    pathOrder.insert(toRow, movedPath);
+
+    QStringList movedPaths;
+    QSet<int> movedSet(rows.begin(), rows.end());
+    for (int r : rows) {
+        if (r >= 0 && r < pathOrder.size())
+            movedPaths << pathOrder[r];
+    }
+    if (movedPaths.isEmpty()) return;
+
+    // 计算插入位置的路径（去除已选行后的位置）
+    QStringList remaining;
+    for (int r = 0; r < pathOrder.size(); r++) {
+        if (!movedSet.contains(r))
+            remaining << pathOrder[r];
+    }
+    // 计算插入点在 remaining 中的位置
+    int adjustedInsert = 0;
+    for (int r = 0; r < insertBefore && r < pathOrder.size(); r++) {
+        if (!movedSet.contains(r))
+            adjustedInsert++;
+    }
+    if (adjustedInsert > remaining.size()) adjustedInsert = remaining.size();
+
+    // 在 adjustedInsert 处插入已选行
+    for (int i = 0; i < movedPaths.size(); i++)
+        remaining.insert(adjustedInsert + i, movedPaths[i]);
 
     QVector<GuardItem> newItems;
-    for (const QString& p : pathOrder) {
+    for (const QString& p : remaining) {
         int idx = findItemIndexByPath(p);
         if (idx >= 0) newItems.append(items[idx]);
     }
@@ -218,8 +264,18 @@ void SuperGuardian::handleRowMoved(int fromRow, int toRow) {
     for (int i = 0; i < items.size(); i++)
         items[i].insertionOrder = i;
     rebuildTableFromItems();
-    int newRow = findRowByPath(movedPath);
-    if (newRow >= 0) tableWidget->selectRow(newRow);
+
+    // 重新选中被移动的行
+    tableWidget->clearSelection();
+    for (const QString& p : movedPaths) {
+        int newRow = findRowByPath(p);
+        if (newRow >= 0) {
+            for (int c = 0; c < tableWidget->columnCount(); c++) {
+                QModelIndex idx = tableWidget->model()->index(newRow, c);
+                tableWidget->selectionModel()->select(idx, QItemSelectionModel::Select);
+            }
+        }
+    }
     saveSettings();
 }
 

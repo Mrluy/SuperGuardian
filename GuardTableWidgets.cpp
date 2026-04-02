@@ -52,8 +52,8 @@ bool ChineseContextMenuFilter::eventFilter(QObject* obj, QEvent* event) {
 void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();
     if (option.state & QStyle::State_Selected) {
-        painter->fillRect(option.rect, option.palette.highlight());
-        painter->setPen(option.palette.highlightedText().color());
+        painter->fillRect(option.rect, QColor("#005fb8"));
+        painter->setPen(Qt::white);
     } else {
         QVariant bgVar = index.data(Qt::BackgroundRole);
         if (bgVar.isValid())
@@ -234,11 +234,29 @@ void DesktopSelectTable::mouseReleaseEvent(QMouseEvent* e) {
         setCursor(Qt::ArrowCursor);
         if (m_dropLine) m_dropLine->hide();
         int insertBefore = dropTargetRow(e->pos());
-        int fromRow = m_dragSourceRow;
+        // 多选拖动
+        QList<int> selectedRows;
+        if (selectionModel()) {
+            auto idxList = selectionModel()->selectedRows();
+            for (const auto& idx : idxList) selectedRows.append(idx.row());
+            std::sort(selectedRows.begin(), selectedRows.end());
+        }
+        if (selectedRows.isEmpty()) selectedRows.append(m_dragSourceRow);
         m_dragSourceRow = -1;
-        if (insertBefore != fromRow && insertBefore != fromRow + 1) {
-            int toRow = (insertBefore > fromRow) ? insertBefore - 1 : insertBefore;
-            if (onRowMoved) onRowMoved(fromRow, toRow);
+        // 判断是否需要移动
+        bool needMove = false;
+        if (selectedRows.size() == 1) {
+            int from = selectedRows[0];
+            if (insertBefore != from && insertBefore != from + 1) needMove = true;
+        } else {
+            needMove = true;
+        }
+        if (needMove && onRowsMoved) {
+            onRowsMoved(selectedRows, insertBefore);
+        } else if (needMove && selectedRows.size() == 1 && onRowMoved) {
+            int from = selectedRows[0];
+            int toRow = (insertBefore > from) ? insertBefore - 1 : insertBefore;
+            onRowMoved(from, toRow);
         }
         return;
     }
@@ -267,4 +285,26 @@ void DesktopSelectTable::focusInEvent(QFocusEvent* e) {
 void DesktopSelectTable::killCurrentIndex() {
     if (selectionModel())
         selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::NoUpdate);
+}
+
+void DesktopSelectTable::keyPressEvent(QKeyEvent* e) {
+    if (e->key() == Qt::Key_Delete) {
+        if (onDeletePressed) {
+            auto rows = selectionModel() ? selectionModel()->selectedRows() : QModelIndexList{};
+            if (!rows.isEmpty()) {
+                QList<int> rowList;
+                for (const auto& idx : rows) rowList.append(idx.row());
+                std::sort(rowList.begin(), rowList.end());
+                onDeletePressed(rowList);
+                return;
+            }
+        }
+    }
+    if (onKeyPressed) {
+        auto rows = selectionModel() ? selectionModel()->selectedRows() : QModelIndexList{};
+        if (rows.size() == 1) {
+            onKeyPressed(rows[0].row(), e->key());
+        }
+    }
+    QTableWidget::keyPressEvent(e);
 }
