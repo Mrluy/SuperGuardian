@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include "EmailService.h"
@@ -40,12 +40,12 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     QMenu menu(this);
 
     // 备注（最上方）
-    menu.addAction(QString::fromUtf8("\u5907\u6ce8"), this, [this, targetRows]() { contextSetNote(targetRows); });
+    menu.addAction(u"备注"_s, this, [this, targetRows]() { contextSetNote(targetRows); });
 
     // Pin toggle
     bool allPinned = true;
     for (int r : targetRows) { int ii = findItemIndexByPath(rowPath(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
-    menu.addAction(allPinned ? QString::fromUtf8("\u53d6\u6d88\u7f6e\u9876") : QString::fromUtf8("\u7f6e\u9876"),
+    menu.addAction(allPinned ? u"取消置顶"_s : u"置顶"_s,
         this, [this, targetRows]() { contextTogglePin(targetRows); });
     menu.addSeparator();
 
@@ -62,22 +62,22 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
         }
     }
 
-    menu.addAction(QString::fromUtf8("\u624b\u52a8\u542f\u52a8"), this, [this, targetRows]() { for (int row : targetRows) contextStartProgram(row); });
-    menu.addAction(QString::fromUtf8("\u7ec8\u6b62\u8fdb\u7a0b"), this, [this, targetRows]() {
+    menu.addAction(u"手动启动"_s, this, [this, targetRows]() { for (int row : targetRows) contextStartProgram(row); });
+    menu.addAction(u"终止进程"_s, this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
             ? tableWidget->item(targetRows[0], 0)->text() : QString();
         QString msg = targetRows.size() == 1
-            ? QString::fromUtf8("\u786e\u8ba4\u7ec8\u6b62\u3010%1\u3011\u7684\u8fdb\u7a0b\u5417\uff1f").arg(name)
-            : QString::fromUtf8("\u786e\u8ba4\u7ec8\u6b62\u9009\u4e2d\u7684 %1 \u4e2a\u7a0b\u5e8f\u7684\u8fdb\u7a0b\u5417\uff1f").arg(targetRows.size());
-        if (!showMessageDialog(this, QString::fromUtf8("\u7ec8\u6b62\u8fdb\u7a0b"), msg, true)) return;
+            ? u"确认终止【%1】的进程吗？"_s.arg(name)
+            : u"确认终止选中的 %1 个程序的进程吗？"_s.arg(targetRows.size());
+        if (!showMessageDialog(this, u"终止进程"_s, msg, true)) return;
         for (int row : targetRows) contextKillProgram(row);
     });
-    QAction* launchConfigAct = menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u7a0b\u5e8f/\u53c2\u6570"), this, [this, targetRows]() { contextSetLaunchArgs(targetRows); });
-    QAction* restartRulesAct = menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
-    QAction* startDelayAct = menu.addAction(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6"), this, [this, targetRows]() { contextSetStartDelay(targetRows); });
-    QAction* runRulesAct = menu.addAction(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
-    menu.addAction(QString::fromUtf8("\u91cd\u8bd5\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
-    menu.addAction(QString::fromUtf8("\u90ae\u4ef6\u63d0\u9192\u8bbe\u7f6e"), this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
+    QAction* launchConfigAct = menu.addAction(u"设置启动程序/参数"_s, this, [this, targetRows]() { contextSetLaunchArgs(targetRows); });
+    QAction* restartRulesAct = menu.addAction(u"定时重启规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
+    QAction* startDelayAct = menu.addAction(u"设置启动延时"_s, this, [this, targetRows]() { contextSetStartDelay(targetRows); });
+    QAction* runRulesAct = menu.addAction(u"定时运行规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
+    menu.addAction(u"重试设置"_s, this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
+    menu.addAction(u"邮件提醒设置"_s, this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
 
     // 定时运行时禁用定时重启规则和设置启动延时
     if (anyScheduledRun) {
@@ -95,12 +95,12 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     if (targetRows.size() == 1) {
         int ii = findItemIndexByPath(rowPath(targetRows[0]));
         if (ii >= 0) {
-            QAction* copyRestartAct = menu.addAction(QString::fromUtf8("\u590d\u5236\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"), this, [this, ii]() {
+            QAction* copyRestartAct = menu.addAction(u"复制定时重启规则"_s, this, [this, ii]() {
                 copiedScheduleRules = items[ii].restartRules;
                 copiedRulesTime = QDateTime::currentDateTime();
             });
             if (items[ii].restartRules.isEmpty()) copyRestartAct->setEnabled(false);
-            QAction* copyRunAct = menu.addAction(QString::fromUtf8("\u590d\u5236\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219"), this, [this, ii]() {
+            QAction* copyRunAct = menu.addAction(u"复制定时运行规则"_s, this, [this, ii]() {
                 copiedScheduleRules = items[ii].runRules;
                 copiedRulesTime = QDateTime::currentDateTime();
             });
@@ -111,15 +111,15 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     menu.addSeparator();
 
     if (targetRows.size() == 1) {
-        menu.addAction(QString::fromUtf8("\u6253\u5f00\u6587\u4ef6\u6240\u5728\u7684\u4f4d\u7f6e"), this, [this, row]() { contextOpenFileLocation(row); });
+        menu.addAction(u"打开文件所在的位置"_s, this, [this, row]() { contextOpenFileLocation(row); });
     }
-    QAction* removeAct = menu.addAction(QString::fromUtf8("\u79fb\u9664\u9879"), this, [this, targetRows]() {
+    QAction* removeAct = menu.addAction(u"移除项"_s, this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
             ? tableWidget->item(targetRows[0], 0)->text() : QString();
         QString msg = targetRows.size() == 1
-            ? QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u3010%1\u3011\u5417\uff1f").arg(name)
-            : QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u9009\u4e2d\u7684 %1 \u4e2a\u7a0b\u5e8f\u9879\u5417\uff1f").arg(targetRows.size());
-        if (!showMessageDialog(this, QString::fromUtf8("\u79fb\u9664\u9879"), msg, true)) return;
+            ? u"确认移除【%1】吗？"_s.arg(name)
+            : u"确认移除选中的 %1 个程序项吗？"_s.arg(targetRows.size());
+        if (!showMessageDialog(this, u"移除项"_s, msg, true)) return;
         QList<int> rows = targetRows;
         std::sort(rows.begin(), rows.end(), std::greater<int>());
         for (int row : rows) contextRemoveItem(row);
@@ -147,7 +147,7 @@ void SuperGuardian::contextToggleGuard(int row) {
     QWidget* opw = tableWidget->cellWidget(row, 9);
     if (opw) {
         QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[idx].path));
-        if (b) b->setText(items[idx].guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
+        if (b) b->setText(items[idx].guarding ? u"关闭守护"_s : u"开始守护"_s);
     }
     if (items[idx].guarding) {
         items[idx].startTime = QDateTime::currentDateTime();
@@ -164,7 +164,7 @@ void SuperGuardian::contextToggleGuard(int row) {
         int displayRow = findRowByPath(items[idx].path);
         if (displayRow >= 0) {
             if (!items[idx].restartRulesActive) {
-                if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
+                if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(u"未守护"_s);
             }
             if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
             if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");

@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include <QtWidgets>
@@ -14,10 +14,10 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     }
 
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(forRun ? QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c\u89c4\u5219") : QString::fromUtf8("\u5b9a\u65f6\u91cd\u542f\u89c4\u5219"));
+    dlg.setWindowTitle(forRun ? u"定时运行规则"_s : u"定时重启规则"_s);
     dlg.setMinimumSize(420, 380);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u89c4\u5219\u5217\u8868\uff08\u53ef\u6dfb\u52a0\u591a\u4e2a\uff0c\u65f6\u95f4\u91cd\u590d\u65f6\u53ea\u6267\u884c\u4e00\u6b21\uff09\uff1a")));
+    lay->addWidget(new QLabel(u"规则列表（可添加多个，时间重复时只执行一次）："_s));
 
     QListWidget* ruleList = new QListWidget();
     ruleList->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -40,7 +40,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         QMenu ctxMenu(ruleList);
         int ci = ruleList->currentRow();
         if (ci >= 0 && ci < editRules->size()) {
-            ctxMenu.addAction(QString::fromUtf8("\u590d\u5236\u89c4\u5219"), [&, ci]() {
+            ctxMenu.addAction(u"复制规则"_s, [&, ci]() {
                 copiedScheduleRules.clear();
                 copiedScheduleRules.append((*editRules)[ci]);
                 copiedRulesTime = QDateTime::currentDateTime();
@@ -48,7 +48,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         }
         bool canPaste = !copiedScheduleRules.isEmpty() && copiedRulesTime.isValid()
             && copiedRulesTime.secsTo(QDateTime::currentDateTime()) < 7200;
-        QAction* pasteAct = ctxMenu.addAction(QString::fromUtf8("\u7c98\u8d34\u89c4\u5219"), [&]() {
+        QAction* pasteAct = ctxMenu.addAction(u"粘贴规则"_s, [&]() {
             if (copiedScheduleRules.isEmpty()) return;
             if (!copiedRulesTime.isValid() || copiedRulesTime.secsTo(QDateTime::currentDateTime()) >= 7200) {
                 copiedScheduleRules.clear();
@@ -66,8 +66,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     });
 
     QHBoxLayout* btnRow = new QHBoxLayout();
-    QPushButton* addBtn = new QPushButton(QString::fromUtf8("\u6dfb\u52a0"));
-    QPushButton* removeBtn = new QPushButton(QString::fromUtf8("\u5220\u9664"));
+    QPushButton* addBtn = new QPushButton(u"添加"_s);
+    QPushButton* removeBtn = new QPushButton(u"删除"_s);
     btnRow->addWidget(addBtn);
     btnRow->addWidget(removeBtn);
     btnRow->addStretch();
@@ -77,38 +77,38 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     auto openRuleDialog = [&](int editIndex) {
         const ScheduleRule* existing = (editIndex >= 0 && editIndex < editRules->size()) ? &(*editRules)[editIndex] : nullptr;
         QDialog addDlg(&dlg, kDialogFlags);
-        addDlg.setWindowTitle(existing ? QString::fromUtf8("\u7f16\u8f91\u89c4\u5219") : QString::fromUtf8("\u6dfb\u52a0\u89c4\u5219"));
+        addDlg.setWindowTitle(existing ? u"编辑规则"_s : u"添加规则"_s);
         addDlg.setFixedWidth(360);
         addDlg.setMinimumHeight(280);
         QVBoxLayout* al = new QVBoxLayout(&addDlg);
-        al->addWidget(new QLabel(QString::fromUtf8("\u89c4\u5219\u7c7b\u578b\uff1a")));
+        al->addWidget(new QLabel(u"规则类型："_s));
         QComboBox* typeCombo = new QComboBox();
-        typeCombo->addItem(QString::fromUtf8("\u5468\u671f\u91cd\u590d"));
-        typeCombo->addItem(QString::fromUtf8("\u56fa\u5b9a\u65f6\u95f4"));
+        typeCombo->addItem(u"周期重复"_s);
+        typeCombo->addItem(u"固定时间"_s);
         al->addWidget(typeCombo);
 
         QWidget* periodicWidget = new QWidget();
         QHBoxLayout* pLay = new QHBoxLayout(periodicWidget);
         pLay->setContentsMargins(0, 4, 0, 0);
-        QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 365); daySpin->setSuffix(QString::fromUtf8(" \u5929"));
-        QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setValue(0); hourSpin->setSuffix(QString::fromUtf8(" \u5c0f\u65f6"));
-        QSpinBox* minSpin = new QSpinBox(); minSpin->setRange(0, 59); minSpin->setSuffix(QString::fromUtf8(" \u5206\u949f"));
+        QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 365); daySpin->setSuffix(u" 天"_s);
+        QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setValue(0); hourSpin->setSuffix(u" 小时"_s);
+        QSpinBox* minSpin = new QSpinBox(); minSpin->setRange(0, 59); minSpin->setSuffix(u" 分钟"_s);
         pLay->addWidget(daySpin); pLay->addWidget(hourSpin); pLay->addWidget(minSpin);
         al->addWidget(periodicWidget);
 
         QWidget* fixedWidget = new QWidget();
         QVBoxLayout* fLay = new QVBoxLayout(fixedWidget);
         fLay->setContentsMargins(0, 4, 0, 0);
-        fLay->addWidget(new QLabel(QString::fromUtf8("\u65f6\u95f4\uff1a")));
+        fLay->addWidget(new QLabel(u"时间："_s));
         QTimeEdit* timeEdit = new QTimeEdit(QTime(0, 0));
         timeEdit->setDisplayFormat("HH:mm");
         fLay->addWidget(timeEdit);
-        fLay->addWidget(new QLabel(QString::fromUtf8("\u661f\u671f\uff08\u4e0d\u9009\u5219\u6bcf\u5929\uff09\uff1a")));
+        fLay->addWidget(new QLabel(u"星期（不选则每天）："_s));
         QHBoxLayout* dowLay = new QHBoxLayout();
-        static const char* dayNames[] = { "\u4e00", "\u4e8c", "\u4e09", "\u56db", "\u4e94", "\u516d", "\u65e5" };
+        static constexpr QStringView dayNames[] = { u"一", u"二", u"三", u"四", u"五", u"六", u"日" };
         QCheckBox* dowChecks[7];
         for (int d = 0; d < 7; d++) {
-            dowChecks[d] = new QCheckBox(QString::fromUtf8(dayNames[d]));
+            dowChecks[d] = new QCheckBox(dayNames[d].toString());
             dowLay->addWidget(dowChecks[d]);
         }
         fLay->addLayout(dowLay);
@@ -143,8 +143,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         al->addStretch();
         QHBoxLayout* abLay = new QHBoxLayout();
         abLay->addStretch();
-        QPushButton* okB = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-        QPushButton* cancelB = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+        QPushButton* okB = new QPushButton(u"确定"_s);
+        QPushButton* cancelB = new QPushButton(u"取消"_s);
         QObject::connect(okB, &QPushButton::clicked, &addDlg, &QDialog::accept);
         QObject::connect(cancelB, &QPushButton::clicked, &addDlg, &QDialog::reject);
         abLay->addWidget(okB); abLay->addWidget(cancelB); abLay->addStretch();
@@ -157,7 +157,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             rule.type = ScheduleRule::Periodic;
             rule.intervalSecs = daySpin->value() * 86400 + hourSpin->value() * 3600 + minSpin->value() * 60;
             if (rule.intervalSecs <= 0) {
-                showMessageDialog(&dlg, QString::fromUtf8("\u63d0\u793a"), QString::fromUtf8("\u5468\u671f\u4e0d\u80fd\u4e3a 0\u3002"));
+                showMessageDialog(&dlg, u"提示"_s, u"周期不能为 0。"_s);
                 return;
             }
         } else {
@@ -195,8 +195,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     // 定时运行模式下添加"持续运行时长"选项
     QCheckBox* trackDurationCheck = nullptr;
     if (forRun) {
-        trackDurationCheck = new QCheckBox(QString::fromUtf8("\u76d1\u63a7\u6301\u7eed\u8fd0\u884c\u65f6\u957f"));
-        trackDurationCheck->setToolTip(QString::fromUtf8("\u9009\u4e2d\u65f6\u5728\u7a0b\u5e8f\u5217\u8868\u4e2d\u663e\u793a\u201c\u6301\u7eed\u8fd0\u884c\u65f6\u957f\u201d\uff0c\u672a\u9009\u4e2d\u5219\u59cb\u7ec8\u663e\u793a\u201c-\u201d"));
+        trackDurationCheck = new QCheckBox(u"监控持续运行时长"_s);
+        trackDurationCheck->setToolTip(u"选中时在程序列表中显示“持续运行时长”，未选中则始终显示“-”"_s);
         if (rows.size() == 1) {
             int itemIdx = findItemIndexByPath(rowPath(rows[0]));
             if (itemIdx >= 0)
@@ -208,9 +208,9 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     lay->addStretch();
     QHBoxLayout* dlgBtnLay = new QHBoxLayout();
     dlgBtnLay->addStretch();
-    QPushButton* clearBtn = new QPushButton(QString::fromUtf8("\u6e05\u7a7a"));
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* clearBtn = new QPushButton(u"清空"_s);
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(clearBtn, &QPushButton::clicked, [&]() { editRules->clear(); refreshList(); });
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
@@ -253,11 +253,11 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         if (item.scheduledRunEnabled) {
             setCell(6, formatScheduleRules(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         } else {
-            setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
+            setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
             QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         }
         setCell(8, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
 
@@ -266,13 +266,13 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             QPushButton* gBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.path));
             QPushButton* sBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(item.path));
             QPushButton* rBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(item.path));
-            if (gBtn) gBtn->setText(item.guarding ? QString::fromUtf8("\u5173\u95ed\u5b88\u62a4") : QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
-            if (sBtn) sBtn->setText(item.restartRulesActive ? QString::fromUtf8("\u5173\u95ed\u5b9a\u65f6\u91cd\u542f") : QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
-            if (rBtn) rBtn->setText(item.scheduledRunEnabled ? QString::fromUtf8("\u5173\u95ed\u5b9a\u65f6\u8fd0\u884c") : QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
+            if (gBtn) gBtn->setText(item.guarding ? u"关闭守护"_s : u"开始守护"_s);
+            if (sBtn) sBtn->setText(item.restartRulesActive ? u"关闭定时重启"_s : u"开启定时重启"_s);
+            if (rBtn) rBtn->setText(item.scheduledRunEnabled ? u"关闭定时运行"_s : u"开启定时运行"_s);
         }
         if (tableWidget->item(row, 1)) {
-            if (item.scheduledRunEnabled) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c"));
-            else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
+            if (item.scheduledRunEnabled) tableWidget->item(row, 1)->setText(u"定时运行"_s);
+            else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 1)->setText(u"未守护"_s);
         }
         updateButtonStates(row);
     }

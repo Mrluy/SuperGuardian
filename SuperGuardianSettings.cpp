@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
@@ -216,7 +216,7 @@ QString SuperGuardian::rowPath(int row) const {
 }
 
 void SuperGuardian::clearListWithConfirmation() {
-    if (!showMessageDialog(this, QString::fromUtf8("清空列表"), QString::fromUtf8("确认清空列表中的所有项吗？"), true)) {
+    if (!showMessageDialog(this, u"清空列表"_s, u"确认清空列表中的所有项吗？"_s, true)) {
         return;
     }
 

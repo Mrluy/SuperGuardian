@@ -2,7 +2,9 @@
 #include <windows.h>
 #include <QApplication>
 
-static QString s_currentTheme = QStringLiteral("light");
+using namespace Qt::Literals::StringLiterals;
+
+static QString s_currentTheme = u"light"_s;
 
 QString currentThemeName() { return s_currentTheme; }
 
@@ -17,7 +19,7 @@ QString detectSystemThemeName() {
         }
         RegCloseKey(hKey);
     }
-    return useLight ? QStringLiteral("light") : QStringLiteral("dark");
+    return useLight ? u"light"_s : u"dark"_s;
 }
 
 void applyAppTheme(const QString& theme) {

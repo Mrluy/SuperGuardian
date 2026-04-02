@@ -63,10 +63,11 @@ if (-not (Test-Path $exePath)) {
     throw "未找到 Release 输出文件，请先在 x64\Release 下完成编译: $exePath"
 }
 
+$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'
 if ($Version -ne '') {
-    $zipBaseName = "SuperGuardian_v$($Version.TrimStart('vV'))"
+    $zipBaseName = "SuperGuardian_v$($Version.TrimStart('vV'))_$dateStr"
 } else {
-    $zipBaseName = "SuperGuardian_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    $zipBaseName = "SuperGuardian_$dateStr"
 }
 
 if (-not (Test-Path $packageDir)) {

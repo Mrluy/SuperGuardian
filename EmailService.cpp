@@ -1,6 +1,8 @@
-#include "EmailService.h"
+﻿#include "EmailService.h"
 #include <QProcess>
 #include <QObject>
+
+using namespace Qt::Literals::StringLiterals;
 
 static QString esc(const QString& s) {
     QString r = s;
@@ -44,7 +46,7 @@ bool sendTestEmail(const SmtpConfig& config) {
     if (!isSmtpConfigValid(config)) return false;
     QProcess proc;
     proc.start("powershell", { "-NoProfile", "-NonInteractive", "-Command",
-        buildPsScript(config, QString::fromUtf8("SuperGuardian 测试邮件"), QString::fromUtf8("这是一封来自超级守护的测试邮件。")) });
+        buildPsScript(config, u"SuperGuardian 测试邮件"_s, u"这是一封来自超级守护的测试邮件。"_s) });
     proc.waitForFinished(30000);
     return proc.exitCode() == 0;
 }

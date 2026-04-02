@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
@@ -12,42 +12,42 @@ void SuperGuardian::exportConfig() {
     QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
     QString defaultName = QString("SuperGuardian_Config_%1.ini").arg(timestamp);
     QString filePath = QFileDialog::getSaveFileName(this,
-        QString::fromUtf8("\u5bfc\u51fa\u914d\u7f6e"), defaultName, "INI Files (*.ini)");
+        u"导出配置"_s, defaultName, "INI Files (*.ini)");
     if (filePath.isEmpty()) return;
     if (QFile::exists(filePath)) QFile::remove(filePath);
     if (QFile::copy(appSettingsFilePath(), filePath)) {
-        showMessageDialog(this, QString::fromUtf8("\u5bfc\u51fa\u914d\u7f6e"),
-            QString::fromUtf8("\u914d\u7f6e\u5df2\u5bfc\u51fa\u5230\uff1a\n%1").arg(filePath));
+        showMessageDialog(this, u"导出配置"_s,
+            u"配置已导出到：\n%1"_s.arg(filePath));
     } else {
-        showMessageDialog(this, QString::fromUtf8("\u5bfc\u51fa\u5931\u8d25"),
-            QString::fromUtf8("\u65e0\u6cd5\u5199\u5165\u6587\u4ef6\uff1a%1").arg(filePath));
+        showMessageDialog(this, u"导出失败"_s,
+            u"无法写入文件：%1"_s.arg(filePath));
     }
 }
 
 void SuperGuardian::importConfig() {
     QString filePath = QFileDialog::getOpenFileName(this,
-        QString::fromUtf8("\u5bfc\u5165\u914d\u7f6e"), "", "INI Files (*.ini)");
+        u"导入配置"_s, "", "INI Files (*.ini)");
     if (filePath.isEmpty()) return;
 
     QSettings imported(filePath, QSettings::IniFormat);
     if (imported.status() != QSettings::NoError) {
-        showMessageDialog(this, QString::fromUtf8("\u5bfc\u5165\u5931\u8d25"),
-            QString::fromUtf8("\u914d\u7f6e\u6587\u4ef6\u683c\u5f0f\u65e0\u6548\u3002"));
+        showMessageDialog(this, u"导入失败"_s,
+            u"配置文件格式无效。"_s);
         return;
     }
     int size = imported.beginReadArray("items");
     if (size < 0) {
         imported.endArray();
-        showMessageDialog(this, QString::fromUtf8("\u5bfc\u5165\u5931\u8d25"),
-            QString::fromUtf8("\u914d\u7f6e\u6587\u4ef6\u4e0d\u5305\u542b\u6709\u6548\u7684\u7a0b\u5e8f\u5217\u8868\u3002"));
+        showMessageDialog(this, u"导入失败"_s,
+            u"配置文件不包含有效的程序列表。"_s);
         return;
     }
     for (int i = 0; i < size; i++) {
         imported.setArrayIndex(i);
         if (!imported.contains("path") || imported.value("path").toString().isEmpty()) {
             imported.endArray();
-            showMessageDialog(this, QString::fromUtf8("\u5bfc\u5165\u5931\u8d25"),
-                QString::fromUtf8("\u914d\u7f6e\u6587\u4ef6\u4e2d\u7b2c %1 \u4e2a\u7a0b\u5e8f\u9879\u7f3a\u5c11\u8def\u5f84\u4fe1\u606f\u3002").arg(i+1));
+            showMessageDialog(this, u"导入失败"_s,
+                u"配置文件中第 %1 个程序项缺少路径信息。"_s.arg(i+1));
             return;
         }
     }
@@ -65,13 +65,13 @@ void SuperGuardian::importConfig() {
     QString theme = ss.contains("theme") ? ss.value("theme").toString() : detectSystemThemeName();
     applyTheme(theme);
 
-    showMessageDialog(this, QString::fromUtf8("\u5bfc\u5165\u914d\u7f6e"),
-        QString::fromUtf8("\u914d\u7f6e\u5df2\u6210\u529f\u5bfc\u5165\u3002"));
+    showMessageDialog(this, u"导入配置"_s,
+        u"配置已成功导入。"_s);
 }
 
 void SuperGuardian::resetConfig() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u91cd\u7f6e\u914d\u7f6e"),
-        QString::fromUtf8("\u786e\u8ba4\u91cd\u7f6e\u5168\u90e8\u914d\u7f6e\u5417\uff1f\u6b64\u64cd\u4f5c\u5c06\u6e05\u9664\u6240\u6709\u8bbe\u7f6e\u548c\u7a0b\u5e8f\u5217\u8868\u3002"), true))
+    if (!showMessageDialog(this, u"重置配置"_s,
+        u"确认重置全部配置吗？此操作将清除所有设置和程序列表。"_s, true))
         return;
 
     QFile::remove(appSettingsFilePath());
@@ -100,8 +100,8 @@ void SuperGuardian::resetConfig() {
     ss.setValue("theme", theme);
     applyTheme(theme);
 
-    showMessageDialog(this, QString::fromUtf8("\u91cd\u7f6e\u914d\u7f6e"),
-        QString::fromUtf8("\u914d\u7f6e\u5df2\u91cd\u7f6e\u4e3a\u9ed8\u8ba4\u8bbe\u7f6e\u3002"));
+    showMessageDialog(this, u"重置配置"_s,
+        u"配置已重置为默认设置。"_s);
 }
 
 void SuperGuardian::rebuildTableFromItems() {
@@ -128,11 +128,11 @@ void SuperGuardian::rebuildTableFromItems() {
 
 void SuperGuardian::contextSetNote(const QList<int>& rows) {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u5907\u6ce8"));
+    dlg.setWindowTitle(u"备注"_s);
     dlg.setFixedWidth(400);
     dlg.setMinimumHeight(140);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8f93\u5165\u5907\u6ce8\u540d\u79f0\uff08\u7559\u7a7a\u8868\u793a\u6e05\u9664\u5907\u6ce8\uff09\uff1a")));
+    lay->addWidget(new QLabel(u"请输入备注名称（留空表示清除备注）："_s));
     QLineEdit* noteEdit = new QLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
@@ -142,8 +142,8 @@ void SuperGuardian::contextSetNote(const QList<int>& rows) {
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
@@ -172,7 +172,7 @@ void SuperGuardian::createDesktopShortcut() {
     QString exePath = QCoreApplication::applicationFilePath();
     QString exeDir = QCoreApplication::applicationDirPath();
     QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    QString lnkPath = desktop + QString::fromUtf8("/\u8d85\u7ea7\u5b88\u62a4.lnk");
+    QString lnkPath = desktop + u"/超级守护.lnk"_s;
     QString ps = QString(
         "$ws = New-Object -ComObject WScript.Shell; "
         "$sc = $ws.CreateShortcut('%1'); "
@@ -187,11 +187,11 @@ void SuperGuardian::createDesktopShortcut() {
     proc.start("powershell", QStringList() << "-NoProfile" << "-Command" << ps);
     proc.waitForFinished(10000);
     if (proc.exitCode() == 0) {
-        showMessageDialog(this, QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f"),
-            QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f\u5df2\u521b\u5efa\uff1a\u8d85\u7ea7\u5b88\u62a4"));
+        showMessageDialog(this, u"桌面快捷方式"_s,
+            u"桌面快捷方式已创建：超级守护"_s);
     } else {
-        showMessageDialog(this, QString::fromUtf8("\u684c\u9762\u5feb\u6377\u65b9\u5f0f"),
-            QString::fromUtf8("\u521b\u5efa\u5feb\u6377\u65b9\u5f0f\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u6743\u9650\u3002"));
+        showMessageDialog(this, u"桌面快捷方式"_s,
+            u"创建快捷方式失败，请检查权限。"_s);
     }
 }
 

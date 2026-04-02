@@ -4,6 +4,8 @@
 #include <QMouseEvent>
 #include <QApplication>
 
+using namespace Qt::Literals::StringLiterals;
+
 // --- ChineseContextMenuFilter ---
 
 bool ChineseContextMenuFilter::eventFilter(QObject* obj, QEvent* event) {
@@ -24,21 +26,21 @@ bool ChineseContextMenuFilter::eventFilter(QObject* obj, QEvent* event) {
         int tab = t.indexOf(QLatin1Char('\t'));
         QString label = tab >= 0 ? t.left(tab) : t;
         QString shortcut = tab >= 0 ? t.mid(tab) : QString();
-        if (label == "&Undo") label = QString::fromUtf8("\u64a4\u9500");
-        else if (label == "&Redo") label = QString::fromUtf8("\u91cd\u505a");
-        else if (label == "Cu&t") label = QString::fromUtf8("\u526a\u5207");
-        else if (label == "&Copy") label = QString::fromUtf8("\u590d\u5236");
-        else if (label == "&Paste") label = QString::fromUtf8("\u7c98\u8d34");
-        else if (label == "Delete") label = QString::fromUtf8("\u5220\u9664");
-        else if (label == "Select All") label = QString::fromUtf8("\u5168\u9009");
+        if (label == "&Undo") label = u"撤销"_s;
+        else if (label == "&Redo") label = u"重做"_s;
+        else if (label == "Cu&t") label = u"剪切"_s;
+        else if (label == "&Copy") label = u"复制"_s;
+        else if (label == "&Paste") label = u"粘贴"_s;
+        else if (label == "Delete") label = u"删除"_s;
+        else if (label == "Select All") label = u"全选"_s;
         else continue;
         a->setText(label + shortcut);
     }
     if (!sb) sb = qobject_cast<QAbstractSpinBox*>(le->parentWidget());
     if (sb) {
         m->addSeparator();
-        QAction* upAct = m->addAction(QString::fromUtf8("\u589e\u5927"));
-        QAction* downAct = m->addAction(QString::fromUtf8("\u51cf\u5c0f"));
+        QAction* upAct = m->addAction(u"增大"_s);
+        QAction* downAct = m->addAction(u"减小"_s);
         QObject::connect(upAct, &QAction::triggered, sb, &QAbstractSpinBox::stepUp);
         QObject::connect(downAct, &QAction::triggered, sb, &QAbstractSpinBox::stepDown);
     }
@@ -70,8 +72,8 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
     bool isPinned = index.data(Qt::UserRole + 2).toBool();
     if (index.column() == 0 && isPinned) {
         QString pinRes = (currentThemeName() == "dark")
-            ? QStringLiteral(":/SuperGuardian/top_light.png")
-            : QStringLiteral(":/SuperGuardian/top_dark.png");
+            ? u":/SuperGuardian/top_light.png"_s
+            : u":/SuperGuardian/top_dark.png"_s;
         QIcon pinIcon(pinRes);
         if (!pinIcon.isNull()) {
             int pinSz = qMin(option.rect.height() - 4, 16);

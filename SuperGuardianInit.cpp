@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "AppStorage.h"
 #include "DialogHelpers.h"
 #include "GuardTableWidgets.h"
@@ -34,7 +34,7 @@ void SuperGuardian::initSignals() {
     });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
-        QString file = QFileDialog::getOpenFileName(this, QString::fromUtf8("选择程序"), "", "Executable (*.exe);;All Files (*)");
+        QString file = QFileDialog::getOpenFileName(this, u"选择程序"_s, "", "Executable (*.exe);;All Files (*)");
         if (!file.isEmpty()) lineEdit->setText(file);
     });
     connect(btnCancel, &QPushButton::clicked, this, [this]() { lineEdit->clear(); });
@@ -65,9 +65,9 @@ void SuperGuardian::initSignals() {
     static_cast<DesktopSelectTable*>(tableWidget)->onDeletePressed = [this](const QList<int>& rows) {
         if (rows.isEmpty()) return;
         QString msg = rows.size() == 1
-            ? QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u6b64\u7a0b\u5e8f\u5417\uff1f")
-            : QString::fromUtf8("\u786e\u8ba4\u79fb\u9664\u9009\u4e2d\u7684 %1 \u4e2a\u7a0b\u5e8f\u5417\uff1f").arg(rows.size());
-        if (!showMessageDialog(this, QString::fromUtf8("\u79fb\u9664"), msg, true)) return;
+            ? u"确认移除此程序吗？"_s
+            : u"确认移除选中的 %1 个程序吗？"_s.arg(rows.size());
+        if (!showMessageDialog(this, u"移除"_s, msg, true)) return;
         for (int i = rows.size() - 1; i >= 0; --i) {
             int row = rows[i];
             int idx = findItemIndexByPath(rowPath(row));

@@ -19,7 +19,7 @@ private:
     QPushButton* btnAdd;
     QTableWidget* tableWidget;
 
-    QVector<GuardItem> items;
+    QList<GuardItem> items;
     QSystemTrayIcon* tray;
     QMenu* trayMenu;
     QAction* selfGuardAct;

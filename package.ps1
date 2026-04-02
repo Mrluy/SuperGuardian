@@ -107,10 +107,11 @@ if (-not (Test-Path $exePath)) {
 }
 
 # Step 2：确定 ZIP 名称
+$dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'
 if ($Version -ne '') {
-    $zipBaseName = "SuperGuardian_v$($Version.TrimStart('vV'))"
+    $zipBaseName = "SuperGuardian_v$($Version.TrimStart('vV'))_$dateStr"
 } else {
-    $zipBaseName = "SuperGuardian_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+    $zipBaseName = "SuperGuardian_$dateStr"
 }
 
 # Step 3：准备暂存目录

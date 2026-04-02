@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include "AppStorage.h"
@@ -41,10 +41,10 @@ void SuperGuardian::checkProcesses() {
                 item.lastLaunchTime = now;
                 item.lastRestart = now;
                 item.restartCount++;
-                appendScheduledRunLog(QString::fromUtf8("%1 \u5b9a\u65f6\u8fd0\u884c\u89e6\u53d1").arg(item.processName));
+                appendScheduledRunLog(u"%1 定时运行触发"_s.arg(item.processName));
                 if (!ok) {
                     trySendNotification(item, "run_failed",
-                        QString::fromUtf8("%1 \u5b9a\u65f6\u8fd0\u884c\u542f\u52a8\u5931\u8d25").arg(item.processName));
+                        u"%1 定时运行启动失败"_s.arg(item.processName));
                     if (!item.retryActive) {
                         item.retryActive = true;
                         item.retryStartTime = now;
@@ -59,7 +59,7 @@ void SuperGuardian::checkProcesses() {
                     tableWidget->item(row, col)->setToolTip(text);
                 }
             };
-            setCell(1, QString::fromUtf8("\u5b9a\u65f6\u8fd0\u884c"));
+            setCell(1, u"定时运行"_s);
             {
                 if (item.trackRunDuration) {
                     QDateTime procStart = getProcessStartTime(item.processName);
@@ -68,13 +68,13 @@ void SuperGuardian::checkProcesses() {
                     setCell(2, "-");
                 }
             }
-            setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
             setCell(4, "-");
             setCell(5, "-");
             QString rulesText = formatScheduleRules(item.runRules);
             setCell(6, rulesText);
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
             setCell(8, "-");
             continue;
         }
@@ -102,10 +102,10 @@ void SuperGuardian::checkProcesses() {
                         item.startTime = now;
                         scheduledRestarted = true;
                         running = true;
-                        appendScheduledRestartLog(QString::fromUtf8("%1 \u5b9a\u65f6\u91cd\u542f\u89e6\u53d1").arg(item.processName));
+                        appendScheduledRestartLog(u"%1 定时重启触发"_s.arg(item.processName));
                         if (!ok) {
                             trySendNotification(item, "restart_failed",
-                                QString::fromUtf8("%1 \u5b9a\u65f6\u91cd\u542f\u540e\u542f\u52a8\u5931\u8d25").arg(item.processName));
+                                u"%1 定时重启后启动失败"_s.arg(item.processName));
                             if (!item.retryActive) {
                                 item.retryActive = true;
                                 item.retryStartTime = now;
@@ -128,7 +128,7 @@ void SuperGuardian::checkProcesses() {
                         if (!item.startDelayExitTime.isValid()) {
                             item.startDelayExitTime = now;
                             trySendNotification(item, "process_exited",
-                                QString::fromUtf8("%1 \u8fdb\u7a0b\u5df2\u9000\u51fa\uff0c\u5c06\u5728 %2 \u79d2\u540e\u91cd\u542f").arg(item.processName).arg(item.startDelaySecs));
+                                u"%1 进程已退出，将在 %2 秒后重启"_s.arg(item.processName).arg(item.startDelaySecs));
                         }
                         if (item.startDelayExitTime.secsTo(now) >= item.startDelaySecs) {
                             item.startDelayExitTime = QDateTime();
@@ -140,10 +140,10 @@ void SuperGuardian::checkProcesses() {
                             item.startTime = now;
                             running = true;
                             trySendNotification(item, "guard_triggered",
-                                QString::fromUtf8("%1 \u5b88\u62a4\u89e6\u53d1\u91cd\u542f").arg(item.processName));
+                                u"%1 守护触发重启"_s.arg(item.processName));
                             if (!ok) {
                                 trySendNotification(item, "start_failed",
-                                    QString::fromUtf8("%1 \u5b88\u62a4\u542f\u52a8\u5931\u8d25").arg(item.processName));
+                                    u"%1 守护启动失败"_s.arg(item.processName));
                                 if (!item.retryActive) {
                                     item.retryActive = true;
                                     item.retryStartTime = now;
@@ -161,10 +161,10 @@ void SuperGuardian::checkProcesses() {
                         item.startTime = now;
                         running = true;
                         trySendNotification(item, "guard_triggered",
-                            QString::fromUtf8("%1 \u5b88\u62a4\u89e6\u53d1\u91cd\u542f").arg(item.processName));
+                            u"%1 守护触发重启"_s.arg(item.processName));
                         if (!ok) {
                             trySendNotification(item, "start_failed",
-                                QString::fromUtf8("%1 \u5b88\u62a4\u542f\u52a8\u5931\u8d25").arg(item.processName));
+                                u"%1 守护启动失败"_s.arg(item.processName));
                             if (!item.retryActive) {
                                 item.retryActive = true;
                                 item.retryStartTime = now;
@@ -185,7 +185,7 @@ void SuperGuardian::checkProcesses() {
             if (expired) {
                 item.retryActive = false;
                 trySendNotification(item, "retry_exhausted",
-                    QString::fromUtf8("%1 \u91cd\u8bd5\u5df2\u8017\u5c3d\uff0c\u5171\u91cd\u8bd5 %2 \u6b21").arg(item.processName).arg(item.currentRetryCount));
+                    u"%1 重试已耗尽，共重试 %2 次"_s.arg(item.processName).arg(item.currentRetryCount));
             } else if (item.lastRetryTime.secsTo(now) >= item.retryConfig.retryIntervalSecs) {
                 bool ok = launchProgram(item.targetPath, item.launchArgs);
                 item.lastRetryTime = now;
@@ -215,9 +215,9 @@ void SuperGuardian::checkProcesses() {
             }
         };
         if (hasGuard) {
-            setCell(1, running ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u5df2\u91cd\u542f"));
+            setCell(1, running ? u"运行中"_s : u"已重启"_s);
         } else if (hasScheduledRestart) {
-            setCell(1, running ? QString::fromUtf8("\u8fd0\u884c\u4e2d") : QString::fromUtf8("\u672a\u8fd0\u884c"));
+            setCell(1, running ? u"运行中"_s : u"未运行"_s);
         }
         if (hasGuard) {
             QDateTime procStart = getProcessStartTime(item.processName);
@@ -230,11 +230,11 @@ void SuperGuardian::checkProcesses() {
         } else {
             setCell(5, "-");
         }
-        setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+        setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         setCell(4, QString::number(item.restartCount));
-        setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : QStringLiteral("-"));
+        setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-        setCell(7, nt.isValid() ? nt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 hh:mm:ss")) : "-");
+        setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         setCell(8, formatStartDelay(item.startDelaySecs));
     }
 

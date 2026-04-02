@@ -1,19 +1,19 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include <QtWidgets>
+#include <QThread>
 
 // ---- 本地更新 ----
 
 void SuperGuardian::showUpdateDialog() {
     QDialog dialog(this, kDialogFlags);
-    dialog.setWindowTitle(QString::fromUtf8("\u8f6f\u4ef6\u66f4\u65b0"));
+    dialog.setWindowTitle(u"软件更新"_s);
     dialog.setMinimumWidth(500);
     QVBoxLayout* layout = new QVBoxLayout(&dialog);
 
-    layout->addWidget(new QLabel(QString::fromUtf8(
-        "\u9009\u62e9\u65b0\u7248\u672c\u7684 SuperGuardian.exe \u6216 ZIP \u538b\u7f29\u5305\u8fdb\u884c\u66f4\u65b0\u3002\n"
-        "\u652f\u6301\u62d6\u653e\u6587\u4ef6\u5230\u8f93\u5165\u6846\u3002\n"
-        "\u66f4\u65b0\u65f6\u5c06\u81ea\u52a8\u5907\u4efd\u65e7\u7248\u672c\u5230 bak \u6587\u4ef6\u5939\uff0c\u6700\u591a\u4fdd\u7559 5 \u4e2a\u65e7\u7248\u672c\u3002")));
+    layout->addWidget(new QLabel(u"选择新版本的 SuperGuardian.exe 或 ZIP 压缩包进行更新。\n"
+        u"支持拖放文件到输入框。\n"
+        u"更新时将自动备份旧版本到 bak 文件夹，最多保留 5 个旧版本。"_s));
 
     QHBoxLayout* fileLayout = new QHBoxLayout();
 
@@ -45,8 +45,8 @@ void SuperGuardian::showUpdateDialog() {
     };
 
     UpdatePathLineEdit* fileEdit = new UpdatePathLineEdit();
-    fileEdit->setPlaceholderText(QString::fromUtf8("\u9009\u62e9\u6216\u62d6\u653e\u65b0\u7248\u672c .exe \u6216 .zip \u6587\u4ef6"));
-    QPushButton* browseBtn = new QPushButton(QString::fromUtf8("\u6d4f\u89c8"));
+    fileEdit->setPlaceholderText(u"选择或拖放新版本 .exe 或 .zip 文件"_s);
+    QPushButton* browseBtn = new QPushButton(u"浏览"_s);
     fileLayout->addWidget(fileEdit);
     fileLayout->addWidget(browseBtn);
     layout->addLayout(fileLayout);
@@ -55,15 +55,15 @@ void SuperGuardian::showUpdateDialog() {
 
     QHBoxLayout* restoreLayout = new QHBoxLayout();
     restoreLayout->addStretch();
-    QPushButton* restoreBtn = new QPushButton(QString::fromUtf8("\u6062\u590d\u65e7\u7248\u672c"));
+    QPushButton* restoreBtn = new QPushButton(u"恢复旧版本"_s);
     restoreLayout->addWidget(restoreBtn);
     layout->addLayout(restoreLayout);
 
     QHBoxLayout* btnLayout = new QHBoxLayout();
     btnLayout->addStretch();
-    QPushButton* updateBtn = new QPushButton(QString::fromUtf8("\u5f00\u59cb\u66f4\u65b0"));
+    QPushButton* updateBtn = new QPushButton(u"开始更新"_s);
     updateBtn->setEnabled(false);
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     btnLayout->addWidget(updateBtn);
     btnLayout->addWidget(cancelBtn);
     layout->addLayout(btnLayout);
@@ -75,15 +75,15 @@ void SuperGuardian::showUpdateDialog() {
 
     connect(browseBtn, &QPushButton::clicked, &dialog, [&]() {
         QString file = QFileDialog::getOpenFileName(&dialog,
-            QString::fromUtf8("\u9009\u62e9\u65b0\u7248\u672c\u7a0b\u5e8f"), "",
-            QString::fromUtf8("Executable / ZIP (*.exe *.zip);;All Files (*)"));
+            u"选择新版本程序"_s, "",
+            u"Executable / ZIP (*.exe *.zip);;All Files (*)"_s);
         if (!file.isEmpty()) {
             QString lower = file.toLower();
             if (lower.endsWith(".exe") || lower.endsWith(".zip"))
                 fileEdit->setText(file);
             else
-                showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
-                    QString::fromUtf8("\u4ec5\u652f\u6301 .exe \u548c .zip \u6587\u4ef6\u3002"));
+                showMessageDialog(&dialog, u"提示"_s,
+                    u"仅支持 .exe 和 .zip 文件。"_s);
         }
     });
     connect(cancelBtn, &QPushButton::clicked, &dialog, &QDialog::reject);
@@ -94,22 +94,22 @@ void SuperGuardian::showUpdateDialog() {
         QString bakDir = QDir(appDir).filePath("bak");
         QDir bakDirObj(bakDir);
         if (!bakDirObj.exists()) {
-            showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
-                QString::fromUtf8("\u6ca1\u6709\u627e\u5230\u4efb\u4f55\u5907\u4efd\u7248\u672c\u3002"));
+            showMessageDialog(&dialog, u"提示"_s,
+                u"没有找到任何备份版本。"_s);
             return;
         }
         QStringList entries = bakDirObj.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name | QDir::Reversed);
         if (entries.isEmpty()) {
-            showMessageDialog(&dialog, QString::fromUtf8("\u63d0\u793a"),
-                QString::fromUtf8("\u6ca1\u6709\u627e\u5230\u4efb\u4f55\u5907\u4efd\u7248\u672c\u3002"));
+            showMessageDialog(&dialog, u"提示"_s,
+                u"没有找到任何备份版本。"_s);
             return;
         }
 
         QDialog restoreDlg(&dialog, kDialogFlags);
-        restoreDlg.setWindowTitle(QString::fromUtf8("\u6062\u590d\u65e7\u7248\u672c"));
+        restoreDlg.setWindowTitle(u"恢复旧版本"_s);
         restoreDlg.setMinimumSize(360, 300);
         QVBoxLayout* rlay = new QVBoxLayout(&restoreDlg);
-        rlay->addWidget(new QLabel(QString::fromUtf8("\u9009\u62e9\u8981\u6062\u590d\u7684\u5907\u4efd\u7248\u672c\uff1a")));
+        rlay->addWidget(new QLabel(u"选择要恢复的备份版本："_s));
         QListWidget* backupList = new QListWidget();
         for (const QString& entry : entries) {
             QString bakExe = QDir(bakDirObj.filePath(entry)).filePath("SuperGuardian.exe.bak");
@@ -118,7 +118,7 @@ void SuperGuardian::showUpdateDialog() {
                 if (entry.length() == 15 && entry.contains('_')) {
                     QDateTime dt = QDateTime::fromString(entry, "yyyyMMdd_HHmmss");
                     if (dt.isValid())
-                        displayDate = dt.toString(QString::fromUtf8("yyyy\u5e74M\u6708d\u65e5 HH:mm:ss"));
+                        displayDate = dt.toString(u"yyyy年M月d日 HH:mm:ss"_s);
                 }
                 QListWidgetItem* item = new QListWidgetItem(displayDate);
                 item->setData(Qt::UserRole, entry);
@@ -128,8 +128,8 @@ void SuperGuardian::showUpdateDialog() {
         rlay->addWidget(backupList);
         QHBoxLayout* rbtnLay = new QHBoxLayout();
         rbtnLay->addStretch();
-        QPushButton* restoreOkBtn = new QPushButton(QString::fromUtf8("\u6062\u590d"));
-        QPushButton* restoreCancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+        QPushButton* restoreOkBtn = new QPushButton(u"恢复"_s);
+        QPushButton* restoreCancelBtn = new QPushButton(u"取消"_s);
         restoreOkBtn->setEnabled(false);
         QObject::connect(backupList, &QListWidget::currentRowChanged, [restoreOkBtn](int row) {
             restoreOkBtn->setEnabled(row >= 0);
@@ -150,21 +150,28 @@ void SuperGuardian::showUpdateDialog() {
         QDir().mkpath(newBakDir);
         QString newBakPath = QDir(newBakDir).filePath("SuperGuardian.exe.bak");
         if (!QFile::rename(currentExe, newBakPath)) {
-            showMessageDialog(&dialog, QString::fromUtf8("\u6062\u590d\u5931\u8d25"),
-                QString::fromUtf8("\u65e0\u6cd5\u5907\u4efd\u5f53\u524d\u7a0b\u5e8f\u6587\u4ef6\u3002"));
+            showMessageDialog(&dialog, u"恢复失败"_s,
+                u"无法备份当前程序文件。"_s);
             return;
         }
         if (!QFile::copy(bakExe, currentExe)) {
             QFile::rename(newBakPath, currentExe);
-            showMessageDialog(&dialog, QString::fromUtf8("\u6062\u590d\u5931\u8d25"),
-                QString::fromUtf8("\u65e0\u6cd5\u590d\u5236\u5907\u4efd\u6587\u4ef6\u3002"));
+            showMessageDialog(&dialog, u"恢复失败"_s,
+                u"无法复制备份文件。"_s);
             return;
         }
         dialog.accept();
-        if (showMessageDialog(this, QString::fromUtf8("\u6062\u590d\u6210\u529f"),
-            QString::fromUtf8("\u5df2\u6062\u590d\u5230\u5907\u4efd\u7248\u672c\u3002\u662f\u5426\u7acb\u5373\u91cd\u542f\u8f6f\u4ef6\uff1f"), true)) {
+        if (showMessageDialog(this, u"恢复成功"_s,
+            u"已恢复到备份版本。是否立即重启软件？"_s, true)) {
             saveSettings();
-            QProcess::startDetached(currentExe, QStringList() << "--restart");
+            QThread::msleep(500);
+            QString appDir = QFileInfo(currentExe).absolutePath();
+            qint64 pid = 0;
+            bool started = QProcess::startDetached(currentExe, QStringList() << "--restart", appDir, &pid);
+            if (!started) {
+                QThread::msleep(1000);
+                started = QProcess::startDetached(currentExe, QStringList() << "--restart", appDir, &pid);
+            }
             onExit();
         }
     });
@@ -173,8 +180,8 @@ void SuperGuardian::showUpdateDialog() {
         QString selectedFile = fileEdit->text().trimmed();
         if (selectedFile.isEmpty()) return;
 
-        if (!showMessageDialog(&dialog, QString::fromUtf8("\u786e\u8ba4\u66f4\u65b0"),
-            QString::fromUtf8("\u5373\u5c06\u4f7f\u7528\u4ee5\u4e0b\u6587\u4ef6\u8fdb\u884c\u66f4\u65b0\uff1a\n%1\n\n\u8bf7\u786e\u8ba4\u6587\u4ef6\u662f\u5426\u6b63\u786e\uff0c\u66f4\u65b0\u540e\u8f6f\u4ef6\u5c06\u81ea\u52a8\u91cd\u542f\u3002").arg(selectedFile), true))
+        if (!showMessageDialog(&dialog, u"确认更新"_s,
+            u"即将使用以下文件进行更新：\n%1\n\n请确认文件是否正确，更新后软件将自动重启。"_s.arg(selectedFile), true))
             return;
 
         QString newExe = selectedFile;
@@ -188,10 +195,10 @@ void SuperGuardian::showUpdateDialog() {
                 << QString("Expand-Archive -Path '%1' -DestinationPath '%2' -Force").arg(
                     QDir::toNativeSeparators(selectedFile).replace("'", "''"),
                     QDir::toNativeSeparators(tempDir).replace("'", "''")));
-            proc.waitForFinished(60000);
-            if (proc.exitCode() != 0) {
-                showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
-                    QString::fromUtf8("\u89e3\u538b ZIP \u6587\u4ef6\u5931\u8d25\u3002"));
+            bool finished = proc.waitForFinished(60000);
+            if (!finished || proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
+                showMessageDialog(&dialog, u"更新失败"_s,
+                    u"解压 ZIP 文件失败。"_s);
                 QDir(tempDir).removeRecursively();
                 return;
             }
@@ -206,8 +213,8 @@ void SuperGuardian::showUpdateDialog() {
                 if (exeFiles.size() == 1) newExe = exeFiles.first();
             }
             if (newExe.isEmpty()) {
-                showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
-                    QString::fromUtf8("ZIP \u5305\u4e2d\u672a\u627e\u5230 SuperGuardian.exe\u3002"));
+                showMessageDialog(&dialog, u"更新失败"_s,
+                    u"ZIP 包中未找到 SuperGuardian.exe。"_s);
                 QDir(tempDir).removeRecursively();
                 return;
             }
@@ -222,15 +229,15 @@ void SuperGuardian::showUpdateDialog() {
 
         QString bakPath = QDir(bakSubDir).filePath("SuperGuardian.exe.bak");
         if (!QFile::rename(currentExe, bakPath)) {
-            showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
-                QString::fromUtf8("\u65e0\u6cd5\u5907\u4efd\u5f53\u524d\u7a0b\u5e8f\u6587\u4ef6\u3002"));
+            showMessageDialog(&dialog, u"更新失败"_s,
+                u"无法备份当前程序文件。"_s);
             if (!tempDir.isEmpty()) QDir(tempDir).removeRecursively();
             return;
         }
         if (!QFile::copy(newExe, currentExe)) {
             QFile::rename(bakPath, currentExe);
-            showMessageDialog(&dialog, QString::fromUtf8("\u66f4\u65b0\u5931\u8d25"),
-                QString::fromUtf8("\u65e0\u6cd5\u590d\u5236\u65b0\u7248\u672c\u7a0b\u5e8f\u3002"));
+            showMessageDialog(&dialog, u"更新失败"_s,
+                u"无法复制新版本程序。"_s);
             if (!tempDir.isEmpty()) QDir(tempDir).removeRecursively();
             return;
         }
@@ -245,10 +252,17 @@ void SuperGuardian::showUpdateDialog() {
 
         dialog.accept();
 
-        showMessageDialog(this, QString::fromUtf8("\u66f4\u65b0\u6210\u529f"),
-            QString::fromUtf8("\u7a0b\u5e8f\u5df2\u66f4\u65b0\u6210\u529f\u3002\u65e7\u7248\u672c\u5df2\u5907\u4efd\u5230 bak/%1/\n\u8f6f\u4ef6\u5c06\u81ea\u52a8\u91cd\u542f\u4ee5\u5e94\u7528\u66f4\u65b0\u3002").arg(timestamp));
+        showMessageDialog(this, u"更新成功"_s,
+            u"程序已更新成功。旧版本已备份到 bak/%1/\n软件将自动重启以应用更新。"_s.arg(timestamp));
         saveSettings();
-        QProcess::startDetached(currentExe, QStringList() << "--restart");
+        QThread::msleep(500);
+        appDir = QFileInfo(currentExe).absolutePath();
+        qint64 pid = 0;
+        bool started = QProcess::startDetached(currentExe, QStringList() << "--restart", appDir, &pid);
+        if (!started) {
+            QThread::msleep(1000);
+            started = QProcess::startDetached(currentExe, QStringList() << "--restart", appDir, &pid);
+        }
         onExit();
     });
 

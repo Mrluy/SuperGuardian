@@ -1,7 +1,5 @@
 #include "DialogHelpers.h"
 
-const Qt::WindowFlags kDialogFlags = Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint;
-
 bool showMessageDialog(QWidget* parent, const QString& title, const QString& text, bool isQuestion) {
     QDialog dlg(parent, kDialogFlags);
     dlg.setWindowTitle(title);
@@ -13,11 +11,11 @@ bool showMessageDialog(QWidget* parent, const QString& title, const QString& tex
     lay->addWidget(lbl, 1);
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     btnLay->addWidget(okBtn);
     if (isQuestion) {
-        QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+        QPushButton* cancelBtn = new QPushButton(u"取消"_s);
         QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
         btnLay->addWidget(cancelBtn);
     }
@@ -39,8 +37,8 @@ QString showItemDialog(QWidget* parent, const QString& title, const QString& lab
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn);
@@ -67,8 +65,8 @@ int showIntDialog(QWidget* parent, const QString& title, const QString& label,
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn);
@@ -81,33 +79,33 @@ int showIntDialog(QWidget* parent, const QString& title, const QString& label,
 }
 
 QString formatRestartInterval(int secs) {
-    if (secs <= 0) return QStringLiteral("-");
+    if (secs <= 0) return u"-"_s;
     int totalMins = secs / 60;
     int days = totalMins / 1440;
     int hours = (totalMins % 1440) / 60;
     int mins = totalMins % 60;
     QString detail;
-    if (days > 0) detail += QString::number(days) + QString::fromUtf8("\u5929");
-    if (hours > 0) detail += QString::number(hours) + QString::fromUtf8("\u5c0f\u65f6");
-    if (mins > 0) detail += QString::number(mins) + QString::fromUtf8("\u5206\u949f");
-    if (detail.isEmpty()) detail = QString::fromUtf8("1\u5206\u949f");
-    return QString::fromUtf8("\u5468\u671f ") + detail;
+    if (days > 0) detail += QString::number(days) + u"天"_s;
+    if (hours > 0) detail += QString::number(hours) + u"小时"_s;
+    if (mins > 0) detail += QString::number(mins) + u"分钟"_s;
+    if (detail.isEmpty()) detail = u"1分钟"_s;
+    return u"周期 "_s + detail;
 }
 
 QString formatDaysShort(const QSet<int>& days) {
-    if (days.isEmpty()) return QString::fromUtf8("\u6bcf\u5929");
-    QSet<int> weekdays = {1,2,3,4,5};
-    QSet<int> weekend = {6,7};
-    if (days == weekdays) return QString::fromUtf8("\u5de5\u4f5c\u65e5");
-    if (days == weekend) return QString::fromUtf8("\u5468\u672b");
-    static const char* names[] = { nullptr, "\u5468\u4e00", "\u5468\u4e8c", "\u5468\u4e09", "\u5468\u56db", "\u5468\u4e94", "\u5468\u516d", "\u5468\u65e5" };
-    QList<int> sorted(days.begin(), days.end());
+    if (days.isEmpty()) return u"每天"_s;
+    static const QSet<int> weekdays = {1,2,3,4,5};
+    static const QSet<int> weekend = {6,7};
+    if (days == weekdays) return u"工作日"_s;
+    if (days == weekend) return u"周末"_s;
+    static constexpr QStringView names[] = { {}, u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
+    QList<int> sorted(days.cbegin(), days.cend());
     std::sort(sorted.begin(), sorted.end());
     QStringList parts;
     for (int d : sorted) {
-        if (d >= 1 && d <= 7) parts << QString::fromUtf8(names[d]);
+        if (d >= 1 && d <= 7) parts << names[d].toString();
     }
-    return parts.join(",");
+    return parts.join(u","_s);
 }
 
 QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) {
@@ -138,11 +136,11 @@ QDateTime nextTriggerTime(const QList<ScheduleRule>& rules) {
 }
 
 QString formatScheduleRules(const QList<ScheduleRule>& rules) {
-    if (rules.isEmpty()) return QStringLiteral("-");
+    if (rules.isEmpty()) return u"-"_s;
     if (rules.size() == 1) {
         const ScheduleRule& r = rules[0];
         if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
-        return formatDaysShort(r.daysOfWeek) + " " + r.fixedTime.toString("HH:mm");
+        return formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm"_s);
     }
-    return QString::fromUtf8("%1\u4e2a\u89c4\u5219").arg(rules.size());
+    return u"%1个规则"_s.arg(rules.size());
 }

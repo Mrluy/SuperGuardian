@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include <QtWidgets>
 
@@ -63,8 +63,8 @@ void SuperGuardian::handleRowsMoved(const QList<int>& rows, int insertBefore) {
 }
 
 void SuperGuardian::closeAllGuards() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b88\u62a4"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b88\u62a4\u5417\uff1f"), true))
+    if (!showMessageDialog(this, u"关闭所有守护"_s,
+        u"确认关闭所有程序的守护吗？"_s, true))
         return;
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].guarding) {
@@ -76,10 +76,10 @@ void SuperGuardian::closeAllGuards() {
                 QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u59cb\u5b88\u62a4"));
+                    if (b) b->setText(u"开始守护"_s);
                 }
                 if (!items[i].restartRulesActive) {
-                    if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
+                    if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(u"未守护"_s);
                 }
                 if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
                 if (tableWidget->item(row, 4)) tableWidget->item(row, 4)->setText("0");
@@ -92,8 +92,8 @@ void SuperGuardian::closeAllGuards() {
 }
 
 void SuperGuardian::closeAllScheduledRestart() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u91cd\u542f"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b9a\u65f6\u91cd\u542f\u5417\uff1f"), true))
+    if (!showMessageDialog(this, u"关闭所有定时重启"_s,
+        u"确认关闭所有程序的定时重启吗？"_s, true))
         return;
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].restartRulesActive) {
@@ -103,7 +103,7 @@ void SuperGuardian::closeAllScheduledRestart() {
                 QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u91cd\u542f"));
+                    if (b) b->setText(u"开启定时重启"_s);
                 }
                 if (tableWidget->item(row, 6)) tableWidget->item(row, 6)->setText("-");
                 if (tableWidget->item(row, 7)) tableWidget->item(row, 7)->setText("-");
@@ -115,8 +115,8 @@ void SuperGuardian::closeAllScheduledRestart() {
 }
 
 void SuperGuardian::closeAllScheduledRun() {
-    if (!showMessageDialog(this, QString::fromUtf8("\u5173\u95ed\u6240\u6709\u5b9a\u65f6\u8fd0\u884c"),
-        QString::fromUtf8("\u786e\u8ba4\u5173\u95ed\u6240\u6709\u7a0b\u5e8f\u7684\u5b9a\u65f6\u8fd0\u884c\u5417\uff1f"), true))
+    if (!showMessageDialog(this, u"关闭所有定时运行"_s,
+        u"确认关闭所有程序的定时运行吗？"_s, true))
         return;
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].scheduledRunEnabled) {
@@ -126,9 +126,9 @@ void SuperGuardian::closeAllScheduledRun() {
                 QWidget* opw = tableWidget->cellWidget(row, 9);
                 if (opw) {
                     QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[i].path));
-                    if (b) b->setText(QString::fromUtf8("\u5f00\u542f\u5b9a\u65f6\u8fd0\u884c"));
+                    if (b) b->setText(u"开启定时运行"_s);
                 }
-                if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(QString::fromUtf8("\u672a\u5b88\u62a4"));
+                if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(u"未守护"_s);
                 if (tableWidget->item(row, 8)) tableWidget->item(row, 8)->setText(formatStartDelay(items[i].startDelaySecs));
                 updateButtonStates(row);
             }

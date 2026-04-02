@@ -3,7 +3,9 @@
 #include <QtWidgets>
 #include "GuardItem.h"
 
-extern const Qt::WindowFlags kDialogFlags;
+using namespace Qt::Literals::StringLiterals;
+
+inline constexpr Qt::WindowFlags kDialogFlags = Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint;
 
 bool showMessageDialog(QWidget* parent, const QString& title, const QString& text, bool isQuestion = false);
 QString showItemDialog(QWidget* parent, const QString& title, const QString& label,

@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
@@ -8,10 +8,10 @@
 
 void SuperGuardian::showDuplicateWhitelistDialog() {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u7684\u7a0b\u5e8f"));
+    dlg.setWindowTitle(u"允许重复添加的程序"_s);
     dlg.setMinimumSize(500, 360);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u4ee5\u4e0b\u7a0b\u5e8f\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u5230\u5217\u8868\u4e2d\uff1a\n\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff08\u5982 PowerShell\uff09\u9ed8\u8ba4\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002\n\u652f\u6301\u62d6\u653e\u7a0b\u5e8f\u6216\u5feb\u6377\u65b9\u5f0f\u5230\u5217\u8868\u4e2d\u6dfb\u52a0\u3002")));
+    lay->addWidget(new QLabel(u"以下程序允许重复添加到列表中：\n系统内置工具（如 PowerShell）默认允许重复添加。\n支持拖放程序或快捷方式到列表中添加。"_s));
 
     class DropListWidget : public QListWidget {
     public:
@@ -49,8 +49,8 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
     lay->addWidget(listWidget);
 
     QHBoxLayout* editLay = new QHBoxLayout();
-    QPushButton* addBtn = new QPushButton(QString::fromUtf8("\u6dfb\u52a0\u7a0b\u5e8f"));
-    QPushButton* removeBtn = new QPushButton(QString::fromUtf8("\u5220\u9664\u9009\u4e2d"));
+    QPushButton* addBtn = new QPushButton(u"添加程序"_s);
+    QPushButton* removeBtn = new QPushButton(u"删除选中"_s);
     editLay->addWidget(addBtn);
     editLay->addWidget(removeBtn);
     editLay->addStretch();
@@ -58,7 +58,7 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
 
     QObject::connect(addBtn, &QPushButton::clicked, [&]() {
         QString file = QFileDialog::getOpenFileName(&dlg,
-            QString::fromUtf8("\u9009\u62e9\u7a0b\u5e8f"), "", "Executable (*.exe);;Shortcut (*.lnk);;All Files (*)");
+            u"选择程序"_s, "", "Executable (*.exe);;Shortcut (*.lnk);;All Files (*)");
         if (!file.isEmpty()) addFileToList(file);
     });
     QObject::connect(removeBtn, &QPushButton::clicked, [&]() {
@@ -69,8 +69,8 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
@@ -88,11 +88,11 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
 
 void SuperGuardian::testDuplicateAdd() {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u6d4b\u8bd5\u7a0b\u5e8f\u662f\u5426\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0"));
+    dlg.setWindowTitle(u"测试程序是否允许重复添加"_s);
     dlg.setFixedWidth(500);
     dlg.setMinimumHeight(160);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u8f93\u5165\u7a0b\u5e8f\u5b8c\u6574\u8def\u5f84\u6216\u540d\u79f0\uff0c\u6216\u62d6\u653e\u6587\u4ef6\u5230\u8f93\u5165\u6846\uff1a")));
+    lay->addWidget(new QLabel(u"输入程序完整路径或名称，或拖放文件到输入框："_s));
 
     class DropLineEdit : public QLineEdit {
     public:
@@ -106,13 +106,13 @@ void SuperGuardian::testDuplicateAdd() {
     };
 
     DropLineEdit* input = new DropLineEdit();
-    input->setPlaceholderText(QString::fromUtf8("\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\uff0c\u652f\u6301\u62d6\u653e"));
+    input->setPlaceholderText(u"程序路径或名称，支持拖放和快捷方式"_s);
     lay->addWidget(input);
 
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u68c0\u6d4b"));
-    QPushButton* closeBtn = new QPushButton(QString::fromUtf8("\u5173\u95ed"));
+    QPushButton* okBtn = new QPushButton(u"检测"_s);
+    QPushButton* closeBtn = new QPushButton(u"关闭"_s);
     btnLay->addWidget(okBtn);
     btnLay->addWidget(closeBtn);
     btnLay->addStretch();
@@ -122,17 +122,27 @@ void SuperGuardian::testDuplicateAdd() {
     QObject::connect(okBtn, &QPushButton::clicked, [&]() {
         QString path = input->text().trimmed();
         if (path.isEmpty()) {
-            showMessageDialog(&dlg, QString::fromUtf8("\u63d0\u793a"), QString::fromUtf8("\u8bf7\u8f93\u5165\u7a0b\u5e8f\u8def\u5f84\u6216\u540d\u79f0\u3002"));
+            showMessageDialog(&dlg, u"提示"_s, u"请输入程序路径或名称。"_s);
             return;
         }
         QString resolvedPath = path;
         QFileInfo fi(path);
         bool isSystemTool = false;
+        if (fi.exists() && fi.suffix().toLower() == "lnk") {
+            QString lnkTarget = resolveShortcut(path);
+            if (lnkTarget.isEmpty() || lnkTarget.compare(path, Qt::CaseInsensitive) == 0) {
+                showMessageDialog(&dlg, u"检测结果"_s,
+                    u"无法解析快捷方式的目标程序。"_s);
+                return;
+            }
+            resolvedPath = lnkTarget;
+            fi = QFileInfo(resolvedPath);
+        }
         if (!fi.exists()) {
-            QString found = QStandardPaths::findExecutable(path);
+            QString found = QStandardPaths::findExecutable(resolvedPath);
             if (found.isEmpty()) {
-                showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
-                    QString::fromUtf8("\u7a0b\u5e8f\u4e0d\u5b58\u5728\uff0c\u4e5f\u4e0d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u65e0\u6cd5\u6dfb\u52a0\u3002"));
+                showMessageDialog(&dlg, u"检测结果"_s,
+                    u"程序不存在，也不是系统内置工具，无法添加。"_s);
                 return;
             }
             resolvedPath = found;
@@ -147,17 +157,18 @@ void SuperGuardian::testDuplicateAdd() {
         QString targetPath = resolveShortcut(resolvedPath);
         QString displayName = QFileInfo(targetPath).fileName();
         if (isSystemTool) {
-            showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
-                QString::fromUtf8("\u300c%1\u300d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+            showMessageDialog(&dlg, u"检测结果"_s,
+                u"「%1」是系统内置工具，允许重复添加。"_s.arg(displayName));
             return;
         }
-        if (duplicateWhitelist.contains(resolvedPath, Qt::CaseInsensitive)) {
-            showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
-                QString::fromUtf8("\u300c%1\u300d\u5728\u91cd\u590d\u6dfb\u52a0\u767d\u540d\u5355\u4e2d\uff0c\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+        if (duplicateWhitelist.contains(targetPath, Qt::CaseInsensitive) ||
+            duplicateWhitelist.contains(resolvedPath, Qt::CaseInsensitive)) {
+            showMessageDialog(&dlg, u"检测结果"_s,
+                u"「%1」在重复添加白名单中，允许重复添加。"_s.arg(displayName));
             return;
         }
-        showMessageDialog(&dlg, QString::fromUtf8("\u68c0\u6d4b\u7ed3\u679c"),
-            QString::fromUtf8("\u300c%1\u300d\u4e0d\u662f\u7cfb\u7edf\u5185\u7f6e\u5de5\u5177\uff0c\u4e5f\u4e0d\u5728\u767d\u540d\u5355\u4e2d\uff0c\u4e0d\u5141\u8bb8\u91cd\u590d\u6dfb\u52a0\u3002").arg(displayName));
+        showMessageDialog(&dlg, u"检测结果"_s,
+            u"「%1」不是系统内置工具，也不在白名单中，不允许重复添加。"_s.arg(displayName));
     });
 
     dlg.exec();

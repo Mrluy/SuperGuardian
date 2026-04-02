@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
@@ -54,10 +54,10 @@ void SuperGuardian::applyTheme(const QString& theme) {
     if (themeToggleBtn) {
         if (theme == "dark") {
             themeToggleBtn->setIcon(QIcon(":/SuperGuardian/light.png"));
-            themeToggleBtn->setToolTip(QString::fromUtf8("切换到浅色模式"));
+            themeToggleBtn->setToolTip(u"切换到浅色模式"_s);
         } else {
             themeToggleBtn->setIcon(QIcon(":/SuperGuardian/dark.png"));
-            themeToggleBtn->setToolTip(QString::fromUtf8("切换到暗色模式"));
+            themeToggleBtn->setToolTip(u"切换到暗色模式"_s);
         }
     }
     if (pinToggleBtn) {
@@ -84,10 +84,10 @@ void SuperGuardian::syncSelfGuardListEntry(bool enabled) {
 
 void SuperGuardian::runSelfGuardTest() {
     if (!selfGuardAct || !selfGuardAct->isChecked()) {
-        showMessageDialog(this, QString::fromUtf8("提示"), QString::fromUtf8("请先开启自我守护后再测试。"));
+        showMessageDialog(this, u"提示"_s, u"请先开启自我守护后再测试。"_s);
         return;
     }
-    if (!showMessageDialog(this, QString::fromUtf8("测试自我守护"), QString::fromUtf8("将立即强制结束当前主进程，用于验证自我守护是否能自动重启。是否继续？"), true))
+    if (!showMessageDialog(this, u"测试自我守护"_s, u"将立即强制结束当前主进程，用于验证自我守护是否能自动重启。是否继续？"_s, true))
         return;
 
     QSettings s(appSettingsFilePath(), QSettings::IniFormat);
@@ -230,8 +230,8 @@ void SuperGuardian::toggleAlwaysOnTop() {
 }
 
 QString SuperGuardian::formatStartDelay(int secs) const {
-    if (secs <= 0) return QString::fromUtf8("\u5173\u95ed");
-    return QString::number(secs) + QString::fromUtf8(" \u79d2");
+    if (secs <= 0) return u"关闭"_s;
+    return QString::number(secs) + u" 秒"_s;
 }
 
 QString SuperGuardian::formatDuration(qint64 secs) const {
@@ -239,7 +239,7 @@ QString SuperGuardian::formatDuration(qint64 secs) const {
     qint64 days = secs / 86400;
     qint64 hours = (secs % 86400) / 3600;
     qint64 mins = (secs % 3600) / 60;
-    if (days > 0) return QString::number(days) + QString::fromUtf8("\u5929") + QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-    if (hours > 0) return QString::number(hours) + QString::fromUtf8("\u65f6") + QString::number(mins) + QString::fromUtf8("\u5206");
-    return QString::number(mins) + QString::fromUtf8("\u5206");
+    if (days > 0) return QString::number(days) + u"天"_s + QString::number(hours) + u"时"_s + QString::number(mins) + u"分"_s;
+    if (hours > 0) return QString::number(hours) + u"时"_s + QString::number(mins) + u"分"_s;
+    return QString::number(mins) + u"分"_s;
 }

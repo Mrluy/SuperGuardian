@@ -1,4 +1,4 @@
-#include "SuperGuardian.h"
+﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include <QtWidgets>
@@ -7,17 +7,17 @@
 
 void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6"));
+    dlg.setWindowTitle(u"设置启动延时"_s);
     dlg.setFixedWidth(320);
     dlg.setMinimumHeight(150);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(QString::fromUtf8("\u8bf7\u8bbe\u7f6e\u542f\u52a8\u5ef6\u65f6\uff08\u79d2\uff09\uff1a")));
-    lay->addWidget(new QLabel(QString::fromUtf8("\u7a0b\u5e8f\u91cd\u542f\u65f6\u7684\u5ef6\u65f6\uff0c\u8bbe\u7f6e\u4e3a 0 \u5173\u95ed\u5ef6\u65f6\u3002\n\u5b88\u62a4\u91cd\u542f\u3001\u5b9a\u65f6\u91cd\u542f\u5747\u4f7f\u7528\u6b64\u5ef6\u65f6\u3002")));
+    lay->addWidget(new QLabel(u"请设置启动延时（秒）："_s));
+    lay->addWidget(new QLabel(u"程序重启时的延时，设置为 0 关闭延时。\n守护重启、定时重启均使用此延时。"_s));
     QSpinBox* spin = new QSpinBox();
     spin->setRange(0, 86400);
     spin->setValue(1);
-    spin->setSuffix(QString::fromUtf8(" \u79d2"));
-    spin->setSpecialValueText(QString::fromUtf8("\u5173\u95ed"));
+    spin->setSuffix(u" 秒"_s);
+    spin->setSpecialValueText(u"关闭"_s);
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
         if (itemIdx >= 0) spin->setValue(items[itemIdx].startDelaySecs);
@@ -26,8 +26,8 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn);
@@ -57,12 +57,12 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
 
 void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(QString::fromUtf8("\u8bbe\u7f6e\u542f\u52a8\u7a0b\u5e8f/\u53c2\u6570"));
+    dlg.setWindowTitle(u"设置启动程序/参数"_s);
     dlg.setFixedWidth(450);
     dlg.setMinimumHeight(200);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
 
-    lay->addWidget(new QLabel(QString::fromUtf8("\u542f\u52a8\u7a0b\u5e8f\u8def\u5f84\uff1a")));
+    lay->addWidget(new QLabel(u"启动程序路径："_s));
     QLineEdit* pathEdit = new QLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
@@ -70,7 +70,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     }
     lay->addWidget(pathEdit);
 
-    lay->addWidget(new QLabel(QString::fromUtf8("\u542f\u52a8\u53c2\u6570\uff08\u7559\u7a7a\u8868\u793a\u65e0\u53c2\u6570\uff09\uff1a")));
+    lay->addWidget(new QLabel(u"启动参数（留空表示无参数）："_s));
     QLineEdit* argsEdit = new QLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexByPath(rowPath(rows[0]));
@@ -80,8 +80,8 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(QString::fromUtf8("\u786e\u5b9a"));
-    QPushButton* cancelBtn = new QPushButton(QString::fromUtf8("\u53d6\u6d88"));
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();

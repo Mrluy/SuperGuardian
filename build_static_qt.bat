@@ -3,12 +3,12 @@ setlocal enabledelayedexpansion
 chcp 65001 >nul 2>&1
 
 echo ============================================
-echo  SuperGuardian - Static Qt 6.10.2 Build
+echo  SuperGuardian - Static Qt 6.11.0 Build
 echo ============================================
 echo.
 
 REM === Configuration ===
-set QT_VERSION=6.10.2
+set QT_VERSION=6.11.0
 set QT_STATIC_PREFIX=C:\Qt\%QT_VERSION%\msvc2022_64_static
 set QT_SRC_DIR=C:\Qt\%QT_VERSION%\Src\qtbase
 set QT_BUILD_DIR=C:\Qt\%QT_VERSION%\static_build
@@ -60,7 +60,6 @@ call "%QT_SRC_DIR%\configure.bat" ^
     -nomake tests ^
     -no-opengl ^
     -no-feature-sql ^
-    -no-feature-network ^
     -no-feature-dbus ^
     -no-feature-testlib ^
     -no-feature-printsupport ^
@@ -88,12 +87,12 @@ if errorlevel 1 (
 
 REM === Register in Qt VS Tools ===
 echo Registering static Qt in Visual Studio...
-reg add "HKCU\Software\QtProject\QtVsTools\Versions\Qt6.10.2_x64_static" /v InstallDir /d "%QT_STATIC_PREFIX%" /f
+reg add "HKCU\Software\QtProject\QtVsTools\Versions\Qt6.11.0_x64_static" /v InstallDir /d "%QT_STATIC_PREFIX%" /f
 
 echo.
 echo ============================================
 echo  Static Qt build complete!
 echo  Install: %QT_STATIC_PREFIX%
-echo  VS Name: Qt6.10.2_x64_static
+echo  VS Name: Qt6.11.0_x64_static
 echo ============================================
 pause

@@ -6,12 +6,14 @@
 #include "ProcessUtils.h"
 #include <windows.h>
 
-int main(int argc, char* argv[]) {
-    QCoreApplication::setApplicationName("SuperGuardian");
-    QCoreApplication::setOrganizationName("SuperGuardian");
-    QCoreApplication::setApplicationVersion("1.0");
+using namespace Qt::Literals::StringLiterals;
 
-    if (argc > 1 && QString::fromUtf8(argv[1]) == "--watchdog") {
+int main(int argc, char* argv[]) {
+    QCoreApplication::setApplicationName(u"SuperGuardian"_s);
+    QCoreApplication::setOrganizationName(u"SuperGuardian"_s);
+    QCoreApplication::setApplicationVersion(u"1.0"_s);
+
+    if (argc > 1 && QByteArrayView(argv[1]) == "--watchdog") {
         QCoreApplication app(argc, argv);
         initializeAppStorage();
         return runWatchdogMode(argc, argv);
@@ -19,7 +21,7 @@ int main(int argc, char* argv[]) {
 
     bool isRestart = false;
     for (int i = 1; i < argc; i++) {
-        if (QString::fromUtf8(argv[i]) == "--restart") {
+        if (QByteArrayView(argv[i]) == "--restart") {
             isRestart = true;
             break;
         }
