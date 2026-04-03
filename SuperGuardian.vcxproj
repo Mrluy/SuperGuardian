@@ -59,12 +59,11 @@
     <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'"></PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -85,6 +84,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
     <ClCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -106,41 +106,41 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="DesktopSelectTable.cpp" />
-    <ClCompile Include="DialogHelpers.cpp" />
-    <ClCompile Include="EmailService.cpp" />
-    <ClCompile Include="GuardContextMenu.cpp" />
-    <ClCompile Include="GuardTableDelegate.cpp" />
-    <ClCompile Include="SuperGuardianActions.cpp" />
-    <ClCompile Include="SuperGuardianConfigExport.cpp" />
-    <ClCompile Include="SuperGuardianConfigImport.cpp" />
-    <ClCompile Include="SuperGuardianConfigTools.cpp" />
-    <ClCompile Include="SuperGuardianDiagnostics.cpp" />
-    <ClCompile Include="SuperGuardianDialogs.cpp" />
-    <ClCompile Include="SuperGuardianDialogsEmail.cpp" />
-    <ClCompile Include="SuperGuardianInit.cpp" />
-    <ClCompile Include="SuperGuardianMonitor.cpp" />
-    <ClCompile Include="SuperGuardianProcess.cpp" />
-    <ClCompile Include="SuperGuardianSettings.cpp" />
-    <ClCompile Include="SuperGuardianTray.cpp" />
-    <ClCompile Include="ThemeManager.cpp" />
-    <ClCompile Include="ThemeManagerLight.cpp" />
-    <ClCompile Include="SuperGuardianUpdate.cpp" />
-    <ClCompile Include="SuperGuardianWhitelist.cpp" />
-    <ClCompile Include="SuperGuardianColumns.cpp" />
-    <ClCompile Include="SuperGuardianBatchOps.cpp" />
-    <ClCompile Include="SuperGuardianItemDialogs.cpp" />
+    <ClCompile Include="src\table\DesktopSelectTable.cpp" />
+    <ClCompile Include="src\ui\DialogHelpers.cpp" />
+    <ClCompile Include="src\services\EmailService.cpp" />
+    <ClCompile Include="src\table\GuardContextMenu.cpp" />
+    <ClCompile Include="src\table\GuardTableDelegate.cpp" />
+    <ClCompile Include="src\app\SuperGuardianActions.cpp" />
+    <ClCompile Include="src\config\SuperGuardianConfigExport.cpp" />
+    <ClCompile Include="src\config\SuperGuardianConfigImport.cpp" />
+    <ClCompile Include="src\config\SuperGuardianConfigTools.cpp" />
+    <ClCompile Include="src\config\SuperGuardianDiagnostics.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianDialogs.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianDialogsEmail.cpp" />
+    <ClCompile Include="src\app\SuperGuardianInit.cpp" />
+    <ClCompile Include="src\app\SuperGuardianMonitor.cpp" />
+    <ClCompile Include="src\app\SuperGuardianProcess.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianSettings.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianTray.cpp" />
+    <ClCompile Include="src\theme\ThemeManager.cpp" />
+    <ClCompile Include="src\theme\ThemeManagerLight.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianUpdate.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianWhitelist.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianColumns.cpp" />
+    <ClCompile Include="src\app\SuperGuardianBatchOps.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianItemDialogs.cpp" />
     <QtRcc Include="resources.qrc" />
     <QtRcc Include="SuperGuardian.qrc" />
     <QtUic Include="SuperGuardian.ui" />
-    <QtMoc Include="SuperGuardian.h" />
-    <ClCompile Include="AppStorage.cpp" />
-    <ClCompile Include="LogDatabase.cpp" />
-    <ClCompile Include="ConfigDatabase.cpp" />
-    <ClCompile Include="SuperGuardianLogViewer.cpp" />
-    <ClCompile Include="ProcessUtils.cpp" />
-    <ClCompile Include="SuperGuardian.cpp" />
-    <QtMoc Include="main.cpp">
+    <QtMoc Include="include\SuperGuardian.h" />
+    <ClCompile Include="src\storage\AppStorage.cpp" />
+    <ClCompile Include="src\storage\LogDatabase.cpp" />
+    <ClCompile Include="src\storage\ConfigDatabase.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianLogViewer.cpp" />
+    <ClCompile Include="src\system\ProcessUtils.cpp" />
+    <ClCompile Include="src\app\SuperGuardian.cpp" />
+    <QtMoc Include="src\app\main.cpp">
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">input</DynamicSource>
       <QtMocFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(Filename).moc</QtMocFileName>
       <DynamicSource Condition="'$(Configuration)|$(Platform)'=='Release|x64'">input</DynamicSource>
@@ -149,19 +149,18 @@
     <QtUic Include="SuperGuardian_fixed.ui" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="AppStorage.h" />
-    <ClInclude Include="ConfigDatabase.h" />
-    <ClInclude Include="LogDatabase.h" />
-    <ClInclude Include="DialogHelpers.h" />
-    <ClInclude Include="EmailService.h" />
-    <ClInclude Include="GuardItem.h" />
-    <ClInclude Include="GuardTableWidgets.h" />
-    <ClInclude Include="ProcessUtils.h" />
-    <ClInclude Include="ThemeManager.h" />
+    <ClInclude Include="include\AppStorage.h" />
+    <ClInclude Include="include\ConfigDatabase.h" />
+    <ClInclude Include="include\LogDatabase.h" />
+    <ClInclude Include="include\DialogHelpers.h" />
+    <ClInclude Include="include\EmailService.h" />
+    <ClInclude Include="include\GuardItem.h" />
+    <ClInclude Include="include\GuardTableWidgets.h" />
+    <ClInclude Include="include\ProcessUtils.h" />
+    <ClInclude Include="include\ThemeManager.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="package-release.ps1" />
-    <None Include="SuperGuardian.ui.new" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="app.rc" />
@@ -173,6 +172,5 @@
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
     <Import Project="$(QtMsBuild)\qt.targets" />
   </ImportGroup>
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets"></ImportGroup>
 </Project>

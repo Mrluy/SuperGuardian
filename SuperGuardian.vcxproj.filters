@@ -29,25 +29,25 @@
     <QtUic Include="SuperGuardian.ui">
       <Filter>Form Files</Filter>
     </QtUic>
-    <QtMoc Include="SuperGuardian.h">
+    <QtMoc Include="include\SuperGuardian.h">
       <Filter>Header Files</Filter>
     </QtMoc>
-    <ClCompile Include="DialogHelpers.cpp">
+    <ClCompile Include="src\ui\DialogHelpers.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardian.cpp">
+    <ClCompile Include="src\app\SuperGuardian.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianActions.cpp">
+    <ClCompile Include="src\app\SuperGuardianActions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianProcess.cpp">
+    <ClCompile Include="src\app\SuperGuardianProcess.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianSettings.cpp">
+    <ClCompile Include="src\ui\SuperGuardianSettings.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianTray.cpp">
+    <ClCompile Include="src\ui\SuperGuardianTray.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <QtRcc Include="resources.qrc">
@@ -55,74 +55,74 @@
     </QtRcc>
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="main.cpp">
+    <QtMoc Include="src\app\main.cpp">
       <Filter>Source Files</Filter>
     </QtMoc>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DialogHelpers.h">
+    <ClInclude Include="include\DialogHelpers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AppStorage.h">
+    <ClInclude Include="include\AppStorage.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GuardItem.h">
+    <ClInclude Include="include\GuardItem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GuardTableWidgets.h">
+    <ClInclude Include="include\GuardTableWidgets.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ProcessUtils.h">
+    <ClInclude Include="include\ProcessUtils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ThemeManager.h">
+    <ClInclude Include="include\ThemeManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="EmailService.h">
+    <ClInclude Include="include\EmailService.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ThemeManager.cpp">
+    <ClCompile Include="src\theme\ThemeManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AppStorage.cpp">
+    <ClCompile Include="src\storage\AppStorage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GuardContextMenu.cpp">
+    <ClCompile Include="src\table\GuardContextMenu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GuardTableDelegate.cpp">
+    <ClCompile Include="src\table\GuardTableDelegate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="DesktopSelectTable.cpp">
+    <ClCompile Include="src\table\DesktopSelectTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ProcessUtils.cpp">
+    <ClCompile Include="src\system\ProcessUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="EmailService.cpp">
+    <ClCompile Include="src\services\EmailService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianConfigExport.cpp">
+    <ClCompile Include="src\config\SuperGuardianConfigExport.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianConfigImport.cpp">
+    <ClCompile Include="src\config\SuperGuardianConfigImport.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianConfigTools.cpp">
+    <ClCompile Include="src\config\SuperGuardianConfigTools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianDiagnostics.cpp">
+    <ClCompile Include="src\config\SuperGuardianDiagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianDialogs.cpp">
+    <ClCompile Include="src\ui\SuperGuardianDialogs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianDialogsEmail.cpp">
+    <ClCompile Include="src\ui\SuperGuardianDialogsEmail.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianMonitor.cpp">
+    <ClCompile Include="src\app\SuperGuardianMonitor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
