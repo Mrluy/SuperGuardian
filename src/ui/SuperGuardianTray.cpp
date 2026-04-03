@@ -6,6 +6,9 @@
 #include "ConfigDatabase.h"
 #include "LogDatabase.h"
 #include <QtWidgets>
+#include <QFileInfo>
+#include <objbase.h>
+#include <shobjidl.h>
 #include <windows.h>
 
 // ---- 托盘选项、看门狗、主题 ----
@@ -210,6 +213,45 @@ void SuperGuardian::centerWindow() {
     showNormal();
     raise();
     activateWindow();
+}
+
+void SuperGuardian::createDesktopShortcut() {
+    const QString exePath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    const QString exeDir = QDir::toNativeSeparators(QCoreApplication::applicationDirPath());
+    const QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    const QString shortcutPath = QDir::toNativeSeparators(QDir(desktop).filePath(u"超级守护.lnk"_s));
+
+    const HRESULT initHr = CoInitialize(nullptr);
+    const bool comReady = SUCCEEDED(initHr) || initHr == RPC_E_CHANGED_MODE;
+    bool created = false;
+
+    if (comReady) {
+        IShellLinkW* shellLink = nullptr;
+        const HRESULT createHr = CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER,
+            IID_IShellLinkW, reinterpret_cast<void**>(&shellLink));
+        if (SUCCEEDED(createHr) && shellLink) {
+            shellLink->SetPath(reinterpret_cast<LPCWSTR>(exePath.utf16()));
+            shellLink->SetWorkingDirectory(reinterpret_cast<LPCWSTR>(exeDir.utf16()));
+            shellLink->SetIconLocation(reinterpret_cast<LPCWSTR>(exePath.utf16()), 0);
+            shellLink->SetDescription(L"超级守护");
+
+            IPersistFile* persistFile = nullptr;
+            const HRESULT queryHr = shellLink->QueryInterface(IID_IPersistFile, reinterpret_cast<void**>(&persistFile));
+            if (SUCCEEDED(queryHr) && persistFile) {
+                const HRESULT saveHr = persistFile->Save(reinterpret_cast<LPCWSTR>(shortcutPath.utf16()), TRUE);
+                created = SUCCEEDED(saveHr) && QFileInfo::exists(shortcutPath);
+                persistFile->Release();
+            }
+            shellLink->Release();
+        }
+    }
+
+    if (SUCCEEDED(initHr))
+        CoUninitialize();
+
+    showMessageDialog(this, u"桌面快捷方式"_s,
+        created ? u"桌面快捷方式已创建：超级守护"_s
+                : u"创建快捷方式失败，请检查权限。"_s);
 }
 
 void SuperGuardian::toggleAlwaysOnTop() {

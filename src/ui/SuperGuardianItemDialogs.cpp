@@ -4,7 +4,77 @@
 #include "LogDatabase.h"
 #include <QtWidgets>
 
+namespace {
+
+QString buildProgramDisplayText(const GuardItem& item) {
+    if (!item.note.isEmpty())
+        return item.note;
+    return item.launchArgs.isEmpty()
+        ? item.processName
+        : item.processName + u" "_s + item.launchArgs;
+}
+
+QString buildProgramToolTip(const GuardItem& item) {
+    return item.launchArgs.isEmpty()
+        ? item.processName
+        : item.processName + u" "_s + item.launchArgs;
+}
+
+void updateProgramCell(QTableWidget* tableWidget, int row, const GuardItem& item) {
+    if (QTableWidgetItem* cell = tableWidget->item(row, 0)) {
+        cell->setText(buildProgramDisplayText(item));
+        cell->setToolTip(buildProgramToolTip(item));
+        cell->setIcon(getFileIcon(item.targetPath));
+    }
+}
+
+}
+
 // ---- 启动延时设置对话框 ----
+
+void SuperGuardian::contextSetNote(const QList<int>& rows) {
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(u"备注"_s);
+    dlg.setFixedWidth(400);
+    dlg.setMinimumHeight(140);
+
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    lay->addWidget(new QLabel(u"请输入备注名称（留空表示清除备注）："_s));
+
+    QLineEdit* noteEdit = new QLineEdit();
+    if (rows.size() == 1) {
+        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        if (itemIdx >= 0)
+            noteEdit->setText(items[itemIdx].note);
+    }
+    lay->addWidget(noteEdit);
+    lay->addStretch();
+
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* okBtn = new QPushButton(u"确定"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
+    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    btnLay->addWidget(okBtn);
+    btnLay->addWidget(cancelBtn);
+    btnLay->addStretch();
+    lay->addLayout(btnLay);
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QString note = noteEdit->text().trimmed();
+    for (int row : rows) {
+        int itemIdx = findItemIndexByPath(rowPath(row));
+        if (itemIdx < 0)
+            continue;
+
+        items[itemIdx].note = note;
+        updateProgramCell(tableWidget, row, items[itemIdx]);
+    }
+    saveSettings();
+}
 
 void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     QDialog dlg(this, kDialogFlags);
@@ -90,27 +160,25 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addLayout(btnLay);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    QString newPath = pathEdit->text().trimmed();
+    const QString newPath = pathEdit->text().trimmed();
     QString args = argsEdit->text().trimmed();
     for (int row : rows) {
         int itemIdx = findItemIndexByPath(rowPath(row));
         if (itemIdx < 0) continue;
         GuardItem& item = items[itemIdx];
         if (!newPath.isEmpty() && newPath != item.targetPath) {
-            item.targetPath = newPath;
-            item.processName = QFileInfo(newPath).fileName();
+            QString shortcutArgs;
+            item.targetPath = resolveShortcut(newPath, &shortcutArgs);
+            item.path = newPath;
+            if (args.isEmpty() && !shortcutArgs.isEmpty())
+                args = shortcutArgs;
+            item.processName = QFileInfo(item.targetPath).fileName();
         }
         item.launchArgs = args;
         logOperation(u"设置启动程序/参数"_s, programId(item.processName, args));
-        QString displayName = item.note.isEmpty()
-            ? (args.isEmpty() ? item.processName : (item.processName + " " + args))
-            : item.note;
-        QString tooltipName = args.isEmpty() ? item.processName : (item.processName + " " + args);
-        if (tableWidget->item(row, 0)) {
-            tableWidget->item(row, 0)->setText(displayName);
-            tableWidget->item(row, 0)->setToolTip(tooltipName);
-            tableWidget->item(row, 0)->setIcon(getFileIcon(item.targetPath));
-        }
+        if (QTableWidgetItem* cell = tableWidget->item(row, 0))
+            cell->setData(Qt::UserRole, item.path);
+        updateProgramCell(tableWidget, row, item);
     }
     saveSettings();
 }

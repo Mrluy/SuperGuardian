@@ -3,6 +3,22 @@
 #include "LogDatabase.h"
 #include <QtWidgets>
 
+namespace {
+
+void setCellText(QTableWidget* tableWidget, int row, int column, const QString& text) {
+    if (QTableWidgetItem* cell = tableWidget->item(row, column))
+        cell->setText(text);
+}
+
+void setOperationButtonText(QTableWidget* tableWidget, int row, const QString& objectName, const QString& text) {
+    if (QWidget* opw = tableWidget->cellWidget(row, 9)) {
+        if (QPushButton* button = opw->findChild<QPushButton*>(objectName))
+            button->setText(text);
+    }
+}
+
+}
+
 // ---- 行拖动与批量操作 ----
 
 void SuperGuardian::handleRowMoved(int fromRow, int toRow) {
@@ -54,10 +70,9 @@ void SuperGuardian::handleRowsMoved(const QList<int>& rows, int insertBefore) {
     for (const QString& p : movedPaths) {
         int newRow = findRowByPath(p);
         if (newRow >= 0) {
-            for (int c = 0; c < tableWidget->columnCount(); c++) {
-                QModelIndex idx = tableWidget->model()->index(newRow, c);
-                tableWidget->selectionModel()->select(idx, QItemSelectionModel::Select);
-            }
+            QModelIndex idx = tableWidget->model()->index(newRow, 0);
+            tableWidget->selectionModel()->select(idx,
+                QItemSelectionModel::Select | QItemSelectionModel::Rows);
         }
     }
     saveSettings();
@@ -75,17 +90,12 @@ void SuperGuardian::closeAllGuards() {
             items[i].guardStartTime = QDateTime();
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 9);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[i].path));
-                    if (b) b->setText(u"开始守护"_s);
-                }
-                if (!items[i].restartRulesActive) {
-                    if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(u"未守护"_s);
-                }
-                if (tableWidget->item(row, 2)) tableWidget->item(row, 2)->setText("-");
-                if (tableWidget->item(row, 4)) tableWidget->item(row, 4)->setText("0");
-                if (tableWidget->item(row, 5)) tableWidget->item(row, 5)->setText("-");
+                setOperationButtonText(tableWidget, row, QString("guardBtn_%1").arg(items[i].path), u"开始守护"_s);
+                if (!items[i].restartRulesActive)
+                    setCellText(tableWidget, row, 1, u"未守护"_s);
+                setCellText(tableWidget, row, 2, u"-"_s);
+                setCellText(tableWidget, row, 4, u"0"_s);
+                setCellText(tableWidget, row, 5, u"-"_s);
                 updateButtonStates(row);
             }
         }
@@ -103,13 +113,9 @@ void SuperGuardian::closeAllScheduledRestart() {
             items[i].restartRulesActive = false;
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 9);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[i].path));
-                    if (b) b->setText(u"开启定时重启"_s);
-                }
-                if (tableWidget->item(row, 6)) tableWidget->item(row, 6)->setText("-");
-                if (tableWidget->item(row, 7)) tableWidget->item(row, 7)->setText("-");
+                setOperationButtonText(tableWidget, row, QString("srBtn_%1").arg(items[i].path), u"开启定时重启"_s);
+                setCellText(tableWidget, row, 6, u"-"_s);
+                setCellText(tableWidget, row, 7, u"-"_s);
                 updateButtonStates(row);
             }
         }
@@ -127,13 +133,9 @@ void SuperGuardian::closeAllScheduledRun() {
             items[i].scheduledRunEnabled = false;
             int row = findRowByPath(items[i].path);
             if (row >= 0) {
-                QWidget* opw = tableWidget->cellWidget(row, 9);
-                if (opw) {
-                    QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[i].path));
-                    if (b) b->setText(u"开启定时运行"_s);
-                }
-                if (tableWidget->item(row, 1)) tableWidget->item(row, 1)->setText(u"未守护"_s);
-                if (tableWidget->item(row, 8)) tableWidget->item(row, 8)->setText(formatStartDelay(items[i].startDelaySecs));
+                setOperationButtonText(tableWidget, row, QString("runBtn_%1").arg(items[i].path), u"开启定时运行"_s);
+                setCellText(tableWidget, row, 1, u"未守护"_s);
+                setCellText(tableWidget, row, 8, formatStartDelay(items[i].startDelaySecs));
                 updateButtonStates(row);
             }
         }

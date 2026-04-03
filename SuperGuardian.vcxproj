@@ -59,8 +59,10 @@
     <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'"></PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'"></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -114,7 +116,6 @@
     <ClCompile Include="src\app\SuperGuardianActions.cpp" />
     <ClCompile Include="src\config\SuperGuardianConfigExport.cpp" />
     <ClCompile Include="src\config\SuperGuardianConfigImport.cpp" />
-    <ClCompile Include="src\config\SuperGuardianConfigTools.cpp" />
     <ClCompile Include="src\config\SuperGuardianDiagnostics.cpp" />
     <ClCompile Include="src\ui\SuperGuardianDialogs.cpp" />
     <ClCompile Include="src\ui\SuperGuardianDialogsEmail.cpp" />
@@ -172,5 +173,6 @@
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
     <Import Project="$(QtMsBuild)\qt.targets" />
   </ImportGroup>
-  <ImportGroup Label="ExtensionTargets"></ImportGroup>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
 </Project>
