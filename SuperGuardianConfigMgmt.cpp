@@ -586,6 +586,17 @@ void SuperGuardian::exportDiagnosticInfo() {
     lines << u"应用路径: %1"_s.arg(QCoreApplication::applicationFilePath());
     lines << u"数据目录: %1"_s.arg(appDataDirPath());
     lines << u"PID: %1"_s.arg(QCoreApplication::applicationPid());
+    // 编码验证：运行时检查 u"" 字面量→UTF-8 转换是否正确
+    {
+        QByteArray probe = u"中文"_s.toUtf8();
+        QString hex;
+        for (int i = 0; i < probe.size(); ++i) {
+            if (i) hex += u' ';
+            hex += QString::asprintf("%02X", static_cast<unsigned char>(probe[i]));
+        }
+        lines << u"编码验证: \"%1\" → [%2] (预期: E4 B8 AD E6 96 87)"_s
+            .arg(u"中文"_s, hex);
+    }
 
     // 配置信息
     section(u"当前配置"_s);

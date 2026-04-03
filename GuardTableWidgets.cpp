@@ -60,7 +60,9 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
     // 获取 hover 行
     int hoverRow = -1;
     if (const QWidget* vp = option.widget) {
-        if (auto* table = dynamic_cast<DesktopSelectTable*>(vp->parentWidget())) {
+        if (auto* table = dynamic_cast<const DesktopSelectTable*>(vp)) {
+            hoverRow = table->hoveredRow();
+        } else if (auto* table = dynamic_cast<const DesktopSelectTable*>(vp->parentWidget())) {
             hoverRow = table->hoveredRow();
         }
     }
