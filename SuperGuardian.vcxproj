@@ -106,10 +106,16 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DesktopSelectTable.cpp" />
     <ClCompile Include="DialogHelpers.cpp" />
     <ClCompile Include="EmailService.cpp" />
+    <ClCompile Include="GuardContextMenu.cpp" />
+    <ClCompile Include="GuardTableDelegate.cpp" />
     <ClCompile Include="SuperGuardianActions.cpp" />
-    <ClCompile Include="SuperGuardianConfigMgmt.cpp" />
+    <ClCompile Include="SuperGuardianConfigExport.cpp" />
+    <ClCompile Include="SuperGuardianConfigImport.cpp" />
+    <ClCompile Include="SuperGuardianConfigTools.cpp" />
+    <ClCompile Include="SuperGuardianDiagnostics.cpp" />
     <ClCompile Include="SuperGuardianDialogs.cpp" />
     <ClCompile Include="SuperGuardianDialogsEmail.cpp" />
     <ClCompile Include="SuperGuardianInit.cpp" />
@@ -132,7 +138,6 @@
     <ClCompile Include="LogDatabase.cpp" />
     <ClCompile Include="ConfigDatabase.cpp" />
     <ClCompile Include="SuperGuardianLogViewer.cpp" />
-    <ClCompile Include="GuardTableWidgets.cpp" />
     <ClCompile Include="ProcessUtils.cpp" />
     <ClCompile Include="SuperGuardian.cpp" />
     <QtMoc Include="main.cpp">

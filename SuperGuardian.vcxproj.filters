@@ -89,7 +89,13 @@
     <ClCompile Include="AppStorage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GuardTableWidgets.cpp">
+    <ClCompile Include="GuardContextMenu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GuardTableDelegate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DesktopSelectTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProcessUtils.cpp">
@@ -98,7 +104,16 @@
     <ClCompile Include="EmailService.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SuperGuardianConfigMgmt.cpp">
+    <ClCompile Include="SuperGuardianConfigExport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianConfigImport.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianConfigTools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SuperGuardianDiagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="SuperGuardianDialogs.cpp">
