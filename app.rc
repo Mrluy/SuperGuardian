@@ -1,4 +1,4 @@
-#include <windows.h>
+﻿#include <windows.h>
 
 IDI_APP_ICON ICON "img\\app.ico"
 
@@ -20,12 +20,12 @@ BEGIN
     BEGIN
         BLOCK "080404b0"
         BEGIN
-            VALUE "CompanyName",      "\x8D85\x7EA7\x5B88\x62A4"
-            VALUE "FileDescription",  "\x8D85\x7EA7\x5B88\x62A4"
+            VALUE "CompanyName",      "Mrluy"
+            VALUE "FileDescription",  "轻量级 Windows 进程守护工具"
             VALUE "FileVersion",      "1.0.0.0"
             VALUE "InternalName",     "SuperGuardian"
             VALUE "OriginalFilename", "SuperGuardian.exe"
-            VALUE "ProductName",      "\x8D85\x7EA7\x5B88\x62A4"
+            VALUE "ProductName",      "超级守护"
             VALUE "ProductVersion",   "1.0.0.0"
         END
     END
