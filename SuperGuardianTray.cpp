@@ -3,31 +3,34 @@
 #include "AppStorage.h"
 #include "ProcessUtils.h"
 #include "ThemeManager.h"
+#include "ConfigDatabase.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 #include <windows.h>
 
 // ---- 托盘选项、看门狗、主题 ----
 
 void SuperGuardian::onSelfGuardToggled(bool on) {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("self_guard_enabled", on);
-    if (on) s.setValue("self_guard_manual_exit", false);
+    auto& db = ConfigDatabase::instance();
+    db.setValue(u"self_guard_enabled"_s, on);
+    if (on) db.setValue(u"self_guard_manual_exit"_s, false);
     if (on) startWatchdogHelper(); else stopWatchdogHelper();
     syncSelfGuardListEntry(on);
+    logOperation(on ? u"开启自我守护"_s : u"关闭自我守护"_s);
 }
 
 void SuperGuardian::onAutostartToggled(bool on) {
     setAutostart(on);
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("autostart", on);
+    ConfigDatabase::instance().setValue(u"autostart"_s, on);
+    logOperation(on ? u"开启开机自启"_s : u"关闭开机自启"_s);
 }
 
 void SuperGuardian::applySavedTrayOptions() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    bool self = s.value("self_guard_enabled", false).toBool();
-    bool autoRun = s.value("autostart", false).toBool();
-    bool emailOn = s.value("emailEnabled", false).toBool();
-    bool minToTray = s.value("minimizeToTray", false).toBool();
+    auto& db = ConfigDatabase::instance();
+    bool self = db.value(u"self_guard_enabled"_s, false).toBool();
+    bool autoRun = db.value(u"autostart"_s, false).toBool();
+    bool emailOn = db.value(u"emailEnabled"_s, false).toBool();
+    bool minToTray = db.value(u"minimizeToTray"_s, false).toBool();
     if (selfGuardAct) selfGuardAct->setChecked(self);
     if (autostartAct) autostartAct->setChecked(autoRun);
     if (trayEmailAct) {
@@ -41,9 +44,7 @@ void SuperGuardian::applySavedTrayOptions() {
         minimizeToTrayAct->blockSignals(false);
     }
     if (self) {
-        // Ensure watchdog is running even if QAction::toggled is not emitted by setChecked in some environments.
-        QSettings ss(appSettingsFilePath(), QSettings::IniFormat);
-        ss.setValue("self_guard_manual_exit", false);
+        db.setValue(u"self_guard_manual_exit"_s, false);
         startWatchdogHelper();
     }
     syncSelfGuardListEntry(self);
@@ -90,11 +91,9 @@ void SuperGuardian::runSelfGuardTest() {
     if (!showMessageDialog(this, u"测试自我守护"_s, u"将立即强制结束当前主进程，用于验证自我守护是否能自动重启。是否继续？"_s, true))
         return;
 
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("self_guard_manual_exit", false);
-    s.sync();
+    ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, false);
     startWatchdogHelper();
-    appendWatchdogLog("manual self-guard test triggered");
+    logRuntime(u"manual self-guard test triggered"_s);
     ::TerminateProcess(GetCurrentProcess(), 99);
 }
 
@@ -108,21 +107,20 @@ void SuperGuardian::startWatchdogHelper() {
     QStringList args{ "--watchdog", QString::number(pid), exe };
     bool ok = QProcess::startDetached(exe, args, QFileInfo(exe).absolutePath(), &newPid);
     if (ok && newPid > 0) {
-        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-        s.setValue("watchdog_pid", (int)newPid);
-        appendWatchdogLog(QString("main started watchdog pid=%1 exe=%2").arg((int)newPid).arg(exe));
+        ConfigDatabase::instance().setValue(u"watchdog_pid"_s, (int)newPid);
+        logRuntime(QString("main started watchdog pid=%1 exe=%2").arg((int)newPid).arg(exe));
     } else {
-        appendWatchdogLog(QString("main failed to start watchdog exe=%1").arg(exe), GetLastError());
+        logRuntime(QString("main failed to start watchdog exe=%1 (err=%2)").arg(exe).arg(GetLastError()));
     }
 }
 
 void SuperGuardian::stopWatchdogHelper() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    int pid = s.value("watchdog_pid", 0).toInt();
+    auto& db = ConfigDatabase::instance();
+    int pid = db.value(u"watchdog_pid"_s, 0).toInt();
     if (pid>0) {
         HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
         if (h) { TerminateProcess(h, 0); CloseHandle(h); }
-        s.remove("watchdog_pid");
+        db.remove(u"watchdog_pid"_s);
     }
 }
 
@@ -143,9 +141,9 @@ void SuperGuardian::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
 }
 
 void SuperGuardian::onExit() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("self_guard_manual_exit", true);
+    ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, true);
     stopWatchdogHelper();
+    logOperation(u"退出软件"_s);
     qApp->quit();
 }
 
@@ -195,10 +193,10 @@ bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qint
 }
 
 void SuperGuardian::toggleTheme() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    QString current = s.value("theme", "light").toString();
+    auto& db = ConfigDatabase::instance();
+    QString current = db.value(u"theme"_s, u"light"_s).toString();
     QString next = (current == "dark") ? "light" : "dark";
-    s.setValue("theme", next);
+    db.setValue(u"theme"_s, next);
     applyTheme(next);
 }
 
@@ -225,8 +223,7 @@ void SuperGuardian::toggleAlwaysOnTop() {
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         if (pinToggleBtn) pinToggleBtn->setChecked(true);
     }
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("alwaysOnTop", !isOnTop);
+    ConfigDatabase::instance().setValue(u"alwaysOnTop"_s, !isOnTop);
 }
 
 QString SuperGuardian::formatStartDelay(int secs) const {

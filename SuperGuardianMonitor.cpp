@@ -1,7 +1,7 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
-#include "AppStorage.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 #include <QThread>
 
@@ -41,7 +41,7 @@ void SuperGuardian::checkProcesses() {
                 item.lastLaunchTime = now;
                 item.lastRestart = now;
                 item.restartCount++;
-                appendScheduledRunLog(u"%1 定时运行触发"_s.arg(item.processName));
+                logScheduledRun(u"定时运行触发"_s, programId(item.processName, item.launchArgs));
                 if (!ok) {
                     trySendNotification(item, "run_failed",
                         u"%1 定时运行启动失败"_s.arg(item.processName));
@@ -102,7 +102,7 @@ void SuperGuardian::checkProcesses() {
                         item.startTime = now;
                         scheduledRestarted = true;
                         running = true;
-                        appendScheduledRestartLog(u"%1 定时重启触发"_s.arg(item.processName));
+                        logScheduledRestart(u"定时重启触发"_s, programId(item.processName, item.launchArgs));
                         if (!ok) {
                             trySendNotification(item, "restart_failed",
                                 u"%1 定时重启后启动失败"_s.arg(item.processName));
@@ -141,9 +141,11 @@ void SuperGuardian::checkProcesses() {
                             running = true;
                             trySendNotification(item, "guard_triggered",
                                 u"%1 守护触发重启"_s.arg(item.processName));
+                            logGuard(u"守护触发重启"_s, programId(item.processName, item.launchArgs));
                             if (!ok) {
                                 trySendNotification(item, "start_failed",
                                     u"%1 守护启动失败"_s.arg(item.processName));
+                                logGuard(u"守护启动失败"_s, programId(item.processName, item.launchArgs));
                                 if (!item.retryActive) {
                                     item.retryActive = true;
                                     item.retryStartTime = now;
@@ -162,9 +164,11 @@ void SuperGuardian::checkProcesses() {
                         running = true;
                         trySendNotification(item, "guard_triggered",
                             u"%1 守护触发重启"_s.arg(item.processName));
+                        logGuard(u"守护触发重启"_s, programId(item.processName, item.launchArgs));
                         if (!ok) {
                             trySendNotification(item, "start_failed",
                                 u"%1 守护启动失败"_s.arg(item.processName));
+                            logGuard(u"守护启动失败"_s, programId(item.processName, item.launchArgs));
                             if (!item.retryActive) {
                                 item.retryActive = true;
                                 item.retryStartTime = now;
@@ -186,11 +190,13 @@ void SuperGuardian::checkProcesses() {
                 item.retryActive = false;
                 trySendNotification(item, "retry_exhausted",
                     u"%1 重试已耗尽，共重试 %2 次"_s.arg(item.processName).arg(item.currentRetryCount));
+                logRuntime(u"重试已耗尽，共重试 %1 次"_s.arg(item.currentRetryCount), programId(item.processName, item.launchArgs));
             } else if (item.lastRetryTime.secsTo(now) >= item.retryConfig.retryIntervalSecs) {
                 bool ok = launchProgram(item.targetPath, item.launchArgs);
                 item.lastRetryTime = now;
                 item.currentRetryCount++;
                 item.lastLaunchTime = now;
+                logRuntime(u"重试启动（第%1次）"_s.arg(item.currentRetryCount), programId(item.processName, item.launchArgs));
                 if (ok) {
                     item.retryActive = false;
                     item.startTime = now;

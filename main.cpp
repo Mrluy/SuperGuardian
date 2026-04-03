@@ -1,17 +1,22 @@
 #include <QtWidgets/QApplication>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QThread>
+#include <QtSql/QSqlDatabase>
 #include "SuperGuardian.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
+#include "ConfigDatabase.h"
 #include <windows.h>
+
+// 静态构建需要显式导入 SQLite 插件
+Q_IMPORT_PLUGIN(QSQLiteDriverPlugin)
 
 using namespace Qt::Literals::StringLiterals;
 
 int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName(u"SuperGuardian"_s);
     QCoreApplication::setOrganizationName(u"SuperGuardian"_s);
-    QCoreApplication::setApplicationVersion(u"1.0"_s);
+    QCoreApplication::setApplicationVersion(u"1.0.1"_s);
 
     if (argc > 1 && QByteArrayView(argv[1]) == "--watchdog") {
         QCoreApplication app(argc, argv);
@@ -49,8 +54,7 @@ int main(int argc, char* argv[]) {
     }
 
     SuperGuardian w;
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    if (!s.value("minimizeToTray", false).toBool())
+    if (!ConfigDatabase::instance().value(u"minimizeToTray"_s, false).toBool())
         w.show();
     return a.exec();
 }

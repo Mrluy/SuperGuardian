@@ -1,6 +1,7 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "AppStorage.h"
+#include "ConfigDatabase.h"
 #include "ProcessUtils.h"
 #include <QtWidgets>
 
@@ -80,8 +81,7 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
     duplicateWhitelist.clear();
     for (int i = 0; i < listWidget->count(); i++)
         duplicateWhitelist.append(listWidget->item(i)->text());
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("duplicateWhitelist", duplicateWhitelist.join("|"));
+    ConfigDatabase::instance().setValue(u"duplicateWhitelist"_s, duplicateWhitelist.join(u"|"_s));
 }
 
 // ---- 测试程序是否允许重复添加 ----

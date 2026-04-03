@@ -2,6 +2,7 @@
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include "EmailService.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 
 // ---- 右键菜单与表格行操作 ----
@@ -132,12 +133,14 @@ void SuperGuardian::contextStartProgram(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
     launchProgram(items[idx].targetPath, items[idx].launchArgs);
+    logOperation(u"手动启动"_s, programId(items[idx].processName, items[idx].launchArgs));
 }
 
 void SuperGuardian::contextKillProgram(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
     killProcessesByName(items[idx].processName);
+    logOperation(u"终止进程"_s, programId(items[idx].processName, items[idx].launchArgs));
 }
 
 void SuperGuardian::contextToggleGuard(int row) {
@@ -152,6 +155,7 @@ void SuperGuardian::contextToggleGuard(int row) {
     if (items[idx].guarding) {
         items[idx].startTime = QDateTime::currentDateTime();
         items[idx].guardStartTime = QDateTime::currentDateTime();
+        logOperation(u"开始守护"_s, programId(items[idx].processName, items[idx].launchArgs));
         int count = 0;
         bool running = isProcessRunning(items[idx].processName, count);
         if (!running && count == 0) {
@@ -161,6 +165,7 @@ void SuperGuardian::contextToggleGuard(int row) {
     } else {
         items[idx].restartCount = 0;
         items[idx].guardStartTime = QDateTime();
+        logOperation(u"关闭守护"_s, programId(items[idx].processName, items[idx].launchArgs));
         int displayRow = findRowByPath(items[idx].path);
         if (displayRow >= 0) {
             if (!items[idx].restartRulesActive) {
@@ -178,6 +183,7 @@ void SuperGuardian::contextToggleGuard(int row) {
 void SuperGuardian::contextRemoveItem(int row) {
     int idx = findItemIndexByPath(rowPath(row));
     if (idx < 0) return;
+    logOperation(u"移除项"_s, programId(items[idx].processName, items[idx].launchArgs));
     items.removeAt(idx);
     tableWidget->removeRow(row);
     saveSettings();
@@ -209,7 +215,10 @@ void SuperGuardian::contextTogglePin(const QList<int>& rows) {
     }
     for (int r : rows) {
         int ii = findItemIndexByPath(rowPath(r));
-        if (ii >= 0) items[ii].pinned = !allPinned;
+        if (ii >= 0) {
+            items[ii].pinned = !allPinned;
+            logOperation(allPinned ? u"取消置顶"_s : u"置顶"_s, programId(items[ii].processName, items[ii].launchArgs));
+        }
     }
     rebuildTableFromItems();
     saveSettings();

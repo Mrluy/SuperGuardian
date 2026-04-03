@@ -37,12 +37,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>Qt6.11.0_x64</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;sql</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>Qt6.11.0_x64_static</QtInstall>
-    <QtModules>core;gui;widgets</QtModules>
+    <QtModules>core;gui;widgets;sql</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -69,13 +69,16 @@
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
-    <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
+    <PreBuildEvent>
+      <Command>if exist "$(OutDir)" rd /s /q "$(OutDir)"</Command>
+    </PreBuildEvent>
     <PostBuildEvent>
       <Command>if exist "$(QtInstallDir)\bin\windeployqt.exe" "$(QtInstallDir)\bin\windeployqt.exe" --debug --no-translations "$(TargetPath)"</Command>
     </PostBuildEvent>
@@ -98,12 +101,9 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
-    <PostBuildEvent>
-      <Command>if exist "$(TargetDir)Config" rmdir /S /Q "$(TargetDir)Config"
-if exist "$(TargetDir)Logs" rmdir /S /Q "$(TargetDir)Logs"
-if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
-</Command>
-    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>if exist "$(OutDir)" rd /s /q "$(OutDir)"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="DialogHelpers.cpp" />
@@ -129,6 +129,9 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
     <QtUic Include="SuperGuardian.ui" />
     <QtMoc Include="SuperGuardian.h" />
     <ClCompile Include="AppStorage.cpp" />
+    <ClCompile Include="LogDatabase.cpp" />
+    <ClCompile Include="ConfigDatabase.cpp" />
+    <ClCompile Include="SuperGuardianLogViewer.cpp" />
     <ClCompile Include="GuardTableWidgets.cpp" />
     <ClCompile Include="ProcessUtils.cpp" />
     <ClCompile Include="SuperGuardian.cpp" />
@@ -142,6 +145,8 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AppStorage.h" />
+    <ClInclude Include="ConfigDatabase.h" />
+    <ClInclude Include="LogDatabase.h" />
     <ClInclude Include="DialogHelpers.h" />
     <ClInclude Include="EmailService.h" />
     <ClInclude Include="GuardItem.h" />
@@ -155,6 +160,9 @@ if exist "$(TargetDir)Cache" rmdir /S /Q "$(TargetDir)Cache"
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="app.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="img\app.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

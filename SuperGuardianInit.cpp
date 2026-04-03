@@ -1,5 +1,6 @@
 ﻿#include "SuperGuardian.h"
 #include "AppStorage.h"
+#include "ConfigDatabase.h"
 #include "DialogHelpers.h"
 #include "GuardTableWidgets.h"
 #include "ThemeManager.h"
@@ -17,20 +18,17 @@ void SuperGuardian::initSignals() {
         trayEmailAct->blockSignals(true);
         trayEmailAct->setChecked(on);
         trayEmailAct->blockSignals(false);
-        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-        s.setValue("emailEnabled", on);
+        ConfigDatabase::instance().setValue(u"emailEnabled"_s, on);
     });
     connect(trayEmailAct, &QAction::toggled, this, [this](bool on) {
         emailEnabledAct->blockSignals(true);
         emailEnabledAct->setChecked(on);
         emailEnabledAct->blockSignals(false);
-        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-        s.setValue("emailEnabled", on);
+        ConfigDatabase::instance().setValue(u"emailEnabled"_s, on);
     });
 
     connect(minimizeToTrayAct, &QAction::toggled, this, [this](bool on) {
-        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-        s.setValue("minimizeToTray", on);
+        ConfigDatabase::instance().setValue(u"minimizeToTray"_s, on);
     });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
@@ -102,14 +100,14 @@ void SuperGuardian::initSignals() {
 
     loadSettings();
     applySavedTrayOptions();
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    QString theme = s.contains("theme") ? s.value("theme").toString() : detectSystemThemeName();
-    if (!s.contains("theme")) s.setValue("theme", theme);
+    auto& cfg = ConfigDatabase::instance();
+    QString theme = cfg.contains(u"theme"_s) ? cfg.value(u"theme"_s).toString() : detectSystemThemeName();
+    if (!cfg.contains(u"theme"_s)) cfg.setValue(u"theme"_s, theme);
     applyTheme(theme);
 
     // 恢复排序状态
-    activeSortSection = s.value("sortSection", -1).toInt();
-    sortState = s.value("sortState", 0).toInt();
+    activeSortSection = cfg.value(u"sortSection"_s, -1).toInt();
+    sortState = cfg.value(u"sortState"_s, 0).toInt();
     if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 9)
         performSort();
 
@@ -117,7 +115,7 @@ void SuperGuardian::initSignals() {
     restoreHeaderOrder();
 
     // 恢复置顶状态
-    if (s.value("alwaysOnTop", false).toBool()) {
+    if (cfg.value(u"alwaysOnTop"_s, false).toBool()) {
         QTimer::singleShot(0, this, [this]() {
             HWND hwnd = (HWND)winId();
             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);

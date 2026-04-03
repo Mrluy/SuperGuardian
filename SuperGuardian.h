@@ -79,6 +79,11 @@ private:
     void showDuplicateWhitelistDialog();
     void toggleAlwaysOnTop();
     void testDuplicateAdd();
+    void showOperationLog();
+    void showRuntimeLog();
+    void showGuardLog();
+    void showScheduledRestartLog();
+    void showScheduledRunLog();
     void performSort();
     void saveSortState();
     void saveColumnVisibility();
@@ -88,6 +93,7 @@ private:
     void restoreHeaderOrder();
     void resetHeaderDisplay();
     void showAboutDialog();
+    void exportDiagnosticInfo();
     void initSignals();
 
 private slots:

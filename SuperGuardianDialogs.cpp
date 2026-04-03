@@ -1,6 +1,7 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 
 // ---- 定时规则设置对话框（多规则，支持周期和固定时间） ----
@@ -275,6 +276,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 1)->setText(u"未守护"_s);
         }
         updateButtonStates(row);
+        logOperation(forRun ? u"设置定时运行规则"_s : u"设置定时重启规则"_s, programId(item.processName, item.launchArgs));
     }
     saveSettings();
 }

@@ -53,9 +53,31 @@ bool ChineseContextMenuFilter::eventFilter(QObject* obj, QEvent* event) {
 
 void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const {
     painter->save();
-    if (option.state & QStyle::State_Selected) {
-        painter->fillRect(option.rect, QColor("#005fb8"));
-        painter->setPen(Qt::white);
+    painter->setRenderHint(QPainter::Antialiasing, false);
+
+    bool isDark = currentThemeName() == "dark";
+
+    // 获取 hover 行
+    int hoverRow = -1;
+    if (const QWidget* vp = option.widget) {
+        if (auto* table = dynamic_cast<DesktopSelectTable*>(vp->parentWidget())) {
+            hoverRow = table->hoveredRow();
+        }
+    }
+
+    bool isHovered = (index.row() == hoverRow);
+    bool isSelected = (option.state & QStyle::State_Selected);
+
+    if (isSelected) {
+        // 选中：不透明灰色背景
+        QColor selColor = isDark ? QColor(0x44, 0x44, 0x44) : QColor(0xe9, 0xe9, 0xe9);
+        painter->fillRect(option.rect, selColor);
+        painter->setPen(option.palette.text().color());
+    } else if (isHovered) {
+        // 悬浮：不透明灰色背景，较淡
+        QColor hoverColor = isDark ? QColor(0x39, 0x39, 0x39) : QColor(0xf5, 0xf5, 0xf5);
+        painter->fillRect(option.rect, hoverColor);
+        painter->setPen(option.palette.text().color());
     } else {
         QVariant bgVar = index.data(Qt::BackgroundRole);
         if (bgVar.isValid())
@@ -114,6 +136,38 @@ int DesktopSelectTable::dropTargetRow(const QPoint& pos) {
     return rc;
 }
 
+void DesktopSelectTable::updateHoverRow(const QPoint& pos) {
+    QModelIndex idx = indexAt(pos);
+    int newRow = idx.isValid() ? idx.row() : -1;
+    if (newRow != m_hoverRow) {
+        int oldRow = m_hoverRow;
+        m_hoverRow = newRow;
+        // 更新操作列 cell widget 背景
+        auto updateCellWidgetBg = [this](int row) {
+            if (row < 0 || row >= rowCount()) return;
+            QWidget* w = cellWidget(row, columnCount() - 1);
+            if (!w) return;
+            bool sel = selectionModel() && selectionModel()->isRowSelected(row, QModelIndex());
+            bool hov = (row == m_hoverRow);
+            bool isDark = currentThemeName() == "dark";
+            if (sel) {
+                w->setStyleSheet(isDark
+                    ? u"#opContainer { background: #444444; }"_s
+                    : u"#opContainer { background: #e9e9e9; }"_s);
+            } else if (hov) {
+                w->setStyleSheet(isDark
+                    ? u"#opContainer { background: #393939; }"_s
+                    : u"#opContainer { background: #f5f5f5; }"_s);
+            } else {
+                w->setStyleSheet(QString());
+            }
+        };
+        updateCellWidgetBg(oldRow);
+        updateCellWidgetBg(newRow);
+        viewport()->update();
+    }
+}
+
 void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
         QModelIndex idx = indexAt(e->pos());
@@ -165,6 +219,8 @@ void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
 }
 
 void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
+    updateHoverRow(e->pos());
+
     if (m_pendingRowDrag) {
         if ((e->pos() - m_origin).manhattanLength() > QApplication::startDragDistance()) {
             m_pendingRowDrag = false;
@@ -277,6 +333,56 @@ void DesktopSelectTable::mouseDoubleClickEvent(QMouseEvent* e) {
         return;
     }
     QTableWidget::mouseDoubleClickEvent(e);
+}
+
+void DesktopSelectTable::leaveEvent(QEvent* e) {
+    if (m_hoverRow != -1) {
+        int oldRow = m_hoverRow;
+        m_hoverRow = -1;
+        // 清除旧 hover 行的操作列背景
+        if (oldRow >= 0 && oldRow < rowCount()) {
+            QWidget* w = cellWidget(oldRow, columnCount() - 1);
+            if (w) {
+                bool sel = selectionModel() && selectionModel()->isRowSelected(oldRow, QModelIndex());
+                bool isDark = currentThemeName() == "dark";
+                if (sel)
+                    w->setStyleSheet(isDark
+                        ? u"#opContainer { background: #444444; }"_s
+                        : u"#opContainer { background: #e9e9e9; }"_s);
+                else
+                    w->setStyleSheet(QString());
+            }
+        }
+        viewport()->update();
+    }
+    QTableWidget::leaveEvent(e);
+}
+
+void DesktopSelectTable::selectionChanged(const QItemSelection& selected, const QItemSelection& deselected) {
+    QTableWidget::selectionChanged(selected, deselected);
+    bool isDark = currentThemeName() == "dark";
+    auto updateRows = [&](const QItemSelection& sel) {
+        for (const auto& range : sel) {
+            for (int row = range.top(); row <= range.bottom(); ++row) {
+                QWidget* w = cellWidget(row, columnCount() - 1);
+                if (!w) continue;
+                bool isSelected = selectionModel() && selectionModel()->isRowSelected(row, QModelIndex());
+                bool isHov = (row == m_hoverRow);
+                if (isSelected)
+                    w->setStyleSheet(isDark
+                        ? u"#opContainer { background: #444444; }"_s
+                        : u"#opContainer { background: #e9e9e9; }"_s);
+                else if (isHov)
+                    w->setStyleSheet(isDark
+                        ? u"#opContainer { background: #393939; }"_s
+                        : u"#opContainer { background: #f5f5f5; }"_s);
+                else
+                    w->setStyleSheet(QString());
+            }
+        }
+    };
+    updateRows(selected);
+    updateRows(deselected);
 }
 
 void DesktopSelectTable::focusInEvent(QFocusEvent* e) {

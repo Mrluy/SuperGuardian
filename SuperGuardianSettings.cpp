@@ -2,6 +2,8 @@
 #include "DialogHelpers.h"
 #include "AppStorage.h"
 #include "ProcessUtils.h"
+#include "ConfigDatabase.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -42,155 +44,165 @@ static QList<ScheduleRule> jsonToScheduleRules(const QJsonArray& arr) {
 }
 
 void SuperGuardian::loadSettings() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    auto& db = ConfigDatabase::instance();
+
+    // 首次启动时从旧版 INI 迁移
+    db.migrateFromIni(appSettingsFilePath());
 
     // Load SMTP config
-    s.beginGroup("smtp");
-    smtpConfig.server = s.value("server").toString();
-    smtpConfig.port = s.value("port", 587).toInt();
-    smtpConfig.useTls = s.value("useTls", true).toBool();
-    smtpConfig.username = s.value("username").toString();
-    smtpConfig.password = s.value("password").toString();
-    smtpConfig.fromAddress = s.value("fromAddress").toString();
-    smtpConfig.fromName = s.value("fromName").toString();
-    smtpConfig.toAddress = s.value("toAddress").toString();
-    s.endGroup();
+    smtpConfig.server = db.value(u"smtp/server"_s).toString();
+    smtpConfig.port = db.value(u"smtp/port"_s, 587).toInt();
+    smtpConfig.useTls = db.value(u"smtp/useTls"_s, true).toBool();
+    smtpConfig.username = db.value(u"smtp/username"_s).toString();
+    smtpConfig.password = db.value(u"smtp/password"_s).toString();
+    smtpConfig.fromAddress = db.value(u"smtp/fromAddress"_s).toString();
+    smtpConfig.fromName = db.value(u"smtp/fromName"_s).toString();
+    smtpConfig.toAddress = db.value(u"smtp/toAddress"_s).toString();
 
     if (emailEnabledAct) {
         emailEnabledAct->blockSignals(true);
-        emailEnabledAct->setChecked(s.value("emailEnabled", false).toBool());
+        emailEnabledAct->setChecked(db.value(u"emailEnabled"_s, false).toBool());
         emailEnabledAct->blockSignals(false);
     }
 
-    int size = s.beginReadArray("items");
-    for (int i = 0; i < size; ++i) {
-        s.setArrayIndex(i);
-        QString path = s.value("path").toString();
+    // Load items from JSON array
+    QString itemsJson = db.value(u"items"_s).toString();
+    QJsonDocument doc = QJsonDocument::fromJson(itemsJson.toUtf8());
+    QJsonArray arr = doc.array();
+
+    for (int i = 0; i < arr.size(); ++i) {
+        QJsonObject o = arr[i].toObject();
+        QString path = o[u"path"_s].toString();
+        if (path.isEmpty()) continue;
+
         GuardItem item;
         item.path = path;
         QString shortcutArgs;
         item.targetPath = resolveShortcut(path, &shortcutArgs);
-        item.launchArgs = s.value("launchArgs").toString();
+        item.launchArgs = o[u"launchArgs"_s].toString();
         if (item.launchArgs.isEmpty() && !shortcutArgs.isEmpty())
             item.launchArgs = shortcutArgs;
         item.processName = QFileInfo(item.targetPath).fileName();
-        item.guarding = s.value("guard").toBool();
-        item.startTime = QDateTime::fromString(s.value("startTime").toString());
-        item.lastRestart = QDateTime::fromString(s.value("lastRestart").toString());
+        item.guarding = o[u"guard"_s].toBool();
+        item.startTime = QDateTime::fromString(o[u"startTime"_s].toString());
+        item.lastRestart = QDateTime::fromString(o[u"lastRestart"_s].toString());
         item.restartCount = 0;
-        item.startDelaySecs = s.value("startDelaySecs", 1).toInt();
+        item.startDelaySecs = o.contains(u"startDelaySecs"_s) ? o[u"startDelaySecs"_s].toInt() : 1;
         if (item.startDelaySecs < 0) item.startDelaySecs = 0;
 
-        // Load schedule rules (new format)
-        if (s.contains("restartRulesJson")) {
-            QJsonDocument doc = QJsonDocument::fromJson(s.value("restartRulesJson").toString().toUtf8());
-            item.restartRules = jsonToScheduleRules(doc.array());
-        } else if (s.value("scheduledRestartIntervalSecs", 0).toInt() > 0) {
-            // Backward compatibility: convert old single interval to rule
+        // Load schedule rules
+        if (o.contains(u"restartRulesJson"_s)) {
+            QJsonDocument rulesDoc = QJsonDocument::fromJson(o[u"restartRulesJson"_s].toString().toUtf8());
+            item.restartRules = jsonToScheduleRules(rulesDoc.array());
+        } else if (o[u"scheduledRestartIntervalSecs"_s].toInt(0) > 0) {
             ScheduleRule r;
             r.type = ScheduleRule::Periodic;
-            r.intervalSecs = s.value("scheduledRestartIntervalSecs").toInt();
-            r.nextTrigger = QDateTime::fromString(s.value("nextScheduledRestart").toString());
+            r.intervalSecs = o[u"scheduledRestartIntervalSecs"_s].toInt();
+            r.nextTrigger = QDateTime::fromString(o[u"nextScheduledRestart"_s].toString());
             item.restartRules.append(r);
             item.restartRulesActive = true;
         }
-        item.restartRulesActive = s.value("restartRulesActive", !item.restartRules.isEmpty()).toBool();
+        item.restartRulesActive = o.contains(u"restartRulesActive"_s)
+            ? o[u"restartRulesActive"_s].toBool()
+            : !item.restartRules.isEmpty();
 
-        item.scheduledRunEnabled = s.value("scheduledRunEnabled", false).toBool();
-        item.trackRunDuration = s.value("trackRunDuration", false).toBool();
-        if (s.contains("runRulesJson")) {
-            QJsonDocument doc = QJsonDocument::fromJson(s.value("runRulesJson").toString().toUtf8());
-            item.runRules = jsonToScheduleRules(doc.array());
+        item.scheduledRunEnabled = o[u"scheduledRunEnabled"_s].toBool();
+        item.trackRunDuration = o[u"trackRunDuration"_s].toBool();
+        if (o.contains(u"runRulesJson"_s)) {
+            QJsonDocument rulesDoc = QJsonDocument::fromJson(o[u"runRulesJson"_s].toString().toUtf8());
+            item.runRules = jsonToScheduleRules(rulesDoc.array());
         }
 
         // Retry config
-        item.retryConfig.retryIntervalSecs = s.value("retryIntervalSecs", 30).toInt();
-        item.retryConfig.maxRetries = s.value("retryMaxRetries", 10).toInt();
-        item.retryConfig.maxDurationSecs = s.value("retryMaxDurationSecs", 300).toInt();
+        item.retryConfig.retryIntervalSecs = o.contains(u"retryIntervalSecs"_s) ? o[u"retryIntervalSecs"_s].toInt() : 30;
+        item.retryConfig.maxRetries = o.contains(u"retryMaxRetries"_s) ? o[u"retryMaxRetries"_s].toInt() : 10;
+        item.retryConfig.maxDurationSecs = o.contains(u"retryMaxDurationSecs"_s) ? o[u"retryMaxDurationSecs"_s].toInt() : 300;
 
         // Email notify per-program
-        item.emailNotify.enabled = s.value("emailNotifyEnabled", false).toBool();
-        item.emailNotify.onGuardTriggered = s.value("emailOnGuardTriggered", false).toBool();
-        item.emailNotify.onStartFailed = s.value("emailOnStartFailed", true).toBool();
-        item.emailNotify.onScheduledRestartFailed = s.value("emailOnRestartFailed", true).toBool();
-        item.emailNotify.onScheduledRunFailed = s.value("emailOnRunFailed", true).toBool();
-        item.emailNotify.onProcessExited = s.value("emailOnProcessExited", false).toBool();
-        item.emailNotify.onRetryExhausted = s.value("emailOnRetryExhausted", true).toBool();
+        item.emailNotify.enabled = o[u"emailNotifyEnabled"_s].toBool();
+        item.emailNotify.onGuardTriggered = o[u"emailOnGuardTriggered"_s].toBool();
+        item.emailNotify.onStartFailed = o.contains(u"emailOnStartFailed"_s) ? o[u"emailOnStartFailed"_s].toBool() : true;
+        item.emailNotify.onScheduledRestartFailed = o.contains(u"emailOnRestartFailed"_s) ? o[u"emailOnRestartFailed"_s].toBool() : true;
+        item.emailNotify.onScheduledRunFailed = o.contains(u"emailOnRunFailed"_s) ? o[u"emailOnRunFailed"_s].toBool() : true;
+        item.emailNotify.onProcessExited = o[u"emailOnProcessExited"_s].toBool();
+        item.emailNotify.onRetryExhausted = o.contains(u"emailOnRetryExhausted"_s) ? o[u"emailOnRetryExhausted"_s].toBool() : true;
 
-        item.pinned = s.value("pinned", false).toBool();
-        item.note = s.value("note").toString();
-        item.insertionOrder = s.value("insertionOrder", i).toInt();
-        item.guardStartTime = QDateTime::fromString(s.value("guardStartTime").toString());
+        item.pinned = o[u"pinned"_s].toBool();
+        item.note = o[u"note"_s].toString();
+        item.insertionOrder = o.contains(u"insertionOrder"_s) ? o[u"insertionOrder"_s].toInt() : i;
+        item.guardStartTime = QDateTime::fromString(o[u"guardStartTime"_s].toString());
 
         items.append(item);
     }
-    s.endArray();
 
     // Load duplicate whitelist
-    QString wl = s.value("duplicateWhitelist").toString();
-    duplicateWhitelist = wl.isEmpty() ? QStringList() : wl.split("|");
+    QString wl = db.value(u"duplicateWhitelist"_s).toString();
+    duplicateWhitelist = wl.isEmpty() ? QStringList() : wl.split(u"|"_s);
 
     rebuildTableFromItems();
     syncSelfGuardListEntry(selfGuardAct && selfGuardAct->isChecked());
 }
 
 void SuperGuardian::saveSettings() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
+    auto& db = ConfigDatabase::instance();
+    db.beginBatch();
 
     // Save SMTP config
-    s.beginGroup("smtp");
-    s.setValue("server", smtpConfig.server);
-    s.setValue("port", smtpConfig.port);
-    s.setValue("useTls", smtpConfig.useTls);
-    s.setValue("username", smtpConfig.username);
-    s.setValue("password", smtpConfig.password);
-    s.setValue("fromAddress", smtpConfig.fromAddress);
-    s.setValue("fromName", smtpConfig.fromName);
-    s.setValue("toAddress", smtpConfig.toAddress);
-    s.endGroup();
+    db.setValue(u"smtp/server"_s, smtpConfig.server);
+    db.setValue(u"smtp/port"_s, smtpConfig.port);
+    db.setValue(u"smtp/useTls"_s, smtpConfig.useTls);
+    db.setValue(u"smtp/username"_s, smtpConfig.username);
+    db.setValue(u"smtp/password"_s, smtpConfig.password);
+    db.setValue(u"smtp/fromAddress"_s, smtpConfig.fromAddress);
+    db.setValue(u"smtp/fromName"_s, smtpConfig.fromName);
+    db.setValue(u"smtp/toAddress"_s, smtpConfig.toAddress);
 
     if (emailEnabledAct)
-        s.setValue("emailEnabled", emailEnabledAct->isChecked());
+        db.setValue(u"emailEnabled"_s, emailEnabledAct->isChecked());
 
-    s.beginWriteArray("items");
-    int saveIndex = 0;
+    // Save items as JSON array
+    QJsonArray itemsArr;
     for (int i = 0; i < items.size(); ++i) {
-        s.setArrayIndex(saveIndex++);
-        s.setValue("path", items[i].path);
-        s.setValue("launchArgs", items[i].launchArgs);
-        s.setValue("guard", items[i].guarding);
-        s.setValue("lastRestart", items[i].lastRestart.toString());
-        s.setValue("restartCount", items[i].restartCount);
-        s.setValue("startTime", items[i].startTime.toString());
-        s.setValue("startDelaySecs", items[i].startDelaySecs);
+        QJsonObject o;
+        o[u"path"_s] = items[i].path;
+        o[u"launchArgs"_s] = items[i].launchArgs;
+        o[u"guard"_s] = items[i].guarding;
+        o[u"lastRestart"_s] = items[i].lastRestart.toString();
+        o[u"restartCount"_s] = items[i].restartCount;
+        o[u"startTime"_s] = items[i].startTime.toString();
+        o[u"startDelaySecs"_s] = items[i].startDelaySecs;
 
         QJsonDocument restartDoc(scheduleRulesToJson(items[i].restartRules));
-        s.setValue("restartRulesJson", QString::fromUtf8(restartDoc.toJson(QJsonDocument::Compact)));
-        s.setValue("restartRulesActive", items[i].restartRulesActive);
+        o[u"restartRulesJson"_s] = QString::fromUtf8(restartDoc.toJson(QJsonDocument::Compact));
+        o[u"restartRulesActive"_s] = items[i].restartRulesActive;
 
-        s.setValue("scheduledRunEnabled", items[i].scheduledRunEnabled);
-        s.setValue("trackRunDuration", items[i].trackRunDuration);
+        o[u"scheduledRunEnabled"_s] = items[i].scheduledRunEnabled;
+        o[u"trackRunDuration"_s] = items[i].trackRunDuration;
         QJsonDocument runDoc(scheduleRulesToJson(items[i].runRules));
-        s.setValue("runRulesJson", QString::fromUtf8(runDoc.toJson(QJsonDocument::Compact)));
+        o[u"runRulesJson"_s] = QString::fromUtf8(runDoc.toJson(QJsonDocument::Compact));
 
-        s.setValue("retryIntervalSecs", items[i].retryConfig.retryIntervalSecs);
-        s.setValue("retryMaxRetries", items[i].retryConfig.maxRetries);
-        s.setValue("retryMaxDurationSecs", items[i].retryConfig.maxDurationSecs);
+        o[u"retryIntervalSecs"_s] = items[i].retryConfig.retryIntervalSecs;
+        o[u"retryMaxRetries"_s] = items[i].retryConfig.maxRetries;
+        o[u"retryMaxDurationSecs"_s] = items[i].retryConfig.maxDurationSecs;
 
-        s.setValue("emailNotifyEnabled", items[i].emailNotify.enabled);
-        s.setValue("emailOnGuardTriggered", items[i].emailNotify.onGuardTriggered);
-        s.setValue("emailOnStartFailed", items[i].emailNotify.onStartFailed);
-        s.setValue("emailOnRestartFailed", items[i].emailNotify.onScheduledRestartFailed);
-        s.setValue("emailOnRunFailed", items[i].emailNotify.onScheduledRunFailed);
-        s.setValue("emailOnProcessExited", items[i].emailNotify.onProcessExited);
-        s.setValue("emailOnRetryExhausted", items[i].emailNotify.onRetryExhausted);
+        o[u"emailNotifyEnabled"_s] = items[i].emailNotify.enabled;
+        o[u"emailOnGuardTriggered"_s] = items[i].emailNotify.onGuardTriggered;
+        o[u"emailOnStartFailed"_s] = items[i].emailNotify.onStartFailed;
+        o[u"emailOnRestartFailed"_s] = items[i].emailNotify.onScheduledRestartFailed;
+        o[u"emailOnRunFailed"_s] = items[i].emailNotify.onScheduledRunFailed;
+        o[u"emailOnProcessExited"_s] = items[i].emailNotify.onProcessExited;
+        o[u"emailOnRetryExhausted"_s] = items[i].emailNotify.onRetryExhausted;
 
-        s.setValue("pinned", items[i].pinned);
-        s.setValue("note", items[i].note);
-        s.setValue("insertionOrder", items[i].insertionOrder);
-        s.setValue("guardStartTime", items[i].guardStartTime.toString());
+        o[u"pinned"_s] = items[i].pinned;
+        o[u"note"_s] = items[i].note;
+        o[u"insertionOrder"_s] = items[i].insertionOrder;
+        o[u"guardStartTime"_s] = items[i].guardStartTime.toString();
+
+        itemsArr.append(o);
     }
-    s.endArray();
+    db.setValue(u"items"_s, QString::fromUtf8(QJsonDocument(itemsArr).toJson(QJsonDocument::Compact)));
+
+    db.endBatch();
 }
 
 int SuperGuardian::findItemIndexByPath(const QString& path) const {
@@ -219,6 +231,7 @@ void SuperGuardian::clearListWithConfirmation() {
     if (!showMessageDialog(this, u"清空列表"_s, u"确认清空列表中的所有项吗？"_s, true)) {
         return;
     }
+    logOperation(u"清空列表"_s);
 
     for (int i = items.size() - 1; i >= 0; --i) {
         int row = findRowByPath(items[i].path);

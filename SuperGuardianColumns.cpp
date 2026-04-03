@@ -1,6 +1,9 @@
 #include "SuperGuardian.h"
 #include "AppStorage.h"
+#include "ConfigDatabase.h"
 #include <QtWidgets>
+
+using namespace Qt::Literals::StringLiterals;
 
 // ---- Column width management ----
 
@@ -14,9 +17,9 @@ void SuperGuardian::distributeColumnWidths() {
     double ratios[9];
     bool hasCustom = false;
 
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    if (s.contains("columnRatios")) {
-        QStringList parts = s.value("columnRatios").toString().split(",");
+    auto& cfg = ConfigDatabase::instance();
+    if (cfg.contains(u"columnRatios"_s)) {
+        QStringList parts = cfg.value(u"columnRatios"_s).toString().split(u","_s);
         if (parts.size() == 9) {
             hasCustom = true;
             double sum = 0;
@@ -63,36 +66,33 @@ void SuperGuardian::saveColumnWidths() {
     QStringList parts;
     for (int i = 0; i < 9; i++)
         parts.append(QString::number(tableWidget->columnWidth(i) / total, 'f', 6));
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("columnRatios", parts.join(","));
+    ConfigDatabase::instance().setValue(u"columnRatios"_s, parts.join(u","_s));
 }
 
 void SuperGuardian::resetColumnWidths() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.remove("columnRatios");
+    ConfigDatabase::instance().remove(u"columnRatios"_s);
     distributeColumnWidths();
 }
 
 // ---- 列显示/隐藏管理 ----
 
 void SuperGuardian::saveColumnVisibility() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
     QStringList hidden;
     for (int i = 0; i < 9; i++) {
         if (tableWidget->isColumnHidden(i)) hidden << QString::number(i);
     }
-    s.setValue("hiddenColumns", hidden.join(","));
+    ConfigDatabase::instance().setValue(u"hiddenColumns"_s, hidden.join(u","_s));
 }
 
 void SuperGuardian::restoreColumnVisibility() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    if (!s.contains("hiddenColumns")) {
+    auto& cfg = ConfigDatabase::instance();
+    if (!cfg.contains(u"hiddenColumns"_s)) {
         tableWidget->setColumnHidden(5, true);
         return;
     }
-    QString hidden = s.value("hiddenColumns").toString();
+    QString hidden = cfg.value(u"hiddenColumns"_s).toString();
     if (hidden.isEmpty()) return;
-    for (const QString& col : hidden.split(",")) {
+    for (const QString& col : hidden.split(u","_s)) {
         int i = col.toInt();
         if (i >= 0 && i < 9) tableWidget->setColumnHidden(i, true);
     }
@@ -126,13 +126,11 @@ void SuperGuardian::saveHeaderOrder() {
     QStringList order;
     for (int v = 0; v < header->count(); v++)
         order << QString::number(header->logicalIndex(v));
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    s.setValue("headerOrder", order.join(","));
+    ConfigDatabase::instance().setValue(u"headerOrder"_s, order.join(u","_s));
 }
 
 void SuperGuardian::restoreHeaderOrder() {
-    QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-    QString orderStr = s.value("headerOrder").toString();
+    QString orderStr = ConfigDatabase::instance().value(u"headerOrder"_s).toString();
     if (orderStr.isEmpty()) return;
     QStringList parts = orderStr.split(",");
     QHeaderView* header = tableWidget->horizontalHeader();

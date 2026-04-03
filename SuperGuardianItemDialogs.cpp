@@ -1,6 +1,7 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 
 // ---- 启动延时设置对话框 ----
@@ -43,6 +44,7 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
         GuardItem& item = items[itemIdx];
         item.startDelaySecs = delaySecs;
         item.startDelayExitTime = QDateTime();
+        logOperation(u"设置启动延时 %1秒"_s.arg(delaySecs), programId(item.processName, item.launchArgs));
         if (tableWidget->item(row, 8)) {
             if (item.scheduledRunEnabled)
                 tableWidget->item(row, 8)->setText("-");
@@ -99,6 +101,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
             item.processName = QFileInfo(newPath).fileName();
         }
         item.launchArgs = args;
+        logOperation(u"设置启动程序/参数"_s, programId(item.processName, args));
         QString displayName = item.note.isEmpty()
             ? (args.isEmpty() ? item.processName : (item.processName + " " + args))
             : item.note;

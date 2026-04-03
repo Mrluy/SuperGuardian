@@ -2,6 +2,7 @@
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include "AppStorage.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 
 void SuperGuardian::parseAndAddFromInput() {
@@ -99,6 +100,8 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 
     // 3 buttons: 开始守护/关闭守护, 开启定时重启/关闭定时重启, 开启定时运行/关闭定时运行
     QWidget* opWidget = new QWidget();
+    opWidget->setObjectName(u"opContainer"_s);
+    opWidget->setAttribute(Qt::WA_StyledBackground, true);
     QHBoxLayout* opLay = new QHBoxLayout(opWidget);
     opLay->setContentsMargins(2, 0, 2, 0);
     opLay->setSpacing(2);
@@ -254,6 +257,7 @@ void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     for (const auto& it : items) maxOrder = qMax(maxOrder, it.insertionOrder);
     item.insertionOrder = maxOrder + 1;
     items.append(item);
+    logOperation(u"\u6dfb\u52a0\u7a0b\u5e8f"_s, programId(item.processName, item.launchArgs));
 
     rebuildTableFromItems();
     saveSettings();

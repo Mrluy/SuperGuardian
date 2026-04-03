@@ -1,5 +1,6 @@
 #include "ProcessUtils.h"
 #include "AppStorage.h"
+#include "LogDatabase.h"
 #include <windows.h>
 #include <tlhelp32.h>
 #include <shellapi.h>
@@ -11,7 +12,9 @@
 #include <QCoreApplication>
 #include <QProcess>
 #include <QDir>
-#include <QSettings>
+#include "ConfigDatabase.h"
+
+using namespace Qt::Literals::StringLiterals;
 
 QString resolveShortcut(const QString& path, QString* outArgs) {
     if (!path.endsWith(".lnk", Qt::CaseInsensitive)) return path;
@@ -145,7 +148,7 @@ bool launchProgram(const QString& path, const QString& args) {
     sei.lpDirectory = wdir.c_str();
     sei.nShow = SW_SHOWNORMAL;
     BOOL ok = ShellExecuteExW(&sei);
-    if (!ok) appendWatchdogLog(QString("launch guarded app failed: %1").arg(path), GetLastError());
+    if (!ok) logRuntime(QString("launch guarded app failed: %1 (err=%2)").arg(path).arg(GetLastError()));
     return ok == TRUE;
 }
 
@@ -153,13 +156,15 @@ void setAutostart(bool enable) {
     HKEY hKey;
     LPCWSTR runKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     if (RegOpenKeyExW(HKEY_CURRENT_USER, runKey, 0, KEY_WRITE, &hKey) != ERROR_SUCCESS) return;
+    // 清理旧版本启动项名称
+    RegDeleteValueW(hKey, L"SuperGuardian");
     if (enable) {
         QString appPath = QCoreApplication::applicationFilePath();
         QString quoted = QString("\"%1\"").arg(QDir::toNativeSeparators(appPath));
         const wchar_t* wpath = (const wchar_t*)quoted.utf16();
-        RegSetValueExW(hKey, L"SuperGuardian", 0, REG_SZ, (const BYTE*)wpath, (DWORD)((wcslen(wpath)+1)*sizeof(wchar_t)));
+        RegSetValueExW(hKey, L"\x8d85\x7ea7\x5b88\x62a4", 0, REG_SZ, (const BYTE*)wpath, (DWORD)((wcslen(wpath)+1)*sizeof(wchar_t)));
     } else {
-        RegDeleteValueW(hKey, L"SuperGuardian");
+        RegDeleteValueW(hKey, L"\x8d85\x7ea7\x5b88\x62a4");
     }
     RegCloseKey(hKey);
 }
@@ -171,14 +176,14 @@ int runWatchdogMode(int argc, char* argv[]) {
     DWORD parentPid = (DWORD)QString::fromUtf8(argv[2]).toUInt();
     QString parentExe = QString::fromUtf8(argv[3]);
     DWORD selfPid = GetCurrentProcessId();
-    appendWatchdogLog(QString("watchdog started self=%1 main=%2 exe=%3").arg(selfPid).arg(parentPid).arg(parentExe));
+    logRuntime(QString("watchdog started self=%1 main=%2 exe=%3").arg(selfPid).arg(parentPid).arg(parentExe));
 
     const QString workingDir = QFileInfo(parentExe).absolutePath();
 
     while (true) {
         HANDLE h = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE, parentPid);
         if (!h) {
-            appendWatchdogLog("open main process failed, trying restart", GetLastError());
+            logRuntime(QString("open main process failed, trying restart (err=%1)").arg(GetLastError()));
         } else {
             DWORD waitRc = WaitForSingleObject(h, 1000);
             CloseHandle(h);
@@ -187,9 +192,9 @@ int runWatchdogMode(int argc, char* argv[]) {
             }
         }
 
-        QSettings s(appSettingsFilePath(), QSettings::IniFormat);
-        bool enabled = s.value("self_guard_enabled", false).toBool();
-        bool manualExit = s.value("self_guard_manual_exit", false).toBool();
+        auto& db = ConfigDatabase::instance();
+        bool enabled = db.value(u"self_guard_enabled"_s, false).toBool();
+        bool manualExit = db.value(u"self_guard_manual_exit"_s, false).toBool();
         if (!enabled || manualExit) break;
 
         bool restarted = false;
@@ -198,21 +203,21 @@ int runWatchdogMode(int argc, char* argv[]) {
             bool ok = QProcess::startDetached(parentExe, {}, workingDir, &newPid);
             if (ok && newPid > 0) {
                 parentPid = static_cast<DWORD>(newPid);
-                appendWatchdogLog(QString("main restarted pid=%1 attempt=%2").arg(parentPid).arg(attempt));
+                logRuntime(QString("main restarted pid=%1 attempt=%2").arg(parentPid).arg(attempt));
                 Sleep(1500);
                 restarted = true;
                 break;
             }
 
-            appendWatchdogLog(QString("main restart attempt failed attempt=%1").arg(attempt), GetLastError());
+            logRuntime(QString("main restart attempt failed attempt=%1 (err=%2)").arg(attempt).arg(GetLastError()));
             Sleep(1000 * attempt);
         }
 
         if (!restarted) {
-            appendWatchdogLog("main restart failed permanently", GetLastError());
+            logRuntime(QString("main restart failed permanently (err=%1)").arg(GetLastError()));
             break;
         }
     }
-    appendWatchdogLog(QString("watchdog exit self=%1").arg(selfPid));
+    logRuntime(QString("watchdog exit self=%1").arg(selfPid));
     return 0;
 }

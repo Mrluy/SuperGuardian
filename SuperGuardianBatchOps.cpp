@@ -1,5 +1,6 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 
 // ---- 行拖动与批量操作 ----
@@ -66,6 +67,7 @@ void SuperGuardian::closeAllGuards() {
     if (!showMessageDialog(this, u"关闭所有守护"_s,
         u"确认关闭所有程序的守护吗？"_s, true))
         return;
+    logOperation(u"关闭所有守护"_s);
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].guarding) {
             items[i].guarding = false;
@@ -95,6 +97,7 @@ void SuperGuardian::closeAllScheduledRestart() {
     if (!showMessageDialog(this, u"关闭所有定时重启"_s,
         u"确认关闭所有程序的定时重启吗？"_s, true))
         return;
+    logOperation(u"关闭所有定时重启"_s);
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].restartRulesActive) {
             items[i].restartRulesActive = false;
@@ -118,6 +121,7 @@ void SuperGuardian::closeAllScheduledRun() {
     if (!showMessageDialog(this, u"关闭所有定时运行"_s,
         u"确认关闭所有程序的定时运行吗？"_s, true))
         return;
+    logOperation(u"关闭所有定时运行"_s);
     for (int i = 0; i < items.size(); ++i) {
         if (items[i].scheduledRunEnabled) {
             items[i].scheduledRunEnabled = false;

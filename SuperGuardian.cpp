@@ -3,6 +3,8 @@
 #include "GuardTableWidgets.h"
 #include "ThemeManager.h"
 #include "DialogHelpers.h"
+#include "LogDatabase.h"
+#include "ConfigDatabase.h"
 #include <QtWidgets>
 #include <QDesktopServices>
 #include <QUrl>
@@ -109,24 +111,12 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     // ---- 菜单栏：查看 - 选项 - 配置 - 操作 - 测试 ----
     QMenu* viewMenu = menuBar()->addMenu(u"查看"_s);
-    viewMenu->addAction(u"守护日志"_s, this, []() {
-        QString path = watchdogLogFilePath();
-        if (path.isEmpty()) return;
-        if (!QFile::exists(path)) { QFile f(path); f.open(QIODevice::WriteOnly); f.close(); }
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    });
-    viewMenu->addAction(u"定时重启日志"_s, this, []() {
-        QString path = scheduledRestartLogFilePath();
-        if (path.isEmpty()) return;
-        if (!QFile::exists(path)) { QFile f(path); f.open(QIODevice::WriteOnly); f.close(); }
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    });
-    viewMenu->addAction(u"定时运行日志"_s, this, []() {
-        QString path = scheduledRunLogFilePath();
-        if (path.isEmpty()) return;
-        if (!QFile::exists(path)) { QFile f(path); f.open(QIODevice::WriteOnly); f.close(); }
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    });
+    viewMenu->addAction(u"操作日志"_s, this, &SuperGuardian::showOperationLog);
+    viewMenu->addAction(u"软件运行日志"_s, this, &SuperGuardian::showRuntimeLog);
+    viewMenu->addSeparator();
+    viewMenu->addAction(u"守护日志"_s, this, &SuperGuardian::showGuardLog);
+    viewMenu->addAction(u"定时重启日志"_s, this, &SuperGuardian::showScheduledRestartLog);
+    viewMenu->addAction(u"定时运行日志"_s, this, &SuperGuardian::showScheduledRunLog);
 
     QMenu* optionsMenu = menuBar()->addMenu(u"选项"_s);
     optionsMenu->addAction(selfGuardAct);
@@ -162,6 +152,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     QMenu* helpMenu = menuBar()->addMenu(u"帮助"_s);
     helpMenu->addAction(u"更新"_s, this, &SuperGuardian::showUpdateDialog);
+    helpMenu->addAction(u"导出诊断信息"_s, this, &SuperGuardian::exportDiagnosticInfo);
     helpMenu->addSeparator();
     helpMenu->addAction(u"关于 超级守护"_s, this, &SuperGuardian::showAboutDialog);
 

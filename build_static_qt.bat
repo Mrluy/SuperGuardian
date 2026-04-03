@@ -59,7 +59,8 @@ call "%QT_SRC_DIR%\configure.bat" ^
     -nomake examples ^
     -nomake tests ^
     -no-opengl ^
-    -no-feature-sql ^
+    -feature-sql ^
+    -feature-sql-sqlite ^
     -no-feature-dbus ^
     -no-feature-testlib ^
     -no-feature-printsupport ^
