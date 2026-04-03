@@ -172,9 +172,14 @@ void setAutostart(bool enable) {
 // --- Watchdog mode ---
 
 int runWatchdogMode(int argc, char* argv[]) {
-    if (argc < 4) return 0;
-    DWORD parentPid = (DWORD)QString::fromUtf8(argv[2]).toUInt();
-    QString parentExe = QString::fromUtf8(argv[3]);
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    const QStringList args = QCoreApplication::arguments();
+    if (args.size() < 4) return 0;
+
+    DWORD parentPid = static_cast<DWORD>(args[2].toUInt());
+    QString parentExe = QDir::fromNativeSeparators(args[3]);
     DWORD selfPid = GetCurrentProcessId();
     logRuntime(QString("watchdog started self=%1 main=%2 exe=%3").arg(selfPid).arg(parentPid).arg(parentExe));
 
@@ -200,7 +205,7 @@ int runWatchdogMode(int argc, char* argv[]) {
         bool restarted = false;
         for (int attempt = 1; attempt <= 5; ++attempt) {
             qint64 newPid = 0;
-            bool ok = QProcess::startDetached(parentExe, {}, workingDir, &newPid);
+            bool ok = QProcess::startDetached(parentExe, { "--restart" }, workingDir, &newPid);
             if (ok && newPid > 0) {
                 parentPid = static_cast<DWORD>(newPid);
                 logRuntime(QString("main restarted pid=%1 attempt=%2").arg(parentPid).arg(attempt));
