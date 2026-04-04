@@ -1,5 +1,6 @@
 #include "SuperGuardian.h"
 #include "DialogHelpers.h"
+#include "GuardTableWidgets.h"
 #include "LogDatabase.h"
 #include <QtWidgets>
 
@@ -26,7 +27,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     lay->addLayout(searchLay);
 
     // 日志表格
-    QTableWidget* table = new QTableWidget();
+    auto* table = new DesktopSelectTable();
     table->setColumnCount(4);
     table->setHorizontalHeaderLabels({ u"时间"_s, u"类别"_s, u"程序"_s, u"内容"_s });
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -39,6 +40,8 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     table->setSelectionMode(QAbstractItemView::ExtendedSelection);
     table->verticalHeader()->setVisible(false);
     table->setWordWrap(false);
+    table->setMouseTracking(true);
+    table->setItemDelegate(new BruteForceDelegate(table));
     lay->addWidget(table);
 
     // 分页
@@ -55,45 +58,54 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     int pageSize = 500;
     int currentPage = 0;
 
+    auto categoryLabel = [](const QString& cat) -> QString {
+        if (cat == u"operation"_s) return u"操作"_s;
+        if (cat == u"runtime"_s) return u"运行"_s;
+        if (cat == u"guard"_s) return u"守护"_s;
+        if (cat == u"scheduled_restart"_s) return u"定时重启"_s;
+        if (cat == u"scheduled_run"_s) return u"定时运行"_s;
+        return cat;
+    };
+
     auto loadPage = [&]() {
         table->setRowCount(0);
         QString filter = searchEdit->text().trimmed();
-        int total = LogDatabase::instance().logCount(category);
-        QList<LogEntry> entries = LogDatabase::instance().queryLogs(category, pageSize, currentPage * pageSize);
+        const int total = LogDatabase::instance().logCount(category);
 
-        // 过滤
-        QList<LogEntry> filtered;
+        QList<LogEntry> pageEntries;
+        int totalVisible = total;
         if (filter.isEmpty()) {
-            filtered = entries;
+            pageEntries = LogDatabase::instance().queryLogs(category, pageSize, currentPage * pageSize);
         } else {
-            for (const LogEntry& e : entries) {
+            QList<LogEntry> allEntries = LogDatabase::instance().queryLogs(category, total, 0);
+            QList<LogEntry> filteredEntries;
+            for (const LogEntry& e : allEntries) {
                 if (e.message.contains(filter, Qt::CaseInsensitive) ||
                     e.program.contains(filter, Qt::CaseInsensitive)) {
-                    filtered.append(e);
+                    filteredEntries.append(e);
                 }
             }
+            totalVisible = filteredEntries.size();
+            const int start = currentPage * pageSize;
+            for (int i = start; i < qMin(start + pageSize, totalVisible); ++i)
+                pageEntries.append(filteredEntries[i]);
         }
 
-        table->setRowCount(filtered.size());
-        for (int i = 0; i < filtered.size(); ++i) {
-            const LogEntry& e = filtered[i];
+        table->setRowCount(pageEntries.size());
+        for (int i = 0; i < pageEntries.size(); ++i) {
+            const LogEntry& e = pageEntries[i];
             table->setItem(i, 0, new QTableWidgetItem(e.timestamp.toString(u"yyyy-MM-dd hh:mm:ss.zzz"_s)));
-            auto categoryLabel = [&](const QString& cat) -> QString {
-                if (cat == u"operation"_s) return u"操作"_s;
-                if (cat == u"runtime"_s) return u"运行"_s;
-                if (cat == u"guard"_s) return u"守护"_s;
-                if (cat == u"scheduled_restart"_s) return u"定时重启"_s;
-                if (cat == u"scheduled_run"_s) return u"定时运行"_s;
-                return cat;
-            };
             table->setItem(i, 1, new QTableWidgetItem(categoryLabel(category)));
             table->setItem(i, 2, new QTableWidgetItem(e.program));
             table->setItem(i, 3, new QTableWidgetItem(e.message));
         }
 
-        int totalPages = qMax(1, (total + pageSize - 1) / pageSize);
-        infoLabel->setText(u"共 %1 条记录，第 %2/%3 页"_s
-            .arg(total).arg(currentPage + 1).arg(totalPages));
+        int totalPages = qMax(1, (totalVisible + pageSize - 1) / pageSize);
+        if (currentPage >= totalPages)
+            currentPage = totalPages - 1;
+        infoLabel->setText(filter.isEmpty()
+            ? u"共 %1 条记录，第 %2/%3 页"_s.arg(totalVisible).arg(currentPage + 1).arg(totalPages)
+            : u"筛选后 %1/%2 条记录，第 %3/%4 页"_s.arg(totalVisible).arg(total).arg(currentPage + 1).arg(totalPages));
         prevBtn->setEnabled(currentPage > 0);
         nextBtn->setEnabled((currentPage + 1) < totalPages);
     };

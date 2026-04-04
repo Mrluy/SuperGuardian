@@ -63,6 +63,8 @@ QString lightStyleSheet() {
         "QTableWidget, QTableView { background-color: #ffffff; "
             "border: 1px solid #e0e0e0; border-radius: 4px; "
             "gridline-color: #f0f0f0; outline: none; }"
+        "QTableWidget::item:selected, QTableView::item:selected, QListView::item:selected, QTreeView::item:selected { "
+            "background-color: #dbeafe; color: #1a1a1a; border-bottom: 2px solid #005fb7; }"
         "QHeaderView::section { background-color: #f5f5f5; color: #616161; "
             "font-weight: bold; border: none; "
             "border-right: 1px solid #e5e5e5; border-bottom: 1px solid #e5e5e5; padding: 6px; }"

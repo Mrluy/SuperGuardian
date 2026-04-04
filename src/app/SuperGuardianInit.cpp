@@ -123,6 +123,20 @@ void SuperGuardian::initSignals() {
         });
     }
 
+    if (!cfg.contains(u"desktopShortcutPrompted"_s)) {
+        QTimer::singleShot(0, this, [this]() {
+            auto& db = ConfigDatabase::instance();
+            if (db.contains(u"desktopShortcutPrompted"_s))
+                return;
+
+            db.setValue(u"desktopShortcutPrompted"_s, true);
+            if (showMessageDialog(this, u"创建桌面快捷方式"_s,
+                u"是否为“超级守护”创建桌面快捷方式？\n此提示仅在首次运行时出现一次。"_s, true)) {
+                createDesktopShortcut();
+            }
+        });
+    }
+
     // 表头拖动排序：操作列始终在最右
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionMoved, this, [this](int, int, int) {
         if (m_revertingHeader) return;

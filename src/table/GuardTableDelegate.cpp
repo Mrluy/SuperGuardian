@@ -21,7 +21,9 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
     bool isHovered = index.row() == hoverRow;
     bool isSelected = option.state & QStyle::State_Selected;
     if (isSelected) {
-        painter->fillRect(option.rect, isDark ? QColor(0x44, 0x44, 0x44) : QColor(0xe9, 0xe9, 0xe9));
+        painter->fillRect(option.rect, isDark ? QColor(0x21, 0x46, 0x6f) : QColor(0xdb, 0xea, 0xfe));
+        painter->fillRect(QRect(option.rect.left(), option.rect.bottom() - 1, option.rect.width(), 2),
+            isDark ? QColor(0x60, 0xcd, 0xff) : QColor(0x00, 0x5f, 0xb7));
     } else if (isHovered) {
         painter->fillRect(option.rect, isDark ? QColor(0x39, 0x39, 0x39) : QColor(0xf5, 0xf5, 0xf5));
     } else if (QVariant bg = index.data(Qt::BackgroundRole); bg.isValid()) {
@@ -29,7 +31,7 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
     } else {
         painter->fillRect(option.rect, option.palette.base());
     }
-    painter->setPen(option.palette.text().color());
+    painter->setPen(isSelected && isDark ? QColor(Qt::white) : option.palette.text().color());
 
     if (QVariant font = index.data(Qt::FontRole); font.isValid())
         painter->setFont(qvariant_cast<QFont>(font));

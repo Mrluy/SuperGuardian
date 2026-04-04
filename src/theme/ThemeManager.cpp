@@ -4,15 +4,15 @@
 
 using namespace Qt::Literals::StringLiterals;
 
-static QString s_currentTheme = u"light"_s;
+static QString s_currentTheme = u"dark"_s;
 
 QString currentThemeName() { return s_currentTheme; }
 
 QString detectSystemThemeName() {
     HKEY hKey;
-    DWORD useLight = 1;
+    DWORD useLight = 0;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD data = 1;
+        DWORD data = 0;
         DWORD size = sizeof(data);
         if (RegQueryValueExW(hKey, L"AppsUseLightTheme", nullptr, nullptr, reinterpret_cast<LPBYTE>(&data), &size) == ERROR_SUCCESS) {
             useLight = data;
@@ -89,6 +89,8 @@ QString darkStyleSheet() {
         "QTableWidget, QTableView { background-color: #2d2d2d; "
             "border: 1px solid #3d3d3d; border-radius: 4px; "
             "gridline-color: #383838; outline: none; }"
+        "QTableWidget::item:selected, QTableView::item:selected, QListView::item:selected, QTreeView::item:selected { "
+            "background-color: #21466f; color: #ffffff; border-bottom: 2px solid #60cdff; }"
         "QHeaderView::section { background-color: #323232; color: #9d9d9d; "
             "font-weight: bold; border: none; "
             "border-right: 1px solid #3d3d3d; border-bottom: 1px solid #3d3d3d; padding: 6px; }"

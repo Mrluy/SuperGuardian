@@ -2,6 +2,7 @@
 #include "ThemeManager.h"
 #include <QApplication>
 #include <QMouseEvent>
+#include <QToolTip>
 #include <algorithm>
 
 using namespace Qt::Literals::StringLiterals;
@@ -9,7 +10,9 @@ using namespace Qt::Literals::StringLiterals;
 namespace {
 QString opContainerStyle(bool isDark, bool selected, bool hovered) {
     if (selected)
-        return isDark ? u"#opContainer { background: #444444; }"_s : u"#opContainer { background: #e9e9e9; }"_s;
+        return isDark
+            ? u"#opContainer { background: #21466f; border-bottom: 2px solid #60cdff; }"_s
+            : u"#opContainer { background: #dbeafe; border-bottom: 2px solid #005fb7; }"_s;
     if (hovered)
         return isDark ? u"#opContainer { background: #393939; }"_s : u"#opContainer { background: #f5f5f5; }"_s;
     return QString();
@@ -52,6 +55,39 @@ void DesktopSelectTable::updateHoverRow(const QPoint& pos) {
     updateOpWidgetStyle(this, oldRow);
     updateOpWidgetStyle(this, newRow);
     viewport()->update();
+}
+
+void DesktopSelectTable::restartToolTipTimer(const QModelIndex& index, const QPoint& pos) {
+    m_toolTipIndex = index;
+    m_toolTipPos = pos;
+
+    if (!m_toolTipTimer) {
+        m_toolTipTimer = new QTimer(this);
+        m_toolTipTimer->setSingleShot(true);
+        connect(m_toolTipTimer, &QTimer::timeout, this, [this]() {
+            if (!m_toolTipIndex.isValid())
+                return;
+
+            const QString text = model()->data(m_toolTipIndex, Qt::DisplayRole).toString();
+            if (text.isEmpty())
+                return;
+
+            QToolTip::showText(viewport()->mapToGlobal(m_toolTipPos), text, viewport());
+        });
+    }
+
+    QToolTip::hideText();
+    if (m_toolTipIndex.isValid())
+        m_toolTipTimer->start(1000);
+    else
+        m_toolTipTimer->stop();
+}
+
+void DesktopSelectTable::hideDelayedToolTip() {
+    m_toolTipIndex = QPersistentModelIndex();
+    if (m_toolTipTimer)
+        m_toolTipTimer->stop();
+    QToolTip::hideText();
 }
 
 void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
@@ -102,6 +138,7 @@ void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
 
 void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
     updateHoverRow(e->pos());
+    restartToolTipTimer(indexAt(e->pos()), e->pos());
 
     if (m_pendingRowDrag) {
         if ((e->pos() - m_origin).manhattanLength() <= QApplication::startDragDistance())
@@ -203,14 +240,16 @@ void DesktopSelectTable::mouseReleaseEvent(QMouseEvent* e) {
 void DesktopSelectTable::mouseDoubleClickEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
         QModelIndex idx = indexAt(e->pos());
-        if (idx.isValid() && onCellDoubleClicked)
+        if (idx.isValid() && onCellDoubleClicked) {
             onCellDoubleClicked(idx.row(), idx.column());
-        return;
+            return;
+        }
     }
     QTableWidget::mouseDoubleClickEvent(e);
 }
 
 void DesktopSelectTable::leaveEvent(QEvent* e) {
+    hideDelayedToolTip();
     if (m_hoverRow != -1) {
         int oldRow = m_hoverRow;
         m_hoverRow = -1;
@@ -222,6 +261,7 @@ void DesktopSelectTable::leaveEvent(QEvent* e) {
 
 void DesktopSelectTable::selectionChanged(const QItemSelection& selected, const QItemSelection& deselected) {
     QTableWidget::selectionChanged(selected, deselected);
+    killCurrentIndex();
     auto updateRows = [this](const QItemSelection& selection) {
         for (const auto& range : selection) {
             for (int row = range.top(); row <= range.bottom(); ++row)

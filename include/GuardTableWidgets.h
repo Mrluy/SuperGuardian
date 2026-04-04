@@ -10,6 +10,8 @@
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QKeyEvent>
+#include <QPersistentModelIndex>
+#include <QTimer>
 #include <functional>
 
 class ChineseContextMenuFilter : public QObject {
@@ -47,6 +49,8 @@ protected:
 private:
     void killCurrentIndex();
     void updateHoverRow(const QPoint& pos);
+    void restartToolTipTimer(const QModelIndex& index, const QPoint& pos);
+    void hideDelayedToolTip();
     int dropTargetRow(const QPoint& pos);
     enum class Mode { Replace, Toggle, Extend };
     Mode m_mode = Mode::Replace;
@@ -56,7 +60,10 @@ private:
     int m_dragSourceRow = -1;
     int m_hoverRow = -1;
     QPoint m_origin;
+    QPoint m_toolTipPos;
     QRubberBand* m_band = nullptr;
     QFrame* m_dropLine = nullptr;
+    QTimer* m_toolTipTimer = nullptr;
     QItemSelection m_preSelection;
+    QPersistentModelIndex m_toolTipIndex;
 };
