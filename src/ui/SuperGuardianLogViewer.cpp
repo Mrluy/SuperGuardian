@@ -3,12 +3,14 @@
 #include "GuardTableWidgets.h"
 #include "LogDatabase.h"
 #include <QtWidgets>
+#include <memory>
 
 using namespace Qt::Literals::StringLiterals;
 
 // ---- 日志查看器通用实现 ----
 
 static void showLogViewer(QWidget* parent, const QString& title, const QString& category) {
+    const QString logCategory = category;
     auto* dlg = new QDialog(nullptr, kDialogFlags | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
     dlg->setWindowModality(Qt::NonModal);
@@ -45,6 +47,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     table->verticalHeader()->setVisible(false);
     table->setWordWrap(false);
     table->setMouseTracking(true);
+    table->setRowDragEnabled(false);
     table->setItemDelegate(new BruteForceDelegate(table));
     table->setSortingEnabled(true);
     lay->addWidget(table);
@@ -60,8 +63,8 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     pageLay->addWidget(nextBtn);
     lay->addLayout(pageLay);
 
-    int pageSize = 500;
-    int currentPage = 0;
+    const int pageSize = 500;
+    auto currentPage = std::make_shared<int>(0);
 
     auto categoryLabel = [](const QString& cat) -> QString {
         if (cat == u"operation"_s) return u"操作"_s;
@@ -72,18 +75,19 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
         return cat;
     };
 
-    auto loadPage = [&]() {
+    auto loadPage = std::make_shared<std::function<void()>>();
+    *loadPage = [table, searchEdit, infoLabel, prevBtn, nextBtn, currentPage, pageSize, logCategory, categoryLabel]() {
         table->setSortingEnabled(false);
         table->setRowCount(0);
         QString filter = searchEdit->text().trimmed();
-        const int total = LogDatabase::instance().logCount(category);
+        const int total = LogDatabase::instance().logCount(logCategory);
 
         QList<LogEntry> pageEntries;
         int totalVisible = total;
         if (filter.isEmpty()) {
-            pageEntries = LogDatabase::instance().queryLogs(category, pageSize, currentPage * pageSize);
+            pageEntries = LogDatabase::instance().queryLogs(logCategory, pageSize, (*currentPage) * pageSize);
         } else {
-            QList<LogEntry> allEntries = LogDatabase::instance().queryLogs(category, total, 0);
+            QList<LogEntry> allEntries = LogDatabase::instance().queryLogs(logCategory, total, 0);
             QList<LogEntry> filteredEntries;
             for (const LogEntry& e : allEntries) {
                 if (e.message.contains(filter, Qt::CaseInsensitive) ||
@@ -92,7 +96,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
                 }
             }
             totalVisible = filteredEntries.size();
-            const int start = currentPage * pageSize;
+            const int start = (*currentPage) * pageSize;
             for (int i = start; i < qMin(start + pageSize, totalVisible); ++i)
                 pageEntries.append(filteredEntries[i]);
         }
@@ -101,50 +105,53 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
         for (int i = 0; i < pageEntries.size(); ++i) {
             const LogEntry& e = pageEntries[i];
             table->setItem(i, 0, new QTableWidgetItem(e.timestamp.toString(u"yyyy-MM-dd hh:mm:ss.zzz"_s)));
-            table->setItem(i, 1, new QTableWidgetItem(categoryLabel(category)));
+            table->setItem(i, 1, new QTableWidgetItem(categoryLabel(logCategory)));
             table->setItem(i, 2, new QTableWidgetItem(e.program));
             table->setItem(i, 3, new QTableWidgetItem(e.message));
         }
 
         int totalPages = qMax(1, (totalVisible + pageSize - 1) / pageSize);
-        if (currentPage >= totalPages)
-            currentPage = totalPages - 1;
+        if (*currentPage >= totalPages)
+            *currentPage = totalPages - 1;
         infoLabel->setText(filter.isEmpty()
-            ? u"共 %1 条记录，第 %2/%3 页"_s.arg(totalVisible).arg(currentPage + 1).arg(totalPages)
-            : u"筛选后 %1/%2 条记录，第 %3/%4 页"_s.arg(totalVisible).arg(total).arg(currentPage + 1).arg(totalPages));
-        prevBtn->setEnabled(currentPage > 0);
-        nextBtn->setEnabled((currentPage + 1) < totalPages);
+            ? u"共 %1 条记录，第 %2/%3 页"_s.arg(totalVisible).arg(*currentPage + 1).arg(totalPages)
+            : u"筛选后 %1/%2 条记录，第 %3/%4 页"_s.arg(totalVisible).arg(total).arg(*currentPage + 1).arg(totalPages));
+        prevBtn->setEnabled(*currentPage > 0);
+        nextBtn->setEnabled((*currentPage + 1) < totalPages);
         table->setSortingEnabled(true);
     };
 
-    QObject::connect(refreshBtn, &QPushButton::clicked, dlg, [&]() {
-        currentPage = 0;
-        loadPage();
+    QObject::connect(refreshBtn, &QPushButton::clicked, dlg, [currentPage, loadPage]() {
+        *currentPage = 0;
+        (*loadPage)();
     });
 
-    QObject::connect(searchEdit, &QLineEdit::returnPressed, dlg, [&]() {
-        currentPage = 0;
-        loadPage();
+    QObject::connect(searchEdit, &QLineEdit::returnPressed, dlg, [currentPage, loadPage]() {
+        *currentPage = 0;
+        (*loadPage)();
     });
 
-    QObject::connect(clearBtn, &QPushButton::clicked, dlg, [&]() {
+    QObject::connect(clearBtn, &QPushButton::clicked, dlg, [dlg, currentPage, loadPage, logCategory]() {
         if (showMessageDialog(dlg, u"清空日志"_s, u"确认清空所有日志吗？"_s, true)) {
-            LogDatabase::instance().clearLogs(category);
-            currentPage = 0;
-            loadPage();
+            LogDatabase::instance().clearLogs(logCategory);
+            *currentPage = 0;
+            (*loadPage)();
         }
     });
 
-    QObject::connect(prevBtn, &QPushButton::clicked, dlg, [&]() {
-        if (currentPage > 0) { --currentPage; loadPage(); }
+    QObject::connect(prevBtn, &QPushButton::clicked, dlg, [currentPage, loadPage]() {
+        if (*currentPage > 0) {
+            --(*currentPage);
+            (*loadPage)();
+        }
     });
 
-    QObject::connect(nextBtn, &QPushButton::clicked, dlg, [&]() {
-        ++currentPage;
-        loadPage();
+    QObject::connect(nextBtn, &QPushButton::clicked, dlg, [currentPage, loadPage]() {
+        ++(*currentPage);
+        (*loadPage)();
     });
 
-    loadPage();
+    (*loadPage)();
     dlg->show();
     dlg->raise();
     dlg->activateWindow();

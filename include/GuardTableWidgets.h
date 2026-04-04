@@ -37,6 +37,8 @@ public:
     std::function<void(int, int)> onKeyPressed;
     std::function<void(const QList<int>&)> onDeletePressed;
     int hoveredRow() const { return m_hoverRow; }
+    void setRowDragEnabled(bool enabled) { m_rowDragEnabled = enabled; }
+    bool isRowDragEnabled() const { return m_rowDragEnabled; }
 protected:
     bool viewportEvent(QEvent* event) override;
     void mousePressEvent(QMouseEvent* e) override;
@@ -58,6 +60,7 @@ private:
     bool m_dragActive = false;
     bool m_pendingRowDrag = false;
     bool m_rowDragMode = false;
+    bool m_rowDragEnabled = true;
     int m_dragSourceRow = -1;
     int m_hoverRow = -1;
     QPoint m_origin;

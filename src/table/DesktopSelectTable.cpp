@@ -119,7 +119,7 @@ void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {
     }
 
     QModelIndex idx = indexAt(e->pos());
-    if (idx.isValid() && selectionModel()->isRowSelected(idx.row(), QModelIndex())
+    if (m_rowDragEnabled && idx.isValid() && selectionModel()->isRowSelected(idx.row(), QModelIndex())
         && !(e->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))) {
         m_pendingRowDrag = true;
         m_rowDragMode = false;
@@ -305,6 +305,36 @@ void DesktopSelectTable::killCurrentIndex() {
 }
 
 void DesktopSelectTable::keyPressEvent(QKeyEvent* e) {
+    if ((e->key() == Qt::Key_Up || e->key() == Qt::Key_Down) && e->modifiers() == Qt::NoModifier) {
+        if (rowCount() <= 0)
+            return;
+
+        int targetRow = -1;
+        QModelIndexList rows = selectionModel() ? selectionModel()->selectedRows() : QModelIndexList{};
+        if (rows.isEmpty()) {
+            targetRow = 0;
+        } else {
+            QList<int> rowList;
+            for (const QModelIndex& idx : rows)
+                rowList.append(idx.row());
+            std::sort(rowList.begin(), rowList.end());
+
+            if (e->key() == Qt::Key_Up)
+                targetRow = qMax(0, rowList.first() - 1);
+            else
+                targetRow = qMin(rowCount() - 1, rowList.last() + 1);
+        }
+
+        if (targetRow >= 0) {
+            clearSelection();
+            selectionModel()->select(model()->index(targetRow, 0),
+                QItemSelectionModel::Select | QItemSelectionModel::Rows);
+            scrollTo(model()->index(targetRow, 0), QAbstractItemView::PositionAtCenter);
+            killCurrentIndex();
+        }
+        return;
+    }
+
     if (e->key() == Qt::Key_Delete && onDeletePressed) {
         auto rows = selectionModel() ? selectionModel()->selectedRows() : QModelIndexList{};
         if (!rows.isEmpty()) {

@@ -390,6 +390,7 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
     tableWidget->verticalHeader()->setDefaultSectionSize(24);
     tableWidget->verticalHeader()->setVisible(false);
     tableWidget->setMouseTracking(true);
+    tableWidget->setRowDragEnabled(false);
     tableWidget->setAcceptDrops(true);
     tableWidget->viewport()->setAcceptDrops(true);
     tableWidget->setItemDelegate(new BruteForceDelegate(tableWidget));
