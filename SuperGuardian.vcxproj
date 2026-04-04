@@ -108,6 +108,7 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\config\SuperGuardianConfigReset.cpp" />
     <ClCompile Include="src\table\DesktopSelectTable.cpp" />
     <ClCompile Include="src\ui\DialogHelpers.cpp" />
     <ClCompile Include="src\services\EmailService.cpp" />
@@ -131,6 +132,8 @@
     <ClCompile Include="src\ui\SuperGuardianColumns.cpp" />
     <ClCompile Include="src\app\SuperGuardianBatchOps.cpp" />
     <ClCompile Include="src\ui\SuperGuardianItemDialogs.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianWhitelistTest.cpp" />
+    <ClCompile Include="src\ui\WhitelistData.cpp" />
     <QtRcc Include="resources.qrc" />
     <QtRcc Include="SuperGuardian.qrc" />
     <QtUic Include="SuperGuardian.ui" />
@@ -159,8 +162,9 @@
     <ClInclude Include="include\GuardTableWidgets.h" />
     <ClInclude Include="include\ProcessUtils.h" />
     <ClInclude Include="include\ThemeManager.h" />
+    <ClInclude Include="include\WhitelistData.h" />
   </ItemGroup>
-<ItemGroup>
+  <ItemGroup>
     <ResourceCompile Include="app.rc" />
   </ItemGroup>
   <ItemGroup>
@@ -173,6 +177,3 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-
-
-
