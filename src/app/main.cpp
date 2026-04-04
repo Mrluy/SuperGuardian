@@ -16,7 +16,7 @@ using namespace Qt::Literals::StringLiterals;
 int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName(u"SuperGuardian"_s);
     QCoreApplication::setOrganizationName(u"SuperGuardian"_s);
-    QCoreApplication::setApplicationVersion(u"1.0.1"_s);
+    QCoreApplication::setApplicationVersion(u"1.0.2"_s);
 
     if (argc > 1 && QByteArrayView(argv[1]) == "--watchdog") {
         QCoreApplication app(argc, argv);

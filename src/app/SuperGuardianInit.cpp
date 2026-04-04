@@ -129,6 +129,13 @@ void SuperGuardian::initSignals() {
             if (db.contains(u"desktopShortcutPrompted"_s))
                 return;
 
+            const QString desktop = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+            const QString shortcutPath = QDir(desktop).filePath(u"超级守护.lnk"_s);
+            if (QFileInfo::exists(shortcutPath)) {
+                db.setValue(u"desktopShortcutPrompted"_s, true);
+                return;
+            }
+
             db.setValue(u"desktopShortcutPrompted"_s, true);
             if (showMessageDialog(this, u"创建桌面快捷方式"_s,
                 u"是否为“超级守护”创建桌面快捷方式？\n此提示仅在首次运行时出现一次。"_s, true)) {

@@ -1,6 +1,7 @@
 #include "GuardTableWidgets.h"
 #include "ThemeManager.h"
 #include <QApplication>
+#include <QHelpEvent>
 #include <QMouseEvent>
 #include <QToolTip>
 #include <algorithm>
@@ -58,6 +59,12 @@ void DesktopSelectTable::updateHoverRow(const QPoint& pos) {
 }
 
 void DesktopSelectTable::restartToolTipTimer(const QModelIndex& index, const QPoint& pos) {
+    if (index == m_toolTipIndex) {
+        m_toolTipPos = pos;
+        if (QToolTip::isVisible() || (m_toolTipTimer && m_toolTipTimer->isActive()))
+            return;
+    }
+
     m_toolTipIndex = index;
     m_toolTipPos = pos;
 
@@ -68,7 +75,9 @@ void DesktopSelectTable::restartToolTipTimer(const QModelIndex& index, const QPo
             if (!m_toolTipIndex.isValid())
                 return;
 
-            const QString text = model()->data(m_toolTipIndex, Qt::DisplayRole).toString();
+            QString text = model()->data(m_toolTipIndex, Qt::ToolTipRole).toString();
+            if (text.isEmpty())
+                text = model()->data(m_toolTipIndex, Qt::DisplayRole).toString();
             if (text.isEmpty())
                 return;
 
@@ -88,6 +97,19 @@ void DesktopSelectTable::hideDelayedToolTip() {
     if (m_toolTipTimer)
         m_toolTipTimer->stop();
     QToolTip::hideText();
+}
+
+bool DesktopSelectTable::viewportEvent(QEvent* event) {
+    if (event->type() == QEvent::ToolTip) {
+        auto* helpEvent = static_cast<QHelpEvent*>(event);
+        restartToolTipTimer(indexAt(helpEvent->pos()), helpEvent->pos());
+        return true;
+    }
+
+    if (event->type() == QEvent::Leave)
+        hideDelayedToolTip();
+
+    return QTableWidget::viewportEvent(event);
 }
 
 void DesktopSelectTable::mousePressEvent(QMouseEvent* e) {

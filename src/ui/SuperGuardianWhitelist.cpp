@@ -10,8 +10,11 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMimeData>
+#include <QPointer>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <algorithm>
+#include <memory>
 
 // ---- 允许重复添加的程序白名单 ----
 
@@ -143,6 +146,82 @@ QStringList collectWhitelistPaths(DesktopSelectTable* table) {
     return result;
 }
 
+QStringList collectWhitelistPaths(DesktopSelectTable* table, const QList<int>& rows) {
+    QStringList result;
+    QSet<QString> seen;
+    for (int row : rows) {
+        if (!table || row < 0 || row >= table->rowCount())
+            continue;
+
+        QTableWidgetItem* pathItem = table->item(row, 1);
+        if (!pathItem)
+            continue;
+
+        const QString normalized = normalizeWhitelistPath(pathItem->text());
+        if (normalized.isEmpty())
+            continue;
+
+        const QString key = normalized.toLower();
+        if (seen.contains(key))
+            continue;
+
+        seen.insert(key);
+        result.append(normalized);
+    }
+    return result;
+}
+
+int promptImportMode(QWidget* parent, const QString& title) {
+    bool ok = false;
+    const QString mode = showItemDialog(parent, title, u"请选择导入方式："_s,
+        { u"增量导入（保留现有项）"_s, u"覆盖导入（清空后导入）"_s }, &ok);
+    if (!ok)
+        return 0;
+    return mode.startsWith(u"覆盖"_s) ? 2 : 1;
+}
+
+void refreshWhitelistFilter(DesktopSelectTable* table, QLabel* statsLabel, const QString& keyword);
+
+int addWhitelistPaths(DesktopSelectTable* table, QLabel* statsLabel, QLineEdit* searchEdit,
+    const QStringList& paths, bool replaceExisting, bool* updatingTable) {
+    if (!table || !statsLabel || !searchEdit || !updatingTable)
+        return 0;
+
+    int added = 0;
+    *updatingTable = true;
+    const QSignalBlocker blocker(table);
+
+    if (replaceExisting) {
+        table->clearContents();
+        table->setRowCount(0);
+    }
+
+    for (const QString& path : paths) {
+        if (addWhitelistPath(table, path))
+            ++added;
+    }
+
+    *updatingTable = false;
+    refreshWhitelistFilter(table, statsLabel, searchEdit->text());
+    return added;
+}
+
+QString buildDropConfirmText(const QStringList& files) {
+    if (files.isEmpty())
+        return u"未检测到可添加的文件。"_s;
+
+    QStringList preview;
+    const int previewCount = qMin(5, files.size());
+    for (int i = 0; i < previewCount; ++i) {
+        const QString file = files[i];
+        preview.append(u"- %1"_s.arg(QFileInfo(file).fileName().isEmpty() ? file : QFileInfo(file).fileName()));
+    }
+    if (files.size() > previewCount)
+        preview.append(u"- ... 其余 %1 项"_s.arg(files.size() - previewCount));
+
+    return u"确认添加拖入的 %1 个程序吗？\n\n%2"_s.arg(files.size()).arg(preview.join(u"\n"_s));
+}
+
 void refreshWhitelistFilter(DesktopSelectTable* table, QLabel* statsLabel, const QString& keyword) {
     const QString filter = keyword.trimmed();
     int visibleRows = 0;
@@ -269,27 +348,41 @@ protected:
 }
 
 void SuperGuardian::showDuplicateWhitelistDialog() {
-    QDialog dlg(this, kDialogFlags);
-    dlg.setWindowTitle(u"允许重复添加的程序"_s);
-    dlg.resize(900, 560);
-    QVBoxLayout* lay = new QVBoxLayout(&dlg);
-    lay->addWidget(new QLabel(u"以下程序允许重复添加到列表中。支持多选、拖放、搜索、导入、导出和直接编辑路径；系统内置工具默认允许重复添加。"_s));
+    static QPointer<QDialog> s_dialog;
+    if (s_dialog) {
+        s_dialog->showNormal();
+        s_dialog->raise();
+        s_dialog->activateWindow();
+        return;
+    }
 
-    QHBoxLayout* searchLay = new QHBoxLayout();
+    auto* dlg = new QDialog(nullptr, kDialogFlags | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
+    s_dialog = dlg;
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setWindowModality(Qt::NonModal);
+    dlg->setWindowTitle(u"允许重复添加的程序"_s);
+    dlg->setWindowIcon(windowIcon());
+    dlg->resize(900, 560);
+
+    auto* lay = new QVBoxLayout(dlg);
+    lay->addWidget(new QLabel(u"以下程序允许重复添加到列表中。支持多选、Ctrl/Shift 选择、拖放、搜索、导入、导出、导出选中和直接编辑路径；系统内置工具默认允许重复添加。"_s));
+
+    auto* searchLay = new QHBoxLayout();
     searchLay->addWidget(new QLabel(u"搜索："_s));
-    QLineEdit* searchEdit = new QLineEdit();
+    auto* searchEdit = new QLineEdit(dlg);
     searchEdit->setClearButtonEnabled(true);
     searchEdit->setPlaceholderText(u"按程序名或路径搜索，适合大量数据快速定位"_s);
     searchLay->addWidget(searchEdit);
-    QLabel* statsLabel = new QLabel();
+    auto* statsLabel = new QLabel(dlg);
     searchLay->addWidget(statsLabel);
     lay->addLayout(searchLay);
 
-    auto* tableWidget = new WhitelistTable();
+    auto* tableWidget = new WhitelistTable(dlg);
     tableWidget->setColumnCount(2);
     tableWidget->setHorizontalHeaderLabels({ u"程序"_s, u"程序路径"_s });
     tableWidget->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     tableWidget->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    tableWidget->horizontalHeader()->setSectionsMovable(false);
     tableWidget->setSelectionBehavior(QAbstractItemView::SelectRows);
     tableWidget->setSelectionMode(QAbstractItemView::ExtendedSelection);
     tableWidget->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed | QAbstractItemView::SelectedClicked);
@@ -297,43 +390,38 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
     tableWidget->verticalHeader()->setDefaultSectionSize(24);
     tableWidget->verticalHeader()->setVisible(false);
     tableWidget->setMouseTracking(true);
+    tableWidget->setAcceptDrops(true);
+    tableWidget->viewport()->setAcceptDrops(true);
     tableWidget->setItemDelegate(new BruteForceDelegate(tableWidget));
-    lay->addWidget(tableWidget);
+    tableWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    lay->addWidget(tableWidget, 1);
 
-    bool updatingTable = false;
+    auto updatingTable = std::make_shared<bool>(false);
 
-    auto addPaths = [&](const QStringList& paths) {
-        int added = 0;
-        updatingTable = true;
-        for (const QString& path : paths) {
-            if (addWhitelistPath(tableWidget, path))
-                ++added;
-        }
-        updatingTable = false;
-        refreshWhitelistFilter(tableWidget, statsLabel, searchEdit->text());
-        return added;
+    addWhitelistPaths(tableWidget, statsLabel, searchEdit, duplicateWhitelist, false, updatingTable.get());
+
+    tableWidget->onFilesDropped = [dlg, tableWidget, statsLabel, searchEdit, updatingTable](const QStringList& files) {
+        if (files.isEmpty())
+            return;
+        if (!showMessageDialog(dlg, u"确认添加程序"_s, buildDropConfirmText(files), true))
+            return;
+        addWhitelistPaths(tableWidget, statsLabel, searchEdit, files, false, updatingTable.get());
     };
-
-    addPaths(duplicateWhitelist);
-
-    tableWidget->onFilesDropped = [&](const QStringList& files) {
-        addPaths(files);
+    tableWidget->onTextPasted = [tableWidget, statsLabel, searchEdit, updatingTable](const QStringList& lines) {
+        addWhitelistPaths(tableWidget, statsLabel, searchEdit, lines, false, updatingTable.get());
     };
-    tableWidget->onTextPasted = [&](const QStringList& lines) {
-        addPaths(lines);
-    };
-    tableWidget->onDeletePressed = [&](const QList<int>& rows) {
+    tableWidget->onDeletePressed = [tableWidget, statsLabel, searchEdit](const QList<int>& rows) {
         for (int i = rows.size() - 1; i >= 0; --i)
             tableWidget->removeRow(rows[i]);
         refreshWhitelistFilter(tableWidget, statsLabel, searchEdit->text());
     };
 
-    QObject::connect(searchEdit, &QLineEdit::textChanged, &dlg, [&](const QString& text) {
+    QObject::connect(searchEdit, &QLineEdit::textChanged, dlg, [tableWidget, statsLabel](const QString& text) {
         refreshWhitelistFilter(tableWidget, statsLabel, text);
     });
 
-    QObject::connect(tableWidget, &QTableWidget::itemChanged, &dlg, [&](QTableWidgetItem* changedItem) {
-        if (updatingTable || !changedItem || changedItem->column() != 1)
+    QObject::connect(tableWidget, &QTableWidget::itemChanged, dlg, [tableWidget, statsLabel, searchEdit, updatingTable](QTableWidgetItem* changedItem) {
+        if (*updatingTable || !changedItem || changedItem->column() != 1)
             return;
 
         const int row = changedItem->row();
@@ -350,44 +438,74 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
             return;
         }
 
-        updatingTable = true;
+        *updatingTable = true;
         updateWhitelistRow(tableWidget, row, normalized);
-        updatingTable = false;
+        *updatingTable = false;
         refreshWhitelistFilter(tableWidget, statsLabel, searchEdit->text());
     });
 
-    QHBoxLayout* editLay = new QHBoxLayout();
-    QPushButton* addBtn = new QPushButton(u"添加程序"_s);
-    QPushButton* importBtn = new QPushButton(u"导入"_s);
-    QPushButton* exportBtn = new QPushButton(u"导出"_s);
-    QPushButton* removeBtn = new QPushButton(u"删除选中"_s);
-    QPushButton* selectAllBtn = new QPushButton(u"全选可见项"_s);
+    auto* editLay = new QHBoxLayout();
+    auto* addBtn = new QPushButton(u"添加程序"_s, dlg);
+    auto* importBtn = new QPushButton(u"导入"_s, dlg);
+    auto* exportSelectedBtn = new QPushButton(u"导出选中"_s, dlg);
+    auto* exportBtn = new QPushButton(u"导出全部"_s, dlg);
+    auto* removeBtn = new QPushButton(u"删除选中"_s, dlg);
+    auto* removeAllBtn = new QPushButton(u"删除全部"_s, dlg);
     editLay->addWidget(addBtn);
     editLay->addWidget(importBtn);
+    editLay->addWidget(exportSelectedBtn);
     editLay->addWidget(exportBtn);
     editLay->addWidget(removeBtn);
-    editLay->addWidget(selectAllBtn);
+    editLay->addWidget(removeAllBtn);
     editLay->addStretch();
     lay->addLayout(editLay);
 
-    QObject::connect(addBtn, &QPushButton::clicked, [&]() {
-        QStringList files = QFileDialog::getOpenFileNames(&dlg,
+    QObject::connect(addBtn, &QPushButton::clicked, dlg, [dlg, tableWidget, statsLabel, searchEdit, updatingTable]() {
+        QStringList files = QFileDialog::getOpenFileNames(dlg,
             u"选择程序"_s, QString(), u"Executable (*.exe);;Shortcut (*.lnk);;All Files (*)"_s);
-        addPaths(files);
+        addWhitelistPaths(tableWidget, statsLabel, searchEdit, files, false, updatingTable.get());
     });
-    QObject::connect(importBtn, &QPushButton::clicked, [&]() {
-        const QString filePath = QFileDialog::getOpenFileName(&dlg,
+    QObject::connect(importBtn, &QPushButton::clicked, dlg, [dlg, tableWidget, statsLabel, searchEdit, updatingTable]() {
+        const QString filePath = QFileDialog::getOpenFileName(dlg,
             u"导入白名单"_s, QString(), u"支持的文件 (*.txt *.json);;文本文件 (*.txt);;JSON 文件 (*.json)"_s);
         if (filePath.isEmpty())
             return;
 
+        const int importMode = promptImportMode(dlg, u"导入白名单"_s);
+        if (importMode == 0)
+            return;
+
         const QStringList importedPaths = importWhitelistEntries(filePath);
-        const int added = addPaths(importedPaths);
-        showMessageDialog(&dlg, u"导入完成"_s,
+        if (importedPaths.isEmpty()) {
+            showMessageDialog(dlg, u"导入失败"_s, u"导入文件中没有可用的程序路径。"_s);
+            return;
+        }
+        const int added = addWhitelistPaths(tableWidget, statsLabel, searchEdit, importedPaths, importMode == 2, updatingTable.get());
+        showMessageDialog(dlg, u"导入完成"_s,
             u"共读取 %1 条，成功导入 %2 条。"_s.arg(importedPaths.size()).arg(added));
     });
-    QObject::connect(exportBtn, &QPushButton::clicked, [&]() {
-        const QString filePath = QFileDialog::getSaveFileName(&dlg,
+    QObject::connect(exportSelectedBtn, &QPushButton::clicked, dlg, [dlg, tableWidget]() {
+        const QList<int> rows = selectedRowsOf(tableWidget);
+        const QStringList paths = collectWhitelistPaths(tableWidget, rows);
+        if (paths.isEmpty()) {
+            showMessageDialog(dlg, u"导出选中"_s, u"请先选择至少一项。"_s);
+            return;
+        }
+
+        const QString filePath = QFileDialog::getSaveFileName(dlg,
+            u"导出选中白名单"_s, u"duplicate_whitelist_selected.json"_s,
+            u"JSON 文件 (*.json);;文本文件 (*.txt)"_s);
+        if (filePath.isEmpty())
+            return;
+
+        if (!exportWhitelistEntries(filePath, paths)) {
+            showMessageDialog(dlg, u"导出失败"_s, u"无法写入导出文件。"_s);
+            return;
+        }
+        showMessageDialog(dlg, u"导出完成"_s, u"选中白名单已成功导出。"_s);
+    });
+    QObject::connect(exportBtn, &QPushButton::clicked, dlg, [dlg, tableWidget]() {
+        const QString filePath = QFileDialog::getSaveFileName(dlg,
             u"导出白名单"_s, u"duplicate_whitelist.json"_s,
             u"JSON 文件 (*.json);;文本文件 (*.txt)"_s);
         if (filePath.isEmpty())
@@ -395,40 +513,60 @@ void SuperGuardian::showDuplicateWhitelistDialog() {
 
         const QStringList paths = collectWhitelistPaths(tableWidget);
         if (!exportWhitelistEntries(filePath, paths)) {
-            showMessageDialog(&dlg, u"导出失败"_s, u"无法写入导出文件。"_s);
+            showMessageDialog(dlg, u"导出失败"_s, u"无法写入导出文件。"_s);
             return;
         }
-        showMessageDialog(&dlg, u"导出完成"_s, u"白名单已成功导出。"_s);
+        showMessageDialog(dlg, u"导出完成"_s, u"白名单已成功导出。"_s);
     });
-    QObject::connect(removeBtn, &QPushButton::clicked, [&]() {
+    QObject::connect(removeBtn, &QPushButton::clicked, dlg, [dlg, tableWidget, statsLabel, searchEdit]() {
         const QList<int> rows = selectedRowsOf(tableWidget);
+        if (rows.isEmpty()) {
+            showMessageDialog(dlg, u"删除选中"_s, u"请先选择至少一项。"_s);
+            return;
+        }
+        const QString msg = rows.size() == 1
+            ? u"确认删除选中的 1 个程序吗？"_s
+            : u"确认删除选中的 %1 个程序吗？"_s.arg(rows.size());
+        if (!showMessageDialog(dlg, u"删除选中"_s, msg, true))
+            return;
         for (int i = rows.size() - 1; i >= 0; --i)
             tableWidget->removeRow(rows[i]);
         refreshWhitelistFilter(tableWidget, statsLabel, searchEdit->text());
     });
-    QObject::connect(selectAllBtn, &QPushButton::clicked, [&]() {
-        tableWidget->clearSelection();
-        for (int row = 0; row < tableWidget->rowCount(); ++row) {
-            if (tableWidget->isRowHidden(row))
-                continue;
-            tableWidget->selectionModel()->select(tableWidget->model()->index(row, 0),
-                QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    QObject::connect(removeAllBtn, &QPushButton::clicked, dlg, [dlg, tableWidget, statsLabel, searchEdit]() {
+        if (tableWidget->rowCount() == 0) {
+            showMessageDialog(dlg, u"删除全部"_s, u"当前列表为空，无需删除。"_s);
+            return;
         }
+        if (!showMessageDialog(dlg, u"删除全部"_s, u"确认删除列表中的全部程序吗？"_s, true))
+            return;
+        tableWidget->clearContents();
+        tableWidget->setRowCount(0);
+        refreshWhitelistFilter(tableWidget, statsLabel, searchEdit->text());
     });
 
-    lay->addStretch();
-    QHBoxLayout* btnLay = new QHBoxLayout();
+    auto* btnLay = new QHBoxLayout();
     btnLay->addStretch();
-    QPushButton* okBtn = new QPushButton(u"确定"_s);
-    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
-    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
-    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
-    btnLay->addWidget(okBtn); btnLay->addWidget(cancelBtn); btnLay->addStretch();
+    auto* okBtn = new QPushButton(u"确定"_s, dlg);
+    auto* cancelBtn = new QPushButton(u"取消"_s, dlg);
+    QObject::connect(okBtn, &QPushButton::clicked, dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, dlg, &QDialog::reject);
+    btnLay->addWidget(okBtn);
+    btnLay->addWidget(cancelBtn);
+    btnLay->addStretch();
     lay->addLayout(btnLay);
 
-    if (dlg.exec() != QDialog::Accepted) return;
-    duplicateWhitelist = collectWhitelistPaths(tableWidget);
-    ConfigDatabase::instance().setValue(u"duplicateWhitelist"_s, duplicateWhitelist.join(u"|"_s));
+    QObject::connect(dlg, &QDialog::accepted, dlg, [this, tableWidget]() {
+        duplicateWhitelist = collectWhitelistPaths(tableWidget);
+        ConfigDatabase::instance().setValue(u"duplicateWhitelist"_s, duplicateWhitelist.join(u"|"_s));
+    });
+    QObject::connect(dlg, &QObject::destroyed, this, []() {
+        s_dialog = nullptr;
+    });
+
+    dlg->show();
+    dlg->raise();
+    dlg->activateWindow();
 }
 
 // ---- 测试程序是否允许重复添加 ----

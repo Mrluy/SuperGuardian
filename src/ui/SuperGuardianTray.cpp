@@ -144,13 +144,36 @@ void SuperGuardian::onTrayActivated(QSystemTrayIcon::ActivationReason reason) {
 }
 
 void SuperGuardian::onExit() {
+    if (m_exiting)
+        return;
+
+    m_exiting = true;
     ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, true);
     stopWatchdogHelper();
     logOperation(u"退出软件"_s);
-    qApp->quit();
+
+    if (tray)
+        tray->hide();
+
+    const auto topLevels = qApp->topLevelWidgets();
+    for (QWidget* widget : topLevels) {
+        if (!widget)
+            continue;
+        if (widget == this)
+            continue;
+        widget->close();
+    }
+
+    close();
+    QTimer::singleShot(0, qApp, &QCoreApplication::quit);
 }
 
 void SuperGuardian::closeEvent(QCloseEvent* event) {
+    if (m_exiting) {
+        QMainWindow::closeEvent(event);
+        return;
+    }
+
     if (tray) {
         hide();
         event->ignore();

@@ -194,10 +194,92 @@ static bool tryImportIni(const QString& filePath, QJsonObject& outJson) {
     return true;
 }
 
+static int promptImportMode(QWidget* parent, const QString& title) {
+    bool ok = false;
+    const QString mode = showItemDialog(parent, title, u"请选择导入方式："_s,
+        { u"增量导入（保留现有项）"_s, u"覆盖导入（清空后导入）"_s }, &ok);
+    if (!ok)
+        return 0;
+    return mode.startsWith(u"覆盖"_s) ? 2 : 1;
+}
+
+static QJsonArray parseItemsValue(const QJsonValue& value) {
+    if (value.isArray())
+        return value.toArray();
+    if (!value.isString())
+        return {};
+
+    const QJsonDocument doc = QJsonDocument::fromJson(value.toString().toUtf8());
+    return doc.isArray() ? doc.array() : QJsonArray();
+}
+
+static QString configItemKey(const QJsonObject& item) {
+    return QDir::toNativeSeparators(item.value(u"path"_s).toString().trimmed()).toLower();
+}
+
+static QString mergeItemsJson(const QJsonValue& currentValue, const QJsonValue& importedValue) {
+    QJsonArray merged = parseItemsValue(currentValue);
+    const QJsonArray imported = parseItemsValue(importedValue);
+
+    QHash<QString, int> indexes;
+    for (int i = 0; i < merged.size(); ++i) {
+        if (!merged[i].isObject())
+            continue;
+        const QString key = configItemKey(merged[i].toObject());
+        if (!key.isEmpty())
+            indexes.insert(key, i);
+    }
+
+    for (const QJsonValue& value : imported) {
+        if (!value.isObject())
+            continue;
+
+        QJsonObject item = value.toObject();
+        const QString key = configItemKey(item);
+        if (key.isEmpty())
+            continue;
+
+        if (indexes.contains(key))
+            merged[indexes.value(key)] = item;
+        else {
+            indexes.insert(key, merged.size());
+            merged.append(item);
+        }
+    }
+
+    for (int i = 0; i < merged.size(); ++i) {
+        if (!merged[i].isObject())
+            continue;
+        QJsonObject item = merged[i].toObject();
+        item[u"insertionOrder"_s] = i;
+        merged[i] = item;
+    }
+
+    return QString::fromUtf8(QJsonDocument(merged).toJson(QJsonDocument::Compact));
+}
+
+static QJsonObject mergeConfigJson(const QJsonObject& currentJson, const QJsonObject& importedJson) {
+    QJsonObject merged = currentJson;
+    for (auto it = importedJson.constBegin(); it != importedJson.constEnd(); ++it) {
+        if (it.key() == u"items"_s)
+            continue;
+        merged[it.key()] = it.value();
+    }
+
+    if (importedJson.contains(u"items"_s))
+        merged[u"items"_s] = mergeItemsJson(currentJson.value(u"items"_s), importedJson.value(u"items"_s));
+
+    return merged;
+}
+
 void SuperGuardian::importConfig() {
     QString filePath = QFileDialog::getOpenFileName(this,
         u"导入配置"_s, QString(), u"配置文件 (*.json *.ini);;JSON Files (*.json);;INI Files (*.ini)"_s);
     if (filePath.isEmpty())
+        return;
+
+    const int importMode = promptImportMode(this, u"导入配置"_s);
+    if (importMode == 0)
         return;
 
     QJsonObject json;
@@ -210,7 +292,11 @@ void SuperGuardian::importConfig() {
         return;
     }
 
-    ConfigDatabase::instance().importFromJson(json);
+    QJsonObject finalJson = json;
+    if (importMode == 1)
+        finalJson = mergeConfigJson(ConfigDatabase::instance().exportToJson(), json);
+
+    ConfigDatabase::instance().importFromJson(finalJson);
     items.clear();
     tableWidget->setRowCount(0);
     loadSettings();
@@ -220,8 +306,9 @@ void SuperGuardian::importConfig() {
     QString theme = db.contains(u"theme"_s) ? db.value(u"theme"_s).toString() : detectSystemThemeName();
     applyTheme(theme);
 
-    showMessageDialog(this, u"导入配置"_s, u"配置已成功导入。"_s);
-    logOperation(u"导入配置从 %1"_s.arg(filePath));
+    showMessageDialog(this, u"导入配置"_s,
+        importMode == 1 ? u"配置已成功增量导入。"_s : u"配置已成功覆盖导入。"_s);
+    logOperation((importMode == 1 ? u"增量导入配置从 %1"_s : u"覆盖导入配置从 %1"_s).arg(filePath));
 }
 
 void SuperGuardian::resetConfig() {

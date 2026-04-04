@@ -193,7 +193,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 void SuperGuardian::showAboutDialog() {
     QDialog dlg(this, kDialogFlags);
     dlg.setWindowTitle(u"关于 超级守护"_s);
-    dlg.setFixedSize(360, 260);
+    dlg.setFixedSize(420, 320);
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
     QLabel* iconLabel = new QLabel();
     iconLabel->setPixmap(QIcon(u":/SuperGuardian/app.ico"_s).pixmap(64, 64));
@@ -212,6 +212,14 @@ void SuperGuardian::showAboutDialog() {
     QLabel* descLabel = new QLabel(u"Windows 进程守护与定时管理工具"_s);
     descLabel->setAlignment(Qt::AlignCenter);
     lay->addWidget(descLabel);
+    QLabel* openSourceLabel = new QLabel(u"本软件完全开源"_s);
+    openSourceLabel->setAlignment(Qt::AlignCenter);
+    lay->addWidget(openSourceLabel);
+    QLabel* linkLabel = new QLabel(u"<a href=\"https://github.com/Mrluy/SuperGuardian/tree/master\">项目地址：https://github.com/Mrluy/SuperGuardian/tree/master</a>"_s);
+    linkLabel->setAlignment(Qt::AlignCenter);
+    linkLabel->setOpenExternalLinks(true);
+    linkLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    lay->addWidget(linkLabel);
     lay->addStretch();
     QHBoxLayout* btnLay = new QHBoxLayout();
     btnLay->addStretch();

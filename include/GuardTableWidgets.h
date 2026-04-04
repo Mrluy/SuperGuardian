@@ -38,6 +38,7 @@ public:
     std::function<void(const QList<int>&)> onDeletePressed;
     int hoveredRow() const { return m_hoverRow; }
 protected:
+    bool viewportEvent(QEvent* event) override;
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
     void mouseReleaseEvent(QMouseEvent* e) override;

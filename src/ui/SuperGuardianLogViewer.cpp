@@ -9,11 +9,15 @@ using namespace Qt::Literals::StringLiterals;
 // ---- 日志查看器通用实现 ----
 
 static void showLogViewer(QWidget* parent, const QString& title, const QString& category) {
-    QDialog dlg(parent, kDialogFlags | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
-    dlg.setWindowTitle(title);
-    dlg.resize(900, 600);
+    auto* dlg = new QDialog(nullptr, kDialogFlags | Qt::WindowMaximizeButtonHint | Qt::WindowCloseButtonHint);
+    dlg->setAttribute(Qt::WA_DeleteOnClose);
+    dlg->setWindowModality(Qt::NonModal);
+    dlg->setWindowTitle(title);
+    if (parent)
+        dlg->setWindowIcon(parent->windowIcon());
+    dlg->resize(900, 600);
 
-    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    QVBoxLayout* lay = new QVBoxLayout(dlg);
 
     // 搜索栏
     QHBoxLayout* searchLay = new QHBoxLayout();
@@ -27,7 +31,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     lay->addLayout(searchLay);
 
     // 日志表格
-    auto* table = new DesktopSelectTable();
+    auto* table = new DesktopSelectTable(dlg);
     table->setColumnCount(4);
     table->setHorizontalHeaderLabels({ u"时间"_s, u"类别"_s, u"程序"_s, u"内容"_s });
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -42,6 +46,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     table->setWordWrap(false);
     table->setMouseTracking(true);
     table->setItemDelegate(new BruteForceDelegate(table));
+    table->setSortingEnabled(true);
     lay->addWidget(table);
 
     // 分页
@@ -68,6 +73,7 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
     };
 
     auto loadPage = [&]() {
+        table->setSortingEnabled(false);
         table->setRowCount(0);
         QString filter = searchEdit->text().trimmed();
         const int total = LogDatabase::instance().logCount(category);
@@ -108,37 +114,40 @@ static void showLogViewer(QWidget* parent, const QString& title, const QString& 
             : u"筛选后 %1/%2 条记录，第 %3/%4 页"_s.arg(totalVisible).arg(total).arg(currentPage + 1).arg(totalPages));
         prevBtn->setEnabled(currentPage > 0);
         nextBtn->setEnabled((currentPage + 1) < totalPages);
+        table->setSortingEnabled(true);
     };
 
-    QObject::connect(refreshBtn, &QPushButton::clicked, &dlg, [&]() {
+    QObject::connect(refreshBtn, &QPushButton::clicked, dlg, [&]() {
         currentPage = 0;
         loadPage();
     });
 
-    QObject::connect(searchEdit, &QLineEdit::returnPressed, &dlg, [&]() {
+    QObject::connect(searchEdit, &QLineEdit::returnPressed, dlg, [&]() {
         currentPage = 0;
         loadPage();
     });
 
-    QObject::connect(clearBtn, &QPushButton::clicked, &dlg, [&]() {
-        if (showMessageDialog(&dlg, u"清空日志"_s, u"确认清空所有日志吗？"_s, true)) {
+    QObject::connect(clearBtn, &QPushButton::clicked, dlg, [&]() {
+        if (showMessageDialog(dlg, u"清空日志"_s, u"确认清空所有日志吗？"_s, true)) {
             LogDatabase::instance().clearLogs(category);
             currentPage = 0;
             loadPage();
         }
     });
 
-    QObject::connect(prevBtn, &QPushButton::clicked, &dlg, [&]() {
+    QObject::connect(prevBtn, &QPushButton::clicked, dlg, [&]() {
         if (currentPage > 0) { --currentPage; loadPage(); }
     });
 
-    QObject::connect(nextBtn, &QPushButton::clicked, &dlg, [&]() {
+    QObject::connect(nextBtn, &QPushButton::clicked, dlg, [&]() {
         ++currentPage;
         loadPage();
     });
 
     loadPage();
-    dlg.exec();
+    dlg->show();
+    dlg->raise();
+    dlg->activateWindow();
 }
 
 void SuperGuardian::showOperationLog() {

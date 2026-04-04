@@ -36,6 +36,7 @@ private:
     int activeSortSection = -1;
     bool autoResizingColumns = false;
     bool m_revertingHeader = false;
+    bool m_exiting = false;
 
     QStringList duplicateWhitelist;
     QList<ScheduleRule> copiedScheduleRules;
