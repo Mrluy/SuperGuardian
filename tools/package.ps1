@@ -2,7 +2,7 @@
 .SYNOPSIS
     SuperGuardian 打包脚本
 .DESCRIPTION
-    编译项目并将产物压缩打包至 .\package\ 文件夹。
+    编译项目并将产物压缩打包至项目根目录下的 .\package\ 文件夹。
 .PARAMETER Configuration
     编译配置：Release（默认）或 Debug。
 .PARAMETER Platform
@@ -15,10 +15,10 @@
 .PARAMETER NoZip
     仅暂存文件，不生成 ZIP（用于调试打包内容）。
 .EXAMPLE
-    .\package.ps1
-    .\package.ps1 -Version 1.2.0
-    .\package.ps1 -SkipBuild -Version 1.2.0
-    .\package.ps1 -Configuration Debug
+    .\tools\package.ps1
+    .\tools\package.ps1 -Version 1.2.0
+    .\tools\package.ps1 -SkipBuild -Version 1.2.0
+    .\tools\package.ps1 -Configuration Debug
 #>
 
 [CmdletBinding()]
@@ -39,7 +39,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # 路径常量
-$root        = $PSScriptRoot
+$root        = Split-Path -Parent $PSScriptRoot
 $exeName     = 'SuperGuardian.exe'
 $buildDir    = Join-Path $root "$Platform\$Configuration"
 $exePath     = Join-Path $buildDir $exeName

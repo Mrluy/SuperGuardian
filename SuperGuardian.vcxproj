@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -160,10 +160,7 @@
     <ClInclude Include="include\ProcessUtils.h" />
     <ClInclude Include="include\ThemeManager.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="package-release.ps1" />
-  </ItemGroup>
-  <ItemGroup>
+<ItemGroup>
     <ResourceCompile Include="app.rc" />
   </ItemGroup>
   <ItemGroup>
@@ -176,3 +173,6 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
+
+

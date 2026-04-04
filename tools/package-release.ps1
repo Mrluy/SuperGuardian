@@ -2,8 +2,8 @@
 .SYNOPSIS
     SuperGuardian Release 打包脚本
 .DESCRIPTION
-    仅打包 x64\Release 中已编译好的程序，不执行编译。
-    产物会先复制到 .\package\ 下的暂存目录，再压缩为 ZIP。
+    仅打包项目根目录 x64\Release 中已编译好的程序，不执行编译。
+    产物会先复制到项目根目录 .\package\ 下的暂存目录，再压缩为 ZIP。
 .PARAMETER Version
     可选版本号字符串（如 "1.0.0"），用于 ZIP 文件命名。
     不填则自动使用当前日期时间。
@@ -12,10 +12,10 @@
 .PARAMETER SkipQtDeploy
     跳过 windeployqt 部署步骤，适用于静态 Qt 或已手动处理运行时依赖的场景。
 .EXAMPLE
-    .\package-release.ps1
-    .\package-release.ps1 -Version 1.2.0
-    .\package-release.ps1 -NoZip
-    .\package-release.ps1 -SkipQtDeploy
+    .\tools\package-release.ps1
+    .\tools\package-release.ps1 -Version 1.2.0
+    .\tools\package-release.ps1 -NoZip
+    .\tools\package-release.ps1 -SkipQtDeploy
 #>
 
 [CmdletBinding()]
@@ -28,7 +28,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$root        = $PSScriptRoot
+$root        = Split-Path -Parent $PSScriptRoot
 $platform    = 'x64'
 $config      = 'Release'
 $exeName     = 'SuperGuardian.exe'
