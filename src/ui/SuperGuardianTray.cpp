@@ -6,10 +6,90 @@
 #include "ConfigDatabase.h"
 #include "LogDatabase.h"
 #include <QtWidgets>
+#include <QPainter>
 #include <QFileInfo>
 #include <objbase.h>
 #include <shobjidl.h>
 #include <windows.h>
+
+// ---- 图标生成 ----
+
+QIcon SuperGuardian::makeToolbarIcon(const QString& iconName, bool active, const QString& theme) const {
+    // dark主题使用light文件夹图标，light主题使用dark文件夹图标
+    QString iconDir = (theme == "dark") ? u"light"_s : u"dark"_s;
+
+    // 全局守护特殊处理：激活时使用 app.ico
+    QString resPath;
+    if (iconName == u"watcher"_s && active)
+        resPath = u":/SuperGuardian/app.ico"_s;
+    else
+        resPath = u":/SuperGuardian/%1/%2.png"_s.arg(iconDir, iconName);
+
+    const int canvasSize = 20;
+    const int iconSize = 18;
+    QPixmap pix(canvasSize, canvasSize);
+    pix.fill(Qt::transparent);
+
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    if (active) {
+        const QColor bgColor = (theme == "dark") ? QColor(0x20, 0x47, 0x6e) : QColor(0xdd, 0xed, 0xfe);
+        p.setBrush(bgColor);
+        p.setPen(Qt::NoPen);
+        p.drawRoundedRect(0, 0, canvasSize, canvasSize, 5, 5);
+    }
+
+    const QPixmap srcPix = QIcon(resPath).pixmap(iconSize, iconSize);
+    const int offset = (canvasSize - iconSize) / 2;
+    p.drawPixmap(offset, offset,
+        srcPix.scaled(iconSize, iconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    p.end();
+
+    return QIcon(pix);
+}
+
+void SuperGuardian::updateToolbarIcons() {
+    auto& db = ConfigDatabase::instance();
+    QString theme = db.value(u"theme"_s, u"light"_s).toString();
+
+    bool selfGuardOn = selfGuardAct && selfGuardAct->isChecked();
+    bool autostartOn = autostartAct && autostartAct->isChecked();
+    bool minTrayOn = minimizeToTrayAct && minimizeToTrayAct->isChecked();
+    bool gGuardOn = globalGuardAct && globalGuardAct->isChecked();
+    bool gRestartOn = globalRestartAct && globalRestartAct->isChecked();
+    bool gRunOn = globalRunAct && globalRunAct->isChecked();
+    bool gEmailOn = emailEnabledAct && emailEnabledAct->isChecked();
+
+    QIcon keepaliveIcon = makeToolbarIcon(u"keepalive"_s, selfGuardOn, theme);
+    QIcon startupIcon = makeToolbarIcon(u"startup"_s, autostartOn, theme);
+    QIcon trayifyIcon = makeToolbarIcon(u"trayify"_s, minTrayOn, theme);
+    QIcon watcherIcon = makeToolbarIcon(u"watcher"_s, gGuardOn, theme);
+    QIcon scheduleIcon = makeToolbarIcon(u"schedule"_s, gRestartOn, theme);
+    QIcon runnerIcon = makeToolbarIcon(u"runner"_s, gRunOn, theme);
+    QIcon mailIcon = makeToolbarIcon(u"mail"_s, gEmailOn, theme);
+
+    // 工具栏按钮
+    if (selfGuardBtn) { selfGuardBtn->setIcon(keepaliveIcon); selfGuardBtn->setChecked(selfGuardOn); }
+    if (autostartBtn) { autostartBtn->setIcon(startupIcon); autostartBtn->setChecked(autostartOn); }
+    if (minimizeToTrayBtn) { minimizeToTrayBtn->setIcon(trayifyIcon); minimizeToTrayBtn->setChecked(minTrayOn); }
+    if (globalGuardBtn) { globalGuardBtn->setIcon(watcherIcon); globalGuardBtn->setChecked(gGuardOn); }
+    if (globalRestartBtn) { globalRestartBtn->setIcon(scheduleIcon); globalRestartBtn->setChecked(gRestartOn); }
+    if (globalRunBtn) { globalRunBtn->setIcon(runnerIcon); globalRunBtn->setChecked(gRunOn); }
+    if (globalEmailBtn) { globalEmailBtn->setIcon(mailIcon); globalEmailBtn->setChecked(gEmailOn); }
+
+    // 菜单项图标（选项卡 + 功能卡）
+    if (selfGuardAct) selfGuardAct->setIcon(keepaliveIcon);
+    if (autostartAct) autostartAct->setIcon(startupIcon);
+    if (minimizeToTrayAct) minimizeToTrayAct->setIcon(trayifyIcon);
+    if (globalGuardAct) globalGuardAct->setIcon(watcherIcon);
+    if (globalRestartAct) globalRestartAct->setIcon(scheduleIcon);
+    if (globalRunAct) globalRunAct->setIcon(runnerIcon);
+    if (emailEnabledAct) emailEnabledAct->setIcon(mailIcon);
+
+    // 托盘菜单图标
+    if (trayEmailAct) trayEmailAct->setIcon(mailIcon);
+}
 
 // ---- 托盘选项、看门狗、主题 ----
 
@@ -46,30 +126,35 @@ void SuperGuardian::applySavedTrayOptions() {
         minimizeToTrayAct->setChecked(minToTray);
         minimizeToTrayAct->blockSignals(false);
     }
+
+    // 加载全局功能状态
+    bool gGuard = db.value(u"globalGuardEnabled"_s, false).toBool();
+    bool gRestart = db.value(u"globalRestartEnabled"_s, false).toBool();
+    bool gRun = db.value(u"globalRunEnabled"_s, false).toBool();
+    if (globalGuardAct) { globalGuardAct->blockSignals(true); globalGuardAct->setChecked(gGuard); globalGuardAct->blockSignals(false); }
+    if (globalRestartAct) { globalRestartAct->blockSignals(true); globalRestartAct->setChecked(gRestart); globalRestartAct->blockSignals(false); }
+    if (globalRunAct) { globalRunAct->blockSignals(true); globalRunAct->setChecked(gRun); globalRunAct->blockSignals(false); }
+
     if (self) {
         db.setValue(u"self_guard_manual_exit"_s, false);
         startWatchdogHelper();
     }
     syncSelfGuardListEntry(self);
+    updateToolbarIcons();
 }
 
 void SuperGuardian::applyTheme(const QString& theme) {
     applyAppTheme(theme);
+    // dark主题使用light文件夹图标，light主题使用dark文件夹图标
+    QString iconDir = (theme == "dark") ? u"light"_s : u"dark"_s;
     if (themeToggleBtn) {
-        if (theme == "dark") {
-            themeToggleBtn->setIcon(QIcon(":/SuperGuardian/light.png"));
-            themeToggleBtn->setToolTip(u"切换到浅色模式"_s);
-        } else {
-            themeToggleBtn->setIcon(QIcon(":/SuperGuardian/dark.png"));
-            themeToggleBtn->setToolTip(u"切换到暗色模式"_s);
-        }
+        themeToggleBtn->setIcon(QIcon(u":/SuperGuardian/%1/theme.png"_s.arg(iconDir)));
+        themeToggleBtn->setToolTip(theme == "dark" ? u"切换到浅色模式"_s : u"切换到暗色模式"_s);
     }
     if (pinToggleBtn) {
-        if (theme == "dark")
-            pinToggleBtn->setIcon(QIcon(":/SuperGuardian/top_light.png"));
-        else
-            pinToggleBtn->setIcon(QIcon(":/SuperGuardian/top_dark.png"));
+        pinToggleBtn->setIcon(QIcon(u":/SuperGuardian/%1/top.png"_s.arg(iconDir)));
     }
+    updateToolbarIcons();
     rebuildTableFromItems();
 }
 
@@ -227,9 +312,11 @@ void SuperGuardian::toggleTheme() {
 }
 
 void SuperGuardian::centerWindow() {
-    QScreen* screen = QGuiApplication::primaryScreen();
-    if (!screen) return;
-    QRect screenGeom = screen->availableGeometry();
+    QScreen* scr = screen();
+    if (!scr) scr = QGuiApplication::screenAt(geometry().center());
+    if (!scr) scr = QGuiApplication::primaryScreen();
+    if (!scr) return;
+    QRect screenGeom = scr->availableGeometry();
     int x = screenGeom.x() + (screenGeom.width() - width()) / 2;
     int y = screenGeom.y() + (screenGeom.height() - height()) / 2;
     move(x, y);

@@ -57,7 +57,7 @@ QString lightStyleSheet() {
         "QMenu::item:disabled { color: #b8b8b8; }"
         "QMenu::separator { height: 1px; background-color: #e5e5e5; margin: 3px 8px; }"
         "QMenu::indicator { width: 14px; height: 14px; border: none; margin-left: 6px; }"
-        "QMenu::indicator:checked { image: url(:/SuperGuardian/check_dark.png); }"
+        "QMenu::indicator:checked { image: url(:/SuperGuardian/dark/check.png); }"
 
         /* Table */
         "QTableWidget, QTableView { background-color: #ffffff; "
@@ -113,7 +113,7 @@ QString lightStyleSheet() {
             "border: 2px solid #8a8a8a; border-radius: 4px; background-color: #ffffff; }"
         "QCheckBox::indicator:hover { border-color: #616161; }"
         "QCheckBox::indicator:checked { background-color: #005fb7; border-color: #005fb7; "
-            "image: url(:/SuperGuardian/check_light.png); }"
+            "image: url(:/SuperGuardian/light/check.png); }"
 
         /* ListWidget */
         "QListWidget { background-color: #ffffff; "
@@ -145,6 +145,21 @@ QString lightStyleSheet() {
             "border-radius: 6px; padding: 0px; margin: 3px; }"
         "#pinToggleBtn:hover { background-color: #e8e8e8; }"
         "#pinToggleBtn:pressed { background-color: #e0e0e0; }"
-        "#pinToggleBtn:checked { background-color: #005fb7; border-color: #005fb7; }"
+        "#pinToggleBtn:checked { background-color: #ddedfe; border-color: #ddedfe; }"
+
+        /* Toolbar Icon Buttons */
+        "#selfGuardBtn, #autostartBtn, #minimizeToTrayBtn, "
+            "#globalGuardBtn, #globalRestartBtn, #globalRunBtn, #globalEmailBtn "
+            "{ background: transparent; border: 1px solid #d1d1d1; "
+            "border-radius: 6px; padding: 0px; margin: 3px; }"
+        "#selfGuardBtn:hover, #autostartBtn:hover, #minimizeToTrayBtn:hover, "
+            "#globalGuardBtn:hover, #globalRestartBtn:hover, #globalRunBtn:hover, #globalEmailBtn:hover "
+            "{ background-color: #e8e8e8; }"
+        "#selfGuardBtn:pressed, #autostartBtn:pressed, #minimizeToTrayBtn:pressed, "
+            "#globalGuardBtn:pressed, #globalRestartBtn:pressed, #globalRunBtn:pressed, #globalEmailBtn:pressed "
+            "{ background-color: #e0e0e0; }"
+        "#selfGuardBtn:checked, #autostartBtn:checked, #minimizeToTrayBtn:checked, "
+            "#globalGuardBtn:checked, #globalRestartBtn:checked, #globalRunBtn:checked, #globalEmailBtn:checked "
+            "{ background-color: #ddedfe; border-color: #ddedfe; }"
     ;
 }

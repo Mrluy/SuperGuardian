@@ -47,7 +47,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget = new DesktopSelectTable(this);
 
     tableWidget->setColumnCount(11);
-    tableWidget->setHorizontalHeaderLabels({ u"UUID"_s, u"程序"_s, u"运行状态"_s, u"持续运行时长"_s, u"上次重启(运行)"_s, u"被守护次数"_s, u"持续守护时长"_s, u"定时规则"_s, u"下次重启(运行)"_s, u"启动延时"_s, u"操作"_s });
+    tableWidget->setHorizontalHeaderLabels({ u"UUID"_s, u"程序"_s, u"运行状态"_s, u"持续运行时长"_s, u"上次执行"_s, u"被守护次数"_s, u"持续守护时长"_s, u"定时规则"_s, u"下次执行"_s, u"启动延时"_s, u"操作"_s });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     tableWidget->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
     tableWidget->setColumnWidth(10, 300);
@@ -100,7 +100,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     selfGuardAct->setCheckable(true);
     autostartAct = trayMenu->addAction(u"开机自启"_s);
     autostartAct->setCheckable(true);
-    trayEmailAct = trayMenu->addAction(u"邮件提醒"_s);
+    trayEmailAct = trayMenu->addAction(u"全局邮件提醒"_s);
     trayEmailAct->setCheckable(true);
     minimizeToTrayAct = trayMenu->addAction(u"启动时最小化到托盘"_s);
     minimizeToTrayAct->setCheckable(true);
@@ -109,7 +109,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tray->setContextMenu(trayMenu);
     tray->show();
 
-    // ---- 菜单栏：查看 - 选项 - 配置 - 操作 - 测试 ----
+    // ---- 菜单栏：查看 - 选项 - 功能 - 配置 - 操作 - 帮助 ----
     QMenu* viewMenu = menuBar()->addMenu(u"查看"_s);
     viewMenu->addAction(u"操作日志"_s, this, &SuperGuardian::showOperationLog);
     viewMenu->addAction(u"软件运行日志"_s, this, &SuperGuardian::showRuntimeLog);
@@ -121,10 +121,21 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     QMenu* optionsMenu = menuBar()->addMenu(u"选项"_s);
     optionsMenu->addAction(selfGuardAct);
     optionsMenu->addAction(autostartAct);
-    emailEnabledAct = optionsMenu->addAction(u"邮件提醒"_s);
+    optionsMenu->addAction(minimizeToTrayAct);
+
+    QMenu* featureMenu = menuBar()->addMenu(u"功能"_s);
+    globalGuardAct = featureMenu->addAction(u"全局守护"_s);
+    globalGuardAct->setCheckable(true);
+    globalGuardAct->setChecked(false);
+    globalRestartAct = featureMenu->addAction(u"全局定时重启"_s);
+    globalRestartAct->setCheckable(true);
+    globalRestartAct->setChecked(false);
+    globalRunAct = featureMenu->addAction(u"全局定时运行"_s);
+    globalRunAct->setCheckable(true);
+    globalRunAct->setChecked(false);
+    emailEnabledAct = featureMenu->addAction(u"全局邮件提醒"_s);
     emailEnabledAct->setCheckable(true);
     emailEnabledAct->setChecked(false);
-    optionsMenu->addAction(minimizeToTrayAct);
 
     QMenu* configMenu = menuBar()->addMenu(u"配置"_s);
     configMenu->addAction(u"导入"_s, this, &SuperGuardian::importConfig);
@@ -142,45 +153,77 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     operationMenu->addAction(u"关闭所有守护"_s, this, &SuperGuardian::closeAllGuards);
     operationMenu->addAction(u"关闭所有定时重启"_s, this, &SuperGuardian::closeAllScheduledRestart);
     operationMenu->addAction(u"关闭所有定时运行"_s, this, &SuperGuardian::closeAllScheduledRun);
+    operationMenu->addAction(u"关闭所有操作项"_s, this, &SuperGuardian::closeAllOperations);
     operationMenu->addSeparator();
     operationMenu->addAction(u"移动软件窗口到居中位置"_s, this, &SuperGuardian::centerWindow);
     operationMenu->addAction(u"添加桌面快捷方式"_s, this, &SuperGuardian::createDesktopShortcut);
-
-    QMenu* testMenu = menuBar()->addMenu(u"测试"_s);
-    testMenu->addAction(u"测试自我守护"_s, this, &SuperGuardian::runSelfGuardTest);
-    testMenu->addAction(u"测试程序是否允许重复添加"_s, this, &SuperGuardian::testDuplicateAdd);
 
     QMenu* helpMenu = menuBar()->addMenu(u"帮助"_s);
     helpMenu->addAction(u"更新"_s, this, &SuperGuardian::showUpdateDialog);
     helpMenu->addAction(u"导出诊断信息"_s, this, &SuperGuardian::exportDiagnosticInfo);
     helpMenu->addSeparator();
+    helpMenu->addAction(u"测试自我守护"_s, this, &SuperGuardian::runSelfGuardTest);
+    helpMenu->addAction(u"测试程序是否允许重复添加"_s, this, &SuperGuardian::testDuplicateAdd);
+    helpMenu->addSeparator();
     helpMenu->addAction(u"关于 超级守护"_s, this, &SuperGuardian::showAboutDialog);
 
-    // ---- 置顶按钮 + 主题切换按钮（菜单栏右侧角落） ----
-    pinToggleBtn = new QToolButton(this);
-    pinToggleBtn->setObjectName("pinToggleBtn");
-    pinToggleBtn->setAutoRaise(true);
-    pinToggleBtn->setCheckable(true);
-    pinToggleBtn->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    pinToggleBtn->setCursor(Qt::PointingHandCursor);
-    pinToggleBtn->setIconSize(QSize(20, 20));
-    pinToggleBtn->setFixedSize(28, 28);
-    pinToggleBtn->setToolTip(u"置顶窗口"_s);
+    // ---- 工具栏图标按钮（菜单栏右侧角落） ----
+    auto makeTbBtn = [this](const QString& objName, const QString& tip) {
+        QToolButton* btn = new QToolButton(this);
+        btn->setObjectName(objName);
+        btn->setAutoRaise(true);
+        btn->setCheckable(true);
+        btn->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        btn->setCursor(Qt::PointingHandCursor);
+        btn->setIconSize(QSize(20, 20));
+        btn->setFixedSize(28, 28);
+        btn->setToolTip(tip);
+        return btn;
+    };
+    auto makeSep = [this]() {
+        QFrame* sep = new QFrame(this);
+        sep->setFrameShape(QFrame::VLine);
+        sep->setFrameShadow(QFrame::Sunken);
+        sep->setFixedWidth(28);
+        sep->setFixedHeight(20);
+        return sep;
+    };
+
+    // 选项组按钮
+    selfGuardBtn = makeTbBtn(u"selfGuardBtn"_s, u"自我守护"_s);
+    autostartBtn = makeTbBtn(u"autostartBtn"_s, u"开机自启"_s);
+    minimizeToTrayBtn = makeTbBtn(u"minimizeToTrayBtn"_s, u"启动时最小化到托盘"_s);
+
+    // 功能组按钮
+    globalGuardBtn = makeTbBtn(u"globalGuardBtn"_s, u"全局守护"_s);
+    globalRestartBtn = makeTbBtn(u"globalRestartBtn"_s, u"全局定时重启"_s);
+    globalRunBtn = makeTbBtn(u"globalRunBtn"_s, u"全局定时运行"_s);
+    globalEmailBtn = makeTbBtn(u"globalEmailBtn"_s, u"全局邮件提醒"_s);
+
+    // 置顶 + 主题
+    pinToggleBtn = makeTbBtn(u"pinToggleBtn"_s, u"置顶窗口"_s);
     connect(pinToggleBtn, &QToolButton::clicked, this, &SuperGuardian::toggleAlwaysOnTop);
 
-    themeToggleBtn = new QToolButton(this);
-    themeToggleBtn->setObjectName("themeToggleBtn");
-    themeToggleBtn->setAutoRaise(true);
-    themeToggleBtn->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    themeToggleBtn->setCursor(Qt::PointingHandCursor);
-    themeToggleBtn->setIconSize(QSize(20, 20));
-    themeToggleBtn->setFixedSize(28, 28);
+    themeToggleBtn = makeTbBtn(u"themeToggleBtn"_s, u"切换深浅色"_s);
+    themeToggleBtn->setCheckable(false);
     connect(themeToggleBtn, &QToolButton::clicked, this, &SuperGuardian::toggleTheme);
 
     QWidget* cornerWidget = new QWidget(this);
     QHBoxLayout* cornerLayout = new QHBoxLayout(cornerWidget);
     cornerLayout->setContentsMargins(0, 0, 0, 0);
-    cornerLayout->setSpacing(5);
+    cornerLayout->setSpacing(3);
+    // 选项组
+    cornerLayout->addWidget(selfGuardBtn);
+    cornerLayout->addWidget(autostartBtn);
+    cornerLayout->addWidget(minimizeToTrayBtn);
+    cornerLayout->addWidget(makeSep());
+    // 功能组
+    cornerLayout->addWidget(globalGuardBtn);
+    cornerLayout->addWidget(globalRestartBtn);
+    cornerLayout->addWidget(globalRunBtn);
+    cornerLayout->addWidget(globalEmailBtn);
+    cornerLayout->addWidget(makeSep());
+    // 置顶 + 主题
     cornerLayout->addWidget(pinToggleBtn);
     cornerLayout->addWidget(themeToggleBtn);
     menuBar()->setCornerWidget(cornerWidget, Qt::TopRightCorner);

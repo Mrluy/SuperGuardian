@@ -142,3 +142,47 @@ void SuperGuardian::closeAllScheduledRun() {
     }
     saveSettings();
 }
+
+void SuperGuardian::closeAllOperations() {
+    if (!showMessageDialog(this, u"关闭所有操作项"_s,
+        u"确认关闭所有程序的守护、定时重启和定时运行吗？\n此操作不可撤销。"_s, true))
+        return;
+    logOperation(u"关闭所有操作项"_s);
+    for (int i = 0; i < items.size(); ++i) {
+        if (items[i].guarding) {
+            items[i].guarding = false;
+            items[i].restartCount = 0;
+            items[i].guardStartTime = QDateTime();
+            int row = findRowById(items[i].id);
+            if (row >= 0) {
+                setOperationButtonText(tableWidget, row, QString("guardBtn_%1").arg(items[i].id), u"开始守护"_s);
+                if (!items[i].restartRulesActive)
+                    setCellText(tableWidget, row, 2, u"未守护"_s);
+                setCellText(tableWidget, row, 3, u"-"_s);
+                setCellText(tableWidget, row, 5, u"0"_s);
+                setCellText(tableWidget, row, 6, u"-"_s);
+            }
+        }
+        if (items[i].restartRulesActive) {
+            items[i].restartRulesActive = false;
+            int row = findRowById(items[i].id);
+            if (row >= 0) {
+                setOperationButtonText(tableWidget, row, QString("srBtn_%1").arg(items[i].id), u"开启定时重启"_s);
+                setCellText(tableWidget, row, 7, u"-"_s);
+                setCellText(tableWidget, row, 8, u"-"_s);
+            }
+        }
+        if (items[i].scheduledRunEnabled) {
+            items[i].scheduledRunEnabled = false;
+            int row = findRowById(items[i].id);
+            if (row >= 0) {
+                setOperationButtonText(tableWidget, row, QString("runBtn_%1").arg(items[i].id), u"开启定时运行"_s);
+                setCellText(tableWidget, row, 2, u"未守护"_s);
+                setCellText(tableWidget, row, 9, formatStartDelay(items[i].startDelaySecs));
+            }
+        }
+        if (int row = findRowById(items[i].id); row >= 0)
+            updateButtonStates(row);
+    }
+    saveSettings();
+}

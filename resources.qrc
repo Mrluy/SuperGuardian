@@ -1,11 +1,25 @@
-<RCC>
+﻿<RCC>
     <qresource prefix="SuperGuardian">
         <file alias="app.ico">img/app.ico</file>
-        <file alias="light.png">img/light.png</file>
-        <file alias="dark.png">img/dark.png</file>
-        <file alias="top_light.png">img/top_light.png</file>
-        <file alias="top_dark.png">img/top_dark.png</file>
-        <file alias="check_dark.png">img/check_dark.png</file>
-        <file alias="check_light.png">img/check_light.png</file>
+        <file alias="dark/top.png">img/dark/top.png</file>
+        <file alias="dark/check.png">img/dark/check.png</file>
+        <file alias="dark/keepalive.png">img/dark/keepalive.png</file>
+        <file alias="dark/startup.png">img/dark/startup.png</file>
+        <file alias="dark/trayify.png">img/dark/trayify.png</file>
+        <file alias="dark/watcher.png">img/dark/watcher.png</file>
+        <file alias="dark/schedule.png">img/dark/schedule.png</file>
+        <file alias="dark/runner.png">img/dark/runner.png</file>
+        <file alias="dark/mail.png">img/dark/mail.png</file>
+        <file alias="dark/theme.png">img/dark/dark.png</file>
+        <file alias="light/top.png">img/light/top.png</file>
+        <file alias="light/check.png">img/light/check.png</file>
+        <file alias="light/keepalive.png">img/light/keepalive.png</file>
+        <file alias="light/startup.png">img/light/startup.png</file>
+        <file alias="light/trayify.png">img/light/trayify.png</file>
+        <file alias="light/watcher.png">img/light/watcher.png</file>
+        <file alias="light/schedule.png">img/light/schedule.png</file>
+        <file alias="light/runner.png">img/light/runner.png</file>
+        <file alias="light/mail.png">img/light/mail.png</file>
+        <file alias="light/theme.png">img/light/light.png</file>
     </qresource>
 </RCC>

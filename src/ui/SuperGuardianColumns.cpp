@@ -22,6 +22,16 @@ void SuperGuardian::distributeColumnWidths() {
     int available = tableWidget->viewport()->width() - tableWidget->columnWidth(kActionColumn);
     if (available <= 100) { autoResizingColumns = false; return; }
 
+    // 计算每列的最小宽度（保证表头文字完整显示）
+    QHeaderView* header = tableWidget->horizontalHeader();
+    QFontMetrics fm(header->font());
+    int minWidths[kDataColumnCount];
+    for (int i = 0; i < kDataColumnCount; i++) {
+        QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(i);
+        int textW = hdr ? fm.horizontalAdvance(hdr->text()) : 0;
+        minWidths[i] = textW + 24; // 额外留出排序图标和边距空间
+    }
+
     const double defaultWeights[kDataColumnCount] = {1.0, 3.0, 1.0, 1.5, 2.0, 1.0, 1.5, 1.5, 2.0, 1.0};
     double ratios[kDataColumnCount];
     bool hasCustom = false;
@@ -57,9 +67,9 @@ void SuperGuardian::distributeColumnWidths() {
     for (int i = 0; i < kDataColumnCount; i++) {
         if (tableWidget->isColumnHidden(i)) continue;
         if (i == lastVisible) {
-            tableWidget->setColumnWidth(i, qMax(40, remaining));
+            tableWidget->setColumnWidth(i, qMax(minWidths[i], remaining));
         } else {
-            int w = qMax(40, (int)(available * ratios[i] / visibleSum));
+            int w = qMax(minWidths[i], (int)(available * ratios[i] / visibleSum));
             tableWidget->setColumnWidth(i, w);
             remaining -= w;
         }
@@ -131,7 +141,7 @@ void SuperGuardian::onHeaderContextMenu(const QPoint& pos) {
         connect(act, &QAction::toggled, this, [this, i](bool checked) {
             tableWidget->setColumnHidden(i, !checked);
             saveColumnVisibility();
-            distributeColumnWidths();
+            resetColumnWidths();
         });
     }
     menu.exec(header->mapToGlobal(pos));

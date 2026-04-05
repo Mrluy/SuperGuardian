@@ -232,9 +232,38 @@ QString SuperGuardian::rowId(int row) const {
 }
 
 void SuperGuardian::clearListWithConfirmation() {
-    if (!showMessageDialog(this, u"清空列表"_s, u"确认清空列表中的所有项吗？"_s, true)) {
+    // 第一次确认：带备份选项
+    QDialog dlg(this, kDialogFlags);
+    dlg.setWindowTitle(u"清空列表"_s);
+    dlg.setFixedSize(360, 220);
+    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    QLabel* lbl = new QLabel(u"确认清空列表中的所有项吗？\n\n建议先导出配置备份，以防数据丢失。"_s);
+    lbl->setWordWrap(true);
+    lbl->setAlignment(Qt::AlignCenter);
+    lay->addWidget(lbl, 1);
+    QHBoxLayout* btnLay = new QHBoxLayout();
+    btnLay->addStretch();
+    QPushButton* backupBtn = new QPushButton(u"备份"_s);
+    QPushButton* okBtn = new QPushButton(u"确认"_s);
+    QPushButton* cancelBtn = new QPushButton(u"取消"_s);
+    btnLay->addWidget(backupBtn);
+    btnLay->addWidget(okBtn);
+    btnLay->addWidget(cancelBtn);
+    btnLay->addStretch();
+    lay->addLayout(btnLay);
+
+    connect(backupBtn, &QPushButton::clicked, this, [this]() { exportConfig(); });
+    connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+
+    if (dlg.exec() != QDialog::Accepted)
         return;
-    }
+
+    // 第二次确认：强调风险
+    if (!showMessageDialog(this, u"再次确认"_s,
+        u"⚠ 清空列表后所有程序配置将永久丢失！\n\n强烈建议先点击「备份」导出配置。\n\n确认要继续清空吗？"_s, true))
+        return;
+
     logOperation(u"清空列表"_s);
 
     for (int i = items.size() - 1; i >= 0; --i) {

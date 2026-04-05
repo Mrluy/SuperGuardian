@@ -9,14 +9,20 @@
 
 void SuperGuardian::checkProcesses() {
     QDateTime now = QDateTime::currentDateTime();
+
+    // 全局功能开关
+    bool globalGuardOn = globalGuardAct && globalGuardAct->isChecked();
+    bool globalRestartOn = globalRestartAct && globalRestartAct->isChecked();
+    bool globalRunOn = globalRunAct && globalRunAct->isChecked();
+
     for (int row = 0; row < tableWidget->rowCount(); ++row) {
         int idx = findItemIndexById(rowId(row));
         if (idx < 0) continue;
         GuardItem& item = items[idx];
 
-        bool hasGuard = item.guarding;
-        bool hasScheduledRestart = item.restartRulesActive && !item.restartRules.isEmpty();
-        bool hasScheduledRun = item.scheduledRunEnabled && !item.runRules.isEmpty();
+        bool hasGuard = item.guarding && globalGuardOn;
+        bool hasScheduledRestart = item.restartRulesActive && !item.restartRules.isEmpty() && globalRestartOn;
+        bool hasScheduledRun = item.scheduledRunEnabled && !item.runRules.isEmpty() && globalRunOn;
 
         if (!hasGuard && !hasScheduledRestart && !hasScheduledRun) continue;
 
@@ -101,6 +107,8 @@ void SuperGuardian::checkProcesses() {
                         item.lastRestart = now;
                         item.startTime = now;
                         scheduledRestarted = true;
+                        item.startDelayExitTime = QDateTime();
+                        item.lastGuardRestartTime = now;
                         running = true;
                         logScheduledRestart(u"定时重启触发"_s, programId(item.processName, item.launchArgs));
                         if (!ok) {

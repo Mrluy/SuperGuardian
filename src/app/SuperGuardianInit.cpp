@@ -19,17 +19,63 @@ void SuperGuardian::initSignals() {
         trayEmailAct->setChecked(on);
         trayEmailAct->blockSignals(false);
         ConfigDatabase::instance().setValue(u"emailEnabled"_s, on);
+        updateToolbarIcons();
     });
     connect(trayEmailAct, &QAction::toggled, this, [this](bool on) {
         emailEnabledAct->blockSignals(true);
         emailEnabledAct->setChecked(on);
         emailEnabledAct->blockSignals(false);
         ConfigDatabase::instance().setValue(u"emailEnabled"_s, on);
+        updateToolbarIcons();
     });
 
     connect(minimizeToTrayAct, &QAction::toggled, this, [this](bool on) {
         ConfigDatabase::instance().setValue(u"minimizeToTray"_s, on);
+        updateToolbarIcons();
     });
+
+    // 全局功能菜单项信号
+    connect(globalGuardAct, &QAction::toggled, this, [this](bool on) {
+        ConfigDatabase::instance().setValue(u"globalGuardEnabled"_s, on);
+        updateToolbarIcons();
+    });
+    connect(globalRestartAct, &QAction::toggled, this, [this](bool on) {
+        ConfigDatabase::instance().setValue(u"globalRestartEnabled"_s, on);
+        updateToolbarIcons();
+    });
+    connect(globalRunAct, &QAction::toggled, this, [this](bool on) {
+        ConfigDatabase::instance().setValue(u"globalRunEnabled"_s, on);
+        updateToolbarIcons();
+    });
+
+    // 工具栏按钮 ↔ 菜单项双向同步（选项组）
+    connect(selfGuardBtn, &QToolButton::clicked, this, [this]() {
+        if (selfGuardAct) selfGuardAct->setChecked(!selfGuardAct->isChecked());
+    });
+    connect(autostartBtn, &QToolButton::clicked, this, [this]() {
+        if (autostartAct) autostartAct->setChecked(!autostartAct->isChecked());
+    });
+    connect(minimizeToTrayBtn, &QToolButton::clicked, this, [this]() {
+        if (minimizeToTrayAct) minimizeToTrayAct->setChecked(!minimizeToTrayAct->isChecked());
+    });
+
+    // 工具栏按钮 ↔ 菜单项双向同步（功能组）
+    connect(globalGuardBtn, &QToolButton::clicked, this, [this]() {
+        if (globalGuardAct) globalGuardAct->setChecked(!globalGuardAct->isChecked());
+    });
+    connect(globalRestartBtn, &QToolButton::clicked, this, [this]() {
+        if (globalRestartAct) globalRestartAct->setChecked(!globalRestartAct->isChecked());
+    });
+    connect(globalRunBtn, &QToolButton::clicked, this, [this]() {
+        if (globalRunAct) globalRunAct->setChecked(!globalRunAct->isChecked());
+    });
+    connect(globalEmailBtn, &QToolButton::clicked, this, [this]() {
+        if (emailEnabledAct) emailEnabledAct->setChecked(!emailEnabledAct->isChecked());
+    });
+
+    // selfGuardAct/autostartAct toggled 后也刷新图标
+    connect(selfGuardAct, &QAction::toggled, this, [this]() { updateToolbarIcons(); });
+    connect(autostartAct, &QAction::toggled, this, [this]() { updateToolbarIcons(); });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
         QString file = QFileDialog::getOpenFileName(this, u"选择程序"_s, "", "Executable (*.exe);;All Files (*)");
@@ -50,7 +96,7 @@ void SuperGuardian::initSignals() {
 
     connect(tray, &QSystemTrayIcon::activated, this, &SuperGuardian::onTrayActivated);
     static_cast<DesktopSelectTable*>(tableWidget)->onCellDoubleClicked = [this](int row, int col) {
-        if (col == 9) return;
+        if (col == 10) return;
         onTableDoubleClicked(row, col);
     };
     static_cast<DesktopSelectTable*>(tableWidget)->onRowMoved = [this](int from, int to) { handleRowMoved(from, to); };
@@ -77,7 +123,7 @@ void SuperGuardian::initSignals() {
 
     // 表头排序（点击列标题循环：升序→降序→默认）
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {
-        if (section == 9) return;
+        if (section == 10) return;
         QHeaderView* header = tableWidget->horizontalHeader();
         if (activeSortSection == section && sortState == 2) {
             sortState = 0;
@@ -108,7 +154,7 @@ void SuperGuardian::initSignals() {
     // 恢复排序状态
     activeSortSection = cfg.value(u"sortSection"_s, -1).toInt();
     sortState = cfg.value(u"sortState"_s, 0).toInt();
-    if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 9)
+    if (sortState != 0 && activeSortSection >= 0 && activeSortSection < 10)
         performSort();
 
     restoreColumnVisibility();
@@ -149,9 +195,9 @@ void SuperGuardian::initSignals() {
         if (m_revertingHeader) return;
         QHeaderView* header = tableWidget->horizontalHeader();
         int lastVisual = header->count() - 1;
-        if (header->visualIndex(9) != lastVisual) {
+        if (header->visualIndex(10) != lastVisual) {
             m_revertingHeader = true;
-            header->moveSection(header->visualIndex(9), lastVisual);
+            header->moveSection(header->visualIndex(10), lastVisual);
             m_revertingHeader = false;
         }
         saveHeaderOrder();
@@ -159,7 +205,7 @@ void SuperGuardian::initSignals() {
 
     // 列宽调整：保存列宽
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionResized, this, [this](int logicalIndex, int, int) {
-        if (autoResizingColumns || logicalIndex == 9) return;
+        if (autoResizingColumns || logicalIndex == 10) return;
         saveColumnWidths();
     });
 }

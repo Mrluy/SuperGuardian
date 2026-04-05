@@ -304,11 +304,22 @@ void SuperGuardian::importConfig() {
     loadSettings();
     applySavedTrayOptions();
 
+    // 导入后取消所有全局功能
     auto& db = ConfigDatabase::instance();
+    db.setValue(u"globalGuardEnabled"_s, false);
+    db.setValue(u"globalRestartEnabled"_s, false);
+    db.setValue(u"globalRunEnabled"_s, false);
+    if (globalGuardAct) { globalGuardAct->blockSignals(true); globalGuardAct->setChecked(false); globalGuardAct->blockSignals(false); }
+    if (globalRestartAct) { globalRestartAct->blockSignals(true); globalRestartAct->setChecked(false); globalRestartAct->blockSignals(false); }
+    if (globalRunAct) { globalRunAct->blockSignals(true); globalRunAct->setChecked(false); globalRunAct->blockSignals(false); }
+    updateToolbarIcons();
+
     QString theme = db.contains(u"theme"_s) ? db.value(u"theme"_s).toString() : detectSystemThemeName();
     applyTheme(theme);
 
     showMessageDialog(this, u"导入配置"_s,
-        importMode == 1 ? u"配置已成功增量导入。"_s : u"配置已成功覆盖导入。"_s);
+        importMode == 1
+            ? u"配置已成功增量导入。\n\n注意：所有全局功能（全局守护、全局定时重启、全局定时运行）已自动关闭，请根据需要手动开启。"_s
+            : u"配置已成功覆盖导入。\n\n注意：所有全局功能（全局守护、全局定时重启、全局定时运行）已自动关闭，请根据需要手动开启。"_s);
     logOperation((importMode == 1 ? u"增量导入配置从 %1"_s : u"覆盖导入配置从 %1"_s).arg(filePath));
 }

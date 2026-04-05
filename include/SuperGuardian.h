@@ -27,6 +27,20 @@ private:
     QAction* emailEnabledAct = nullptr;
     QAction* trayEmailAct = nullptr;
     QAction* minimizeToTrayAct = nullptr;
+
+    // 全局功能 QAction（功能菜单）
+    QAction* globalGuardAct = nullptr;
+    QAction* globalRestartAct = nullptr;
+    QAction* globalRunAct = nullptr;
+
+    // 工具栏图标按钮
+    QToolButton* selfGuardBtn = nullptr;
+    QToolButton* autostartBtn = nullptr;
+    QToolButton* minimizeToTrayBtn = nullptr;
+    QToolButton* globalGuardBtn = nullptr;
+    QToolButton* globalRestartBtn = nullptr;
+    QToolButton* globalRunBtn = nullptr;
+    QToolButton* globalEmailBtn = nullptr;
     QTimer* timer;
     SmtpConfig smtpConfig;
 
@@ -58,6 +72,7 @@ private:
     int findRowById(const QString& id) const;
     QString rowId(int row) const;
     void clearListWithConfirmation();
+    void closeAllOperations();
     void distributeColumnWidths();
     void saveColumnWidths();
     void resetColumnWidths();
@@ -96,6 +111,8 @@ private:
     void showAboutDialog();
     void exportDiagnosticInfo();
     void initSignals();
+    void updateToolbarIcons();
+    QIcon makeToolbarIcon(const QString& letter, bool active, const QString& theme) const;
 
 private slots:
     void toggleVisible();
