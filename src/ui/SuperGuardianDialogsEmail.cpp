@@ -25,7 +25,7 @@ void SuperGuardian::contextSetRetryConfig(const QList<int>& rows) {
     lay->addLayout(form);
 
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) {
             intervalSpin->setValue(items[itemIdx].retryConfig.retryIntervalSecs);
             maxRetriesSpin->setValue(items[itemIdx].retryConfig.maxRetries);
@@ -45,7 +45,7 @@ void SuperGuardian::contextSetRetryConfig(const QList<int>& rows) {
     if (dlg.exec() != QDialog::Accepted) return;
 
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         items[itemIdx].retryConfig.retryIntervalSecs = intervalSpin->value();
         items[itemIdx].retryConfig.maxRetries = maxRetriesSpin->value();
@@ -85,7 +85,7 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
     lay->addWidget(cbRetryExhausted);
 
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) {
             const EmailNotifyConfig& en = items[itemIdx].emailNotify;
             enabledCb->setChecked(en.enabled);
@@ -110,7 +110,7 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
     if (dlg.exec() != QDialog::Accepted) return;
 
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         EmailNotifyConfig& en = items[itemIdx].emailNotify;
         en.enabled = enabledCb->isChecked();

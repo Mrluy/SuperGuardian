@@ -5,6 +5,7 @@
 #include <QTime>
 #include <QList>
 #include <QSet>
+#include <QUuid>
 
 struct ScheduleRule {
     enum Type { Periodic, FixedTime };
@@ -32,6 +33,7 @@ struct EmailNotifyConfig {
 };
 
 struct GuardItem {
+    QString id;
     QString path;
     QString targetPath;
     QString processName;

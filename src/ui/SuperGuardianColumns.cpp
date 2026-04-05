@@ -8,9 +8,9 @@ using namespace Qt::Literals::StringLiterals;
 
 namespace {
 
-constexpr int kActionColumn = 9;
-constexpr int kDataColumnCount = 9;
-constexpr int kDefaultHiddenColumn = 5;
+constexpr int kActionColumn = 10;
+constexpr int kDataColumnCount = 10;
+constexpr int kDefaultHiddenColumns[] = { 0, 6 };
 
 }
 
@@ -22,7 +22,7 @@ void SuperGuardian::distributeColumnWidths() {
     int available = tableWidget->viewport()->width() - tableWidget->columnWidth(kActionColumn);
     if (available <= 100) { autoResizingColumns = false; return; }
 
-    const double defaultWeights[kDataColumnCount] = {3.0, 1.0, 1.5, 2.0, 1.0, 1.5, 1.5, 2.0, 1.0};
+    const double defaultWeights[kDataColumnCount] = {1.0, 3.0, 1.0, 1.5, 2.0, 1.0, 1.5, 1.5, 2.0, 1.0};
     double ratios[kDataColumnCount];
     bool hasCustom = false;
 
@@ -99,7 +99,8 @@ void SuperGuardian::restoreColumnVisibility() {
 
     auto& cfg = ConfigDatabase::instance();
     if (!cfg.contains(u"hiddenColumns"_s)) {
-        tableWidget->setColumnHidden(kDefaultHiddenColumn, true);
+        for (int col : kDefaultHiddenColumns)
+            tableWidget->setColumnHidden(col, true);
         return;
     }
 
@@ -170,8 +171,11 @@ void SuperGuardian::resetHeaderDisplay() {
         int curVisual = header->visualIndex(i);
         if (curVisual != i) header->moveSection(curVisual, i);
     }
-    for (int i = 0; i < kDataColumnCount; i++)
-        tableWidget->setColumnHidden(i, i == kDefaultHiddenColumn);
+    for (int i = 0; i < kDataColumnCount; i++) {
+        bool hide = false;
+        for (int col : kDefaultHiddenColumns) { if (i == col) { hide = true; break; } }
+        tableWidget->setColumnHidden(i, hide);
+    }
     m_revertingHeader = false;
     saveHeaderOrder();
     saveColumnVisibility();
@@ -198,7 +202,7 @@ void SuperGuardian::performSort() {
         QVector<QPair<QString, int>> rows;
         rows.reserve(items.size());
         for (int row = 0; row < tableWidget->rowCount(); ++row) {
-            int idx = findItemIndexByPath(rowPath(row));
+            int idx = findItemIndexById(rowId(row));
             if (idx < 0 || items[idx].pinned != pinned)
                 continue;
 

@@ -13,7 +13,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     int row = idx.row();
 
     // --- Item context menu ---
-    int itemIndex = findItemIndexByPath(rowPath(row));
+    int itemIndex = findItemIndexById(rowId(row));
     if (itemIndex < 0) return;
 
     QList<int> targetRows;
@@ -27,7 +27,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     }
     if (clickedRowAlreadySelected && !selectedRows.isEmpty()) {
         for (const QModelIndex& index : selectedRows) {
-            int selectedIndex = findItemIndexByPath(rowPath(index.row()));
+            int selectedIndex = findItemIndexById(rowId(index.row()));
             if (selectedIndex >= 0) {
                 targetRows.append(index.row());
             }
@@ -45,7 +45,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 
     // Pin toggle
     bool allPinned = true;
-    for (int r : targetRows) { int ii = findItemIndexByPath(rowPath(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
+    for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
     menu.addAction(allPinned ? u"取消置顶"_s : u"置顶"_s,
         this, [this, targetRows]() { contextTogglePin(targetRows); });
     menu.addSeparator();
@@ -55,7 +55,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     bool anyGuardOrRestart = false;
     bool anyActive = false;
     for (int r : targetRows) {
-        int ii = findItemIndexByPath(rowPath(r));
+        int ii = findItemIndexById(rowId(r));
         if (ii >= 0) {
             if (items[ii].scheduledRunEnabled) anyScheduledRun = true;
             if (items[ii].guarding || items[ii].restartRulesActive) anyGuardOrRestart = true;
@@ -65,8 +65,8 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 
     menu.addAction(u"手动启动"_s, this, [this, targetRows]() { for (int row : targetRows) contextStartProgram(row); });
     menu.addAction(u"终止进程"_s, this, [this, targetRows]() {
-        QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
-            ? tableWidget->item(targetRows[0], 0)->text() : QString();
+        QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 1)
+            ? tableWidget->item(targetRows[0], 1)->text() : QString();
         QString msg = targetRows.size() == 1
             ? u"确认终止【%1】的进程吗？"_s.arg(name)
             : u"确认终止选中的 %1 个程序的进程吗？"_s.arg(targetRows.size());
@@ -94,7 +94,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 
     // 复制定时规则
     if (targetRows.size() == 1) {
-        int ii = findItemIndexByPath(rowPath(targetRows[0]));
+        int ii = findItemIndexById(rowId(targetRows[0]));
         if (ii >= 0) {
             QAction* copyRestartAct = menu.addAction(u"复制定时重启规则"_s, this, [this, ii]() {
                 copiedScheduleRules = items[ii].restartRules;
@@ -115,8 +115,8 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
         menu.addAction(u"打开文件所在的位置"_s, this, [this, row]() { contextOpenFileLocation(row); });
     }
     QAction* removeAct = menu.addAction(u"移除项"_s, this, [this, targetRows]() {
-        QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 0)
-            ? tableWidget->item(targetRows[0], 0)->text() : QString();
+        QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 1)
+            ? tableWidget->item(targetRows[0], 1)->text() : QString();
         QString msg = targetRows.size() == 1
             ? u"确认移除【%1】吗？"_s.arg(name)
             : u"确认移除选中的 %1 个程序项吗？"_s.arg(targetRows.size());
@@ -130,26 +130,26 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
 }
 
 void SuperGuardian::contextStartProgram(int row) {
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     launchProgram(items[idx].targetPath, items[idx].launchArgs);
     logOperation(u"手动启动"_s, programId(items[idx].processName, items[idx].launchArgs));
 }
 
 void SuperGuardian::contextKillProgram(int row) {
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     killProcessesByName(items[idx].processName);
     logOperation(u"终止进程"_s, programId(items[idx].processName, items[idx].launchArgs));
 }
 
 void SuperGuardian::contextToggleGuard(int row) {
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     items[idx].guarding = !items[idx].guarding;
-    QWidget* opw = tableWidget->cellWidget(row, 9);
+    QWidget* opw = tableWidget->cellWidget(row, 10);
     if (opw) {
-        QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[idx].path));
+        QPushButton* b = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(items[idx].id));
         if (b) b->setText(items[idx].guarding ? u"关闭守护"_s : u"开始守护"_s);
     }
     if (items[idx].guarding) {
@@ -166,14 +166,14 @@ void SuperGuardian::contextToggleGuard(int row) {
         items[idx].restartCount = 0;
         items[idx].guardStartTime = QDateTime();
         logOperation(u"关闭守护"_s, programId(items[idx].processName, items[idx].launchArgs));
-        int displayRow = findRowByPath(items[idx].path);
+        int displayRow = findRowById(items[idx].id);
         if (displayRow >= 0) {
             if (!items[idx].restartRulesActive) {
-                if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(u"未守护"_s);
+                if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText(u"未守护"_s);
             }
-            if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
-            if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");
-            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
+            if (tableWidget->item(displayRow, 3)) tableWidget->item(displayRow, 3)->setText("-");
+            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("0");
+            if (tableWidget->item(displayRow, 6)) tableWidget->item(displayRow, 6)->setText("-");
         }
     }
     updateButtonStates(row);
@@ -181,7 +181,7 @@ void SuperGuardian::contextToggleGuard(int row) {
 }
 
 void SuperGuardian::contextRemoveItem(int row) {
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     logOperation(u"移除项"_s, programId(items[idx].processName, items[idx].launchArgs));
     items.removeAt(idx);
@@ -193,13 +193,13 @@ void SuperGuardian::contextRemoveItem(int row) {
 
 void SuperGuardian::onTableDoubleClicked(int row, int col) {
     Q_UNUSED(col);
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     contextSetLaunchArgs(QList<int>{row});
 }
 
 void SuperGuardian::contextOpenFileLocation(int row) {
-    int idx = findItemIndexByPath(rowPath(row));
+    int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
     QString filePath = QDir::toNativeSeparators(items[idx].targetPath);
     QProcess::startDetached("explorer.exe", QStringList() << "/select," << filePath);
@@ -210,11 +210,11 @@ void SuperGuardian::contextOpenFileLocation(int row) {
 void SuperGuardian::contextTogglePin(const QList<int>& rows) {
     bool allPinned = true;
     for (int r : rows) {
-        int ii = findItemIndexByPath(rowPath(r));
+        int ii = findItemIndexById(rowId(r));
         if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; }
     }
     for (int r : rows) {
-        int ii = findItemIndexByPath(rowPath(r));
+        int ii = findItemIndexById(rowId(r));
         if (ii >= 0) {
             items[ii].pinned = !allPinned;
             logOperation(allPinned ? u"取消置顶"_s : u"置顶"_s, programId(items[ii].processName, items[ii].launchArgs));

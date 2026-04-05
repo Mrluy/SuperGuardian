@@ -49,6 +49,7 @@ void SuperGuardian::exportConfig() {
     QJsonArray itemsArr;
     for (const GuardItem& item : items) {
         QJsonObject o;
+        o[u"id"_s] = item.id;
         o[u"path"_s] = item.path;
         o[u"note"_s] = item.note;
         o[u"pinned"_s] = item.pinned;

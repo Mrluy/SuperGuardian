@@ -41,6 +41,14 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         it->setToolTip(t);
         return it;
     };
+
+    // col 0: UUID
+    QTableWidgetItem* uuidItem = makeItem(item.id.left(8));
+    uuidItem->setData(Qt::UserRole, item.id);
+    uuidItem->setToolTip(item.id);
+    tableWidget->setItem(row, 0, uuidItem);
+
+    // col 1: 程序
     QString displayName = item.note.isEmpty()
         ? (item.launchArgs.isEmpty() ? item.processName : (item.processName + " " + item.launchArgs))
         : item.note;
@@ -48,10 +56,9 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     QTableWidgetItem* nameItem = new QTableWidgetItem(displayName);
     nameItem->setIcon(getFileIcon(item.targetPath));
     nameItem->setFlags(nameItem->flags() & ~Qt::ItemIsEditable);
-    nameItem->setData(Qt::UserRole, item.path);
     nameItem->setData(Qt::UserRole + 2, item.pinned);
-    nameItem->setToolTip(tooltipName);
-    tableWidget->setItem(row, 0, nameItem);
+    nameItem->setToolTip(item.id.left(8) + u" "_s + tooltipName);
+    tableWidget->setItem(row, 1, nameItem);
 
     QString initStatus;
     if (item.scheduledRunEnabled) initStatus = u"定时运行"_s;
@@ -59,9 +66,9 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     else if (item.restartRulesActive) initStatus = u"-"_s;
     else initStatus = u"未守护"_s;
 
-    tableWidget->setItem(row, 1, makeItem(initStatus));
+    tableWidget->setItem(row, 2, makeItem(initStatus));
 
-    // col 2: 持续运行时长 — 操作系统中的进程持续运行时间
+    // col 3: 持续运行时长 — 操作系统中的进程持续运行时间
     QString durText = u"-"_s;
     if (!(item.scheduledRunEnabled && !item.trackRunDuration)) {
         QDateTime procStart = getProcessStartTime(item.processName);
@@ -71,32 +78,32 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             durText = formatDuration(secs);
         }
     }
-    tableWidget->setItem(row, 2, makeItem(durText));
+    tableWidget->setItem(row, 3, makeItem(durText));
 
-    tableWidget->setItem(row, 3, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
-    tableWidget->setItem(row, 4, makeItem(item.scheduledRunEnabled ? u"-"_s : QString::number(item.restartCount)));
+    tableWidget->setItem(row, 4, makeItem(item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
+    tableWidget->setItem(row, 5, makeItem(item.scheduledRunEnabled ? u"-"_s : QString::number(item.restartCount)));
 
-    // col 5: 持续守护时长
+    // col 6: 持续守护时长
     QString guardDurText = u"-"_s;
     if (item.guarding && item.guardStartTime.isValid()) {
         qint64 secs = item.guardStartTime.secsTo(QDateTime::currentDateTime());
         if (secs < 0) secs = 0;
         guardDurText = formatDuration(secs);
     }
-    tableWidget->setItem(row, 5, makeItem(guardDurText));
+    tableWidget->setItem(row, 6, makeItem(guardDurText));
 
-    // col 6/7: 定时运行时显示 runRules，否则显示 restartRules
+    // col 7/8: 定时运行时显示 runRules，否则显示 restartRules
     if (item.scheduledRunEnabled && !item.runRules.isEmpty()) {
-        tableWidget->setItem(row, 6, makeItem(formatScheduleRules(item.runRules)));
+        tableWidget->setItem(row, 7, makeItem(formatScheduleRules(item.runRules)));
         QDateTime nt = nextTriggerTime(item.runRules);
-        tableWidget->setItem(row, 7, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
+        tableWidget->setItem(row, 8, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
     } else {
-        tableWidget->setItem(row, 6, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s));
+        tableWidget->setItem(row, 7, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s));
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-        tableWidget->setItem(row, 7, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
+        tableWidget->setItem(row, 8, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
     }
 
-    tableWidget->setItem(row, 8, makeItem(item.scheduledRunEnabled ? u"-"_s : formatStartDelay(item.startDelaySecs)));
+    tableWidget->setItem(row, 9, makeItem(item.scheduledRunEnabled ? u"-"_s : formatStartDelay(item.startDelaySecs)));
 
     // 3 buttons: 开始守护/关闭守护, 开启定时重启/关闭定时重启, 开启定时运行/关闭定时运行
     QWidget* opWidget = new QWidget();
@@ -107,28 +114,28 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     opLay->setSpacing(2);
 
     QPushButton* guardBtn = new QPushButton(item.guarding ? u"关闭守护"_s : u"开始守护"_s);
-    guardBtn->setObjectName(QString("guardBtn_%1").arg(item.path));
+    guardBtn->setObjectName(QString("guardBtn_%1").arg(item.id));
     guardBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     guardBtn->setToolTip(u"保护目标程序，避免其被意外或异常关闭"_s);
     QPushButton* srBtn = new QPushButton(item.restartRulesActive ? u"关闭定时重启"_s : u"开启定时重启"_s);
-    srBtn->setObjectName(QString("srBtn_%1").arg(item.path));
+    srBtn->setObjectName(QString("srBtn_%1").arg(item.id));
     srBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     srBtn->setToolTip(u"定时重启目标程序，可添加任意组定时计划"_s);
     QPushButton* runBtn = new QPushButton(item.scheduledRunEnabled ? u"关闭定时运行"_s : u"开启定时运行"_s);
-    runBtn->setObjectName(QString("runBtn_%1").arg(item.path));
+    runBtn->setObjectName(QString("runBtn_%1").arg(item.id));
     runBtn->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     runBtn->setToolTip(u"定时运行目标程序，可添加任意组定时计划"_s);
 
     opLay->addWidget(guardBtn);
     opLay->addWidget(srBtn);
     opLay->addWidget(runBtn);
-    tableWidget->setCellWidget(row, 9, opWidget);
+    tableWidget->setCellWidget(row, 10, opWidget);
 
     // Guard button
-    connect(guardBtn, &QPushButton::clicked, this, [this, itemPath = item.path]() {
-        int idx = findItemIndexByPath(itemPath);
+    connect(guardBtn, &QPushButton::clicked, this, [this, itemId = item.id]() {
+        int idx = findItemIndexById(itemId);
         if (idx < 0) return;
-        int displayRow = findRowByPath(itemPath);
+        int displayRow = findRowById(itemId);
         if (displayRow < 0) return;
         GuardItem& it = items[idx];
         it.guarding = !it.guarding;
@@ -147,29 +154,29 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             it.restartCount = 0;
             it.guardStartTime = QDateTime();
             if (!it.restartRulesActive) {
-                if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(u"未守护"_s);
+                if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText(u"未守护"_s);
             }
-            if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText("-");
-            if (tableWidget->item(displayRow, 4)) tableWidget->item(displayRow, 4)->setText("0");
-            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("-");
+            if (tableWidget->item(displayRow, 3)) tableWidget->item(displayRow, 3)->setText("-");
+            if (tableWidget->item(displayRow, 5)) tableWidget->item(displayRow, 5)->setText("0");
+            if (tableWidget->item(displayRow, 6)) tableWidget->item(displayRow, 6)->setText("-");
         }
         updateButtonStates(displayRow);
         saveSettings();
     });
 
     // Scheduled restart button
-    connect(srBtn, &QPushButton::clicked, this, [this, itemPath = item.path]() {
-        int idx = findItemIndexByPath(itemPath);
+    connect(srBtn, &QPushButton::clicked, this, [this, itemId = item.id]() {
+        int idx = findItemIndexById(itemId);
         if (idx < 0) return;
-        int displayRow = findRowByPath(itemPath);
+        int displayRow = findRowById(itemId);
         if (displayRow < 0) return;
         GuardItem& it = items[idx];
         if (it.restartRulesActive) {
             it.restartRulesActive = false;
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(u"开启定时重启"_s);
-            if (tableWidget->item(displayRow, 6)) tableWidget->item(displayRow, 6)->setText("-");
             if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText("-");
+            if (tableWidget->item(displayRow, 8)) tableWidget->item(displayRow, 8)->setText("-");
             updateButtonStates(displayRow);
             saveSettings();
         } else {
@@ -178,18 +185,18 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     });
 
     // Scheduled run button
-    connect(runBtn, &QPushButton::clicked, this, [this, itemPath = item.path]() {
-        int idx = findItemIndexByPath(itemPath);
+    connect(runBtn, &QPushButton::clicked, this, [this, itemId = item.id]() {
+        int idx = findItemIndexById(itemId);
         if (idx < 0) return;
-        int displayRow = findRowByPath(itemPath);
+        int displayRow = findRowById(itemId);
         if (displayRow < 0) return;
         GuardItem& it = items[idx];
         if (it.scheduledRunEnabled) {
             it.scheduledRunEnabled = false;
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(u"开启定时运行"_s);
-            if (tableWidget->item(displayRow, 1)) tableWidget->item(displayRow, 1)->setText(u"未守护"_s);
-            if (tableWidget->item(displayRow, 8)) tableWidget->item(displayRow, 8)->setText(formatStartDelay(it.startDelaySecs));
+            if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText(u"未守护"_s);
+            if (tableWidget->item(displayRow, 9)) tableWidget->item(displayRow, 9)->setText(formatStartDelay(it.startDelaySecs));
             updateButtonStates(displayRow);
             saveSettings();
         } else {
@@ -204,16 +211,16 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 }
 
 void SuperGuardian::updateButtonStates(int row) {
-    QWidget* opw = tableWidget->cellWidget(row, 9);
+    QWidget* opw = tableWidget->cellWidget(row, 10);
     if (!opw) return;
-    QString path = rowPath(row);
-    int idx = findItemIndexByPath(path);
+    QString id = rowId(row);
+    int idx = findItemIndexById(id);
     if (idx < 0) return;
     const GuardItem& it = items[idx];
 
-    QPushButton* guardBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(path));
-    QPushButton* srBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(path));
-    QPushButton* runBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(path));
+    QPushButton* guardBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(id));
+    QPushButton* srBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(id));
+    QPushButton* runBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(id));
 
     bool guardOrRestartActive = it.guarding || it.restartRulesActive;
     bool runActive = it.scheduledRunEnabled;
@@ -244,6 +251,7 @@ void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     }
 
     GuardItem item;
+    item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     item.path = resolvedPath;
     QString shortcutArgs;
     item.targetPath = resolveShortcut(resolvedPath, &shortcutArgs);

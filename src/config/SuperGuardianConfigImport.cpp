@@ -14,6 +14,8 @@ using namespace Qt::Literals::StringLiterals;
 
 static QJsonObject structuredItemToFlat(const QJsonObject& src) {
     QJsonObject o;
+    if (src.contains(u"id"_s))
+        o[u"id"_s] = src[u"id"_s].toString();
     o[u"path"_s] = src[u"path"_s].toString();
     if (src.contains(u"launchArgs"_s))
         o[u"launchArgs"_s] = src[u"launchArgs"_s].toString();

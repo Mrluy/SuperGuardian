@@ -46,11 +46,11 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     btnAdd->setObjectName("primaryBtn");
     tableWidget = new DesktopSelectTable(this);
 
-    tableWidget->setColumnCount(10);
-    tableWidget->setHorizontalHeaderLabels({ u"程序"_s, u"运行状态"_s, u"持续运行时长"_s, u"上次重启(运行)"_s, u"被守护次数"_s, u"持续守护时长"_s, u"定时规则"_s, u"下次重启(运行)"_s, u"启动延时"_s, u"操作"_s });
+    tableWidget->setColumnCount(11);
+    tableWidget->setHorizontalHeaderLabels({ u"UUID"_s, u"程序"_s, u"运行状态"_s, u"持续运行时长"_s, u"上次重启(运行)"_s, u"被守护次数"_s, u"持续守护时长"_s, u"定时规则"_s, u"下次重启(运行)"_s, u"启动延时"_s, u"操作"_s });
     tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    tableWidget->horizontalHeader()->setSectionResizeMode(9, QHeaderView::Fixed);
-    tableWidget->setColumnWidth(9, 300);
+    tableWidget->horizontalHeader()->setSectionResizeMode(10, QHeaderView::Fixed);
+    tableWidget->setColumnWidth(10, 300);
     tableWidget->horizontalHeader()->setSectionsMovable(true);
     tableWidget->horizontalHeader()->setHighlightSections(false);
     tableWidget->setSortingEnabled(false);
@@ -64,7 +64,7 @@ SuperGuardian::SuperGuardian(QWidget *parent)
     tableWidget->setItemDelegate(new BruteForceDelegate(tableWidget));
     tableWidget->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(tableWidget, &QTableWidget::customContextMenuRequested, this, &SuperGuardian::onTableContextMenuRequested);
-    if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(8)) {
+    if (QTableWidgetItem* hdr = tableWidget->horizontalHeaderItem(9)) {
         hdr->setToolTip(u"程序重启时的启动延时，单位为秒。\n默认 1 秒，可设置为 0 关闭延时。\n守护重启、定时重启均使用此延时。\n定时运行不使用此项。"_s);
     }
     tableWidget->verticalHeader()->setSectionsClickable(false);

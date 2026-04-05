@@ -76,6 +76,9 @@ void SuperGuardian::loadSettings() {
         if (path.isEmpty()) continue;
 
         GuardItem item;
+        item.id = o[u"id"_s].toString();
+        if (item.id.isEmpty())
+            item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         item.path = path;
         QString shortcutArgs;
         item.targetPath = resolveShortcut(path, &shortcutArgs);
@@ -164,6 +167,7 @@ void SuperGuardian::saveSettings() {
     QJsonArray itemsArr;
     for (int i = 0; i < items.size(); ++i) {
         QJsonObject o;
+        o[u"id"_s] = items[i].id;
         o[u"path"_s] = items[i].path;
         o[u"launchArgs"_s] = items[i].launchArgs;
         o[u"guard"_s] = items[i].guarding;
@@ -205,22 +209,22 @@ void SuperGuardian::saveSettings() {
     db.endBatch();
 }
 
-int SuperGuardian::findItemIndexByPath(const QString& path) const {
+int SuperGuardian::findItemIndexById(const QString& id) const {
     for (int i = 0; i < items.size(); ++i) {
-        if (items[i].path == path) return i;
+        if (items[i].id == id) return i;
     }
     return -1;
 }
 
-int SuperGuardian::findRowByPath(const QString& path) const {
+int SuperGuardian::findRowById(const QString& id) const {
     for (int row = 0; row < tableWidget->rowCount(); ++row) {
         QTableWidgetItem* item = tableWidget->item(row, 0);
-        if (item && item->data(Qt::UserRole).toString() == path) return row;
+        if (item && item->data(Qt::UserRole).toString() == id) return row;
     }
     return -1;
 }
 
-QString SuperGuardian::rowPath(int row) const {
+QString SuperGuardian::rowId(int row) const {
     if (row < 0 || row >= tableWidget->rowCount()) return QString();
     QTableWidgetItem* item = tableWidget->item(row, 0);
     if (!item) return QString();
@@ -234,7 +238,7 @@ void SuperGuardian::clearListWithConfirmation() {
     logOperation(u"清空列表"_s);
 
     for (int i = items.size() - 1; i >= 0; --i) {
-        int row = findRowByPath(items[i].path);
+        int row = findRowById(items[i].id);
         if (row >= 0) tableWidget->removeRow(row);
         items.removeAt(i);
     }

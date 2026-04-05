@@ -9,7 +9,7 @@
 void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun) {
     QList<ScheduleRule> initRules;
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0)
             initRules = forRun ? items[itemIdx].runRules : items[itemIdx].restartRules;
     }
@@ -22,7 +22,11 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
 
     QListWidget* ruleList = new QListWidget();
     ruleList->setContextMenuPolicy(Qt::CustomContextMenu);
-    lay->addWidget(ruleList);
+    ruleList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ruleList->setDragDropMode(QAbstractItemView::InternalMove);
+    ruleList->setDefaultDropAction(Qt::MoveAction);
+    ruleList->setSpacing(0);
+    lay->addWidget(ruleList, 1);
 
     auto formatRule = [](const ScheduleRule& r) -> QString {
         if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
@@ -32,19 +36,40 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
     QList<ScheduleRule>* editRules = new QList<ScheduleRule>(initRules);
     auto refreshList = [&]() {
         ruleList->clear();
-        for (const ScheduleRule& r : *editRules)
-            ruleList->addItem(formatRule(r));
+        for (int i = 0; i < editRules->size(); i++) {
+            QListWidgetItem* item = new QListWidgetItem(formatRule((*editRules)[i]));
+            item->setData(Qt::UserRole, i);
+            ruleList->addItem(item);
+        }
+    };
+    auto syncRulesFromList = [&]() {
+        QList<ScheduleRule> reordered;
+        for (int i = 0; i < ruleList->count(); i++) {
+            int origIdx = ruleList->item(i)->data(Qt::UserRole).toInt();
+            if (origIdx >= 0 && origIdx < editRules->size())
+                reordered.append((*editRules)[origIdx]);
+        }
+        *editRules = reordered;
+        for (int i = 0; i < ruleList->count(); i++)
+            ruleList->item(i)->setData(Qt::UserRole, i);
     };
     refreshList();
 
     QObject::connect(ruleList, &QListWidget::customContextMenuRequested, [&](const QPoint& pos) {
         QMenu ctxMenu(ruleList);
-        int ci = ruleList->currentRow();
-        if (ci >= 0 && ci < editRules->size()) {
-            ctxMenu.addAction(u"复制规则"_s, [&, ci]() {
+        QList<QListWidgetItem*> selected = ruleList->selectedItems();
+        if (!selected.isEmpty()) {
+            ctxMenu.addAction(u"复制规则"_s, [&]() {
+                syncRulesFromList();
                 copiedScheduleRules.clear();
-                copiedScheduleRules.append((*editRules)[ci]);
-                copiedRulesTime = QDateTime::currentDateTime();
+                QList<QListWidgetItem*> sel = ruleList->selectedItems();
+                for (auto* s : sel) {
+                    int idx = ruleList->row(s);
+                    if (idx >= 0 && idx < editRules->size())
+                        copiedScheduleRules.append((*editRules)[idx]);
+                }
+                if (!copiedScheduleRules.isEmpty())
+                    copiedRulesTime = QDateTime::currentDateTime();
             });
         }
         bool canPaste = !copiedScheduleRules.isEmpty() && copiedRulesTime.isValid()
@@ -55,6 +80,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
                 copiedScheduleRules.clear();
                 return;
             }
+            syncRulesFromList();
             for (const ScheduleRule& r : copiedScheduleRules) {
                 ScheduleRule nr = r;
                 nr.nextTrigger = calculateNextTrigger(nr);
@@ -91,7 +117,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         QWidget* periodicWidget = new QWidget();
         QHBoxLayout* pLay = new QHBoxLayout(periodicWidget);
         pLay->setContentsMargins(0, 4, 0, 0);
-        QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 365); daySpin->setSuffix(u" 天"_s);
+        QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 99999); daySpin->setSuffix(u" 天"_s);
         QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setValue(0); hourSpin->setSuffix(u" 小时"_s);
         QSpinBox* minSpin = new QSpinBox(); minSpin->setRange(0, 59); minSpin->setSuffix(u" 分钟"_s);
         pLay->addWidget(daySpin); pLay->addWidget(hourSpin); pLay->addWidget(minSpin);
@@ -177,20 +203,30 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         refreshList();
     };
 
-    QObject::connect(addBtn, &QPushButton::clicked, [&]() { openRuleDialog(-1); });
+    QObject::connect(addBtn, &QPushButton::clicked, [&]() { syncRulesFromList(); openRuleDialog(-1); });
 
     QObject::connect(ruleList, &QListWidget::itemDoubleClicked, [&](QListWidgetItem*) {
+        syncRulesFromList();
         int ci = ruleList->currentRow();
         if (ci >= 0 && ci < editRules->size())
             openRuleDialog(ci);
     });
 
     QObject::connect(removeBtn, &QPushButton::clicked, [&]() {
-        int ci = ruleList->currentRow();
-        if (ci >= 0 && ci < editRules->size()) {
-            editRules->removeAt(ci);
-            refreshList();
-        }
+        QList<QListWidgetItem*> selected = ruleList->selectedItems();
+        if (selected.isEmpty()) return;
+        QString msg = selected.size() == 1
+            ? u"确认删除选中的规则吗？"_s
+            : u"确认删除选中的 %1 条规则吗？"_s.arg(selected.size());
+        if (!showMessageDialog(&dlg, u"删除规则"_s, msg, true)) return;
+        syncRulesFromList();
+        QList<int> indices;
+        for (auto* item : selected)
+            indices << ruleList->row(item);
+        std::sort(indices.begin(), indices.end(), std::greater<int>());
+        for (int idx : indices)
+            editRules->removeAt(idx);
+        refreshList();
     });
 
     // 定时运行模式下添加"持续运行时长"选项
@@ -199,20 +235,24 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         trackDurationCheck = new QCheckBox(u"监控持续运行时长"_s);
         trackDurationCheck->setToolTip(u"选中时在程序列表中显示“持续运行时长”，未选中则始终显示“-”"_s);
         if (rows.size() == 1) {
-            int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+            int itemIdx = findItemIndexById(rowId(rows[0]));
             if (itemIdx >= 0)
                 trackDurationCheck->setChecked(items[itemIdx].trackRunDuration);
         }
         lay->addWidget(trackDurationCheck);
     }
 
-    lay->addStretch();
     QHBoxLayout* dlgBtnLay = new QHBoxLayout();
     dlgBtnLay->addStretch();
     QPushButton* clearBtn = new QPushButton(u"清空"_s);
     QPushButton* okBtn = new QPushButton(u"确定"_s);
     QPushButton* cancelBtn = new QPushButton(u"取消"_s);
-    QObject::connect(clearBtn, &QPushButton::clicked, [&]() { editRules->clear(); refreshList(); });
+    QObject::connect(clearBtn, &QPushButton::clicked, [&]() {
+        if (editRules->isEmpty()) return;
+        if (!showMessageDialog(&dlg, u"清空规则"_s, u"确认清空所有规则吗？"_s, true)) return;
+        editRules->clear();
+        refreshList();
+    });
     QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
     QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
     dlgBtnLay->addWidget(clearBtn);
@@ -223,11 +263,12 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
 
     if (dlg.exec() != QDialog::Accepted) { delete editRules; return; }
 
+    syncRulesFromList();
     QList<ScheduleRule> finalRules = *editRules;
     delete editRules;
 
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         GuardItem& item = items[itemIdx];
         if (forRun) {
@@ -252,28 +293,28 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             }
         };
         if (item.scheduledRunEnabled) {
-            setCell(6, formatScheduleRules(item.runRules));
+            setCell(7, formatScheduleRules(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+            setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         } else {
-            setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
+            setCell(7, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
             QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+            setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         }
-        setCell(8, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
+        setCell(9, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
 
-        QWidget* opw = tableWidget->cellWidget(row, 9);
+        QWidget* opw = tableWidget->cellWidget(row, 10);
         if (opw) {
-            QPushButton* gBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.path));
-            QPushButton* sBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(item.path));
-            QPushButton* rBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(item.path));
+            QPushButton* gBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.id));
+            QPushButton* sBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(item.id));
+            QPushButton* rBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(item.id));
             if (gBtn) gBtn->setText(item.guarding ? u"关闭守护"_s : u"开始守护"_s);
             if (sBtn) sBtn->setText(item.restartRulesActive ? u"关闭定时重启"_s : u"开启定时重启"_s);
             if (rBtn) rBtn->setText(item.scheduledRunEnabled ? u"关闭定时运行"_s : u"开启定时运行"_s);
         }
-        if (tableWidget->item(row, 1)) {
-            if (item.scheduledRunEnabled) tableWidget->item(row, 1)->setText(u"定时运行"_s);
-            else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 1)->setText(u"未守护"_s);
+        if (tableWidget->item(row, 2)) {
+            if (item.scheduledRunEnabled) tableWidget->item(row, 2)->setText(u"定时运行"_s);
+            else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 2)->setText(u"未守护"_s);
         }
         updateButtonStates(row);
         logOperation(forRun ? u"设置定时运行规则"_s : u"设置定时重启规则"_s, programId(item.processName, item.launchArgs));

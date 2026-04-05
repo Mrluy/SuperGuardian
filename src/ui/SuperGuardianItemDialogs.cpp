@@ -15,13 +15,14 @@ QString buildProgramDisplayText(const GuardItem& item) {
 }
 
 QString buildProgramToolTip(const GuardItem& item) {
-    return item.launchArgs.isEmpty()
+    QString name = item.launchArgs.isEmpty()
         ? item.processName
         : item.processName + u" "_s + item.launchArgs;
+    return item.id.left(8) + u" "_s + name;
 }
 
 void updateProgramCell(QTableWidget* tableWidget, int row, const GuardItem& item) {
-    if (QTableWidgetItem* cell = tableWidget->item(row, 0)) {
+    if (QTableWidgetItem* cell = tableWidget->item(row, 1)) {
         cell->setText(buildProgramDisplayText(item));
         cell->setToolTip(buildProgramToolTip(item));
         cell->setIcon(getFileIcon(item.targetPath));
@@ -43,7 +44,7 @@ void SuperGuardian::contextSetNote(const QList<int>& rows) {
 
     QLineEdit* noteEdit = new QLineEdit();
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0)
             noteEdit->setText(items[itemIdx].note);
     }
@@ -66,7 +67,7 @@ void SuperGuardian::contextSetNote(const QList<int>& rows) {
 
     const QString note = noteEdit->text().trimmed();
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0)
             continue;
 
@@ -90,7 +91,7 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
     spin->setSuffix(u" 秒"_s);
     spin->setSpecialValueText(u"关闭"_s);
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) spin->setValue(items[itemIdx].startDelaySecs);
     }
     lay->addWidget(spin);
@@ -109,17 +110,17 @@ void SuperGuardian::contextSetStartDelay(const QList<int>& rows) {
 
     int delaySecs = spin->value();
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         GuardItem& item = items[itemIdx];
         item.startDelaySecs = delaySecs;
         item.startDelayExitTime = QDateTime();
         logOperation(u"设置启动延时 %1秒"_s.arg(delaySecs), programId(item.processName, item.launchArgs));
-        if (tableWidget->item(row, 8)) {
+        if (tableWidget->item(row, 9)) {
             if (item.scheduledRunEnabled)
-                tableWidget->item(row, 8)->setText("-");
+                tableWidget->item(row, 9)->setText("-");
             else
-                tableWidget->item(row, 8)->setText(formatStartDelay(delaySecs));
+                tableWidget->item(row, 9)->setText(formatStartDelay(delaySecs));
         }
     }
     saveSettings();
@@ -137,7 +138,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addWidget(new QLabel(u"启动程序路径："_s));
     QLineEdit* pathEdit = new QLineEdit();
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) pathEdit->setText(items[itemIdx].targetPath);
     }
     lay->addWidget(pathEdit);
@@ -145,7 +146,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addWidget(new QLabel(u"启动参数（留空表示无参数）："_s));
     QLineEdit* argsEdit = new QLineEdit();
     if (rows.size() == 1) {
-        int itemIdx = findItemIndexByPath(rowPath(rows[0]));
+        int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) argsEdit->setText(items[itemIdx].launchArgs);
     }
     lay->addWidget(argsEdit);
@@ -163,7 +164,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     const QString newPath = pathEdit->text().trimmed();
     QString args = argsEdit->text().trimmed();
     for (int row : rows) {
-        int itemIdx = findItemIndexByPath(rowPath(row));
+        int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         GuardItem& item = items[itemIdx];
         if (!newPath.isEmpty() && newPath != item.targetPath) {
@@ -177,7 +178,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
         item.launchArgs = args;
         logOperation(u"设置启动程序/参数"_s, programId(item.processName, args));
         if (QTableWidgetItem* cell = tableWidget->item(row, 0))
-            cell->setData(Qt::UserRole, item.path);
+            cell->setData(Qt::UserRole, item.id);
         updateProgramCell(tableWidget, row, item);
     }
     saveSettings();

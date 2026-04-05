@@ -37,7 +37,7 @@ void BruteForceDelegate::paint(QPainter* painter, const QStyleOptionViewItem& op
         painter->setFont(qvariant_cast<QFont>(font));
 
     QRect textRect = option.rect.adjusted(4, 0, -2, 0);
-    if (index.column() == 0 && index.data(Qt::UserRole + 2).toBool()) {
+    if (index.column() == 1 && index.data(Qt::UserRole + 2).toBool()) {
         QString pinRes = isDark ? u":/SuperGuardian/top_light.png"_s : u":/SuperGuardian/top_dark.png"_s;
         QIcon pinIcon(pinRes);
         if (!pinIcon.isNull()) {

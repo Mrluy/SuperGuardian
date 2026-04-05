@@ -54,9 +54,9 @@ private:
     void applyTheme(const QString& theme);
     void syncSelfGuardListEntry(bool enabled);
     void runSelfGuardTest();
-    int findItemIndexByPath(const QString& path) const;
-    int findRowByPath(const QString& path) const;
-    QString rowPath(int row) const;
+    int findItemIndexById(const QString& id) const;
+    int findRowById(const QString& id) const;
+    QString rowId(int row) const;
     void clearListWithConfirmation();
     void distributeColumnWidths();
     void saveColumnWidths();

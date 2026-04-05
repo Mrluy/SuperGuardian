@@ -80,7 +80,7 @@ void SuperGuardian::syncSelfGuardListEntry(bool enabled) {
     // 这里只做一次性清理：移除旧版本残留的 internalSelfGuard 行。
     for (int i = items.size() - 1; i >= 0; --i) {
         if (!items[i].internalSelfGuard) continue;
-        int row = findRowByPath(items[i].path);
+        int row = findRowById(items[i].id);
         if (row >= 0) tableWidget->removeRow(row);
         items.removeAt(i);
     }

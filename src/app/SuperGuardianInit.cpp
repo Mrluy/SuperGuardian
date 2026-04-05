@@ -68,7 +68,7 @@ void SuperGuardian::initSignals() {
         if (!showMessageDialog(this, u"移除"_s, msg, true)) return;
         for (int i = rows.size() - 1; i >= 0; --i) {
             int row = rows[i];
-            int idx = findItemIndexByPath(rowPath(row));
+            int idx = findItemIndexById(rowId(row));
             if (idx >= 0) items.removeAt(idx);
             tableWidget->removeRow(row);
         }

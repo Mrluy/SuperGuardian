@@ -10,7 +10,7 @@
 void SuperGuardian::checkProcesses() {
     QDateTime now = QDateTime::currentDateTime();
     for (int row = 0; row < tableWidget->rowCount(); ++row) {
-        int idx = findItemIndexByPath(rowPath(row));
+        int idx = findItemIndexById(rowId(row));
         if (idx < 0) continue;
         GuardItem& item = items[idx];
 
@@ -59,23 +59,23 @@ void SuperGuardian::checkProcesses() {
                     tableWidget->item(row, col)->setToolTip(text);
                 }
             };
-            setCell(1, u"定时运行"_s);
+            setCell(2, u"定时运行"_s);
             {
                 if (item.trackRunDuration) {
                     QDateTime procStart = getProcessStartTime(item.processName);
-                    setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+                    setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
                 } else {
-                    setCell(2, "-");
+                    setCell(3, "-");
                 }
             }
-            setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-            setCell(4, "-");
+            setCell(4, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
             setCell(5, "-");
+            setCell(6, "-");
             QString rulesText = formatScheduleRules(item.runRules);
-            setCell(6, rulesText);
+            setCell(7, rulesText);
             QDateTime nt = nextTriggerTime(item.runRules);
-            setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-            setCell(8, "-");
+            setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+            setCell(9, "-");
             continue;
         }
 
@@ -221,36 +221,36 @@ void SuperGuardian::checkProcesses() {
             }
         };
         if (hasGuard) {
-            setCell(1, running ? u"运行中"_s : u"已重启"_s);
+            setCell(2, running ? u"运行中"_s : u"已重启"_s);
         } else if (hasScheduledRestart) {
-            setCell(1, running ? u"运行中"_s : u"未运行"_s);
+            setCell(2, running ? u"运行中"_s : u"未运行"_s);
         }
         if (hasGuard) {
             QDateTime procStart = getProcessStartTime(item.processName);
-            setCell(2, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+            setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
         } else {
-            setCell(2, "-");
+            setCell(3, "-");
         }
         if (item.guarding && item.guardStartTime.isValid()) {
-            setCell(5, formatDuration(item.guardStartTime.secsTo(now)));
+            setCell(6, formatDuration(item.guardStartTime.secsTo(now)));
         } else {
-            setCell(5, "-");
+            setCell(6, "-");
         }
-        setCell(3, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-        setCell(4, QString::number(item.restartCount));
-        setCell(6, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
+        setCell(4, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+        setCell(5, QString::number(item.restartCount));
+        setCell(7, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
-        setCell(7, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-        setCell(8, formatStartDelay(item.startDelaySecs));
+        setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+        setCell(9, formatStartDelay(item.startDelaySecs));
     }
 
     // 动态列排序：当排序列内容变化时更新排序
-    if (sortState != 0 && activeSortSection >= 1 && activeSortSection <= 8) {
+    if (sortState != 0 && activeSortSection >= 2 && activeSortSection <= 9) {
         Qt::SortOrder order = (sortState == 1) ? Qt::AscendingOrder : Qt::DescendingOrder;
         bool orderChanged = false;
         for (int r = 0; r < tableWidget->rowCount() - 1; r++) {
-            int idx1 = findItemIndexByPath(rowPath(r));
-            int idx2 = findItemIndexByPath(rowPath(r + 1));
+            int idx1 = findItemIndexById(rowId(r));
+            int idx2 = findItemIndexById(rowId(r + 1));
             if (idx1 < 0 || idx2 < 0) continue;
             if (items[idx1].pinned != items[idx2].pinned) continue;
             QTableWidgetItem* it1 = tableWidget->item(r, activeSortSection);
