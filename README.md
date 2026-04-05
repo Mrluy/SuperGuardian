@@ -7,6 +7,7 @@
 ## 版本限制
 
 最低 Windows 版本：Windows 10 21H2
+> 低于此版本可能可用但不保证。
 
 最低 Windows Server 版本：Windows Server 2022（带桌面体验）
 > Windows Server 2019 可能可用但不保证。
