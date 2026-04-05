@@ -4,6 +4,27 @@
 
 ---
 
+## 部分界面预览
+
+<table>
+  <tr>
+    <td align="center"><b>暗色模式</b></td>
+    <td align="center"><b>浅色模式</b></td>
+  </tr>
+  <tr>
+    <td><img src="Screenshots/main-dark.png" alt="暗色模式主界面" /></td>
+    <td><img src="Screenshots/main-light.png" alt="浅色模式主界面" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>右键菜单</b></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><img src="Screenshots/R-menu.png" alt="右键菜单" /></td>
+  </tr>
+</table>
+
+---
+
 ## 功能概览
 
 | 功能 | 说明 |
