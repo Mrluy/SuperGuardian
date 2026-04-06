@@ -92,7 +92,7 @@ void SuperGuardian::initSignals() {
 
     timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);
-    timer->start(2000);
+    timer->start(200);
 
     if (tableWidget && tableWidget->model()) {
         connect(tableWidget->model(), &QAbstractItemModel::dataChanged,

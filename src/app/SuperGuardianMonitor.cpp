@@ -132,37 +132,14 @@ void SuperGuardian::checkProcesses() {
                 int recount = 0;
                 isProcessRunning(item.processName, recount);
                 if (recount == 0) {
-                    if (item.startDelaySecs > 0) {
-                        if (!item.startDelayExitTime.isValid()) {
-                            item.startDelayExitTime = now;
-                            trySendNotification(item, "process_exited",
-                                u"%1 进程已退出，将在 %2 秒后重启"_s.arg(item.processName).arg(item.startDelaySecs));
-                        }
-                        if (item.startDelayExitTime.secsTo(now) >= item.startDelaySecs) {
+                    auto tryGuardLaunch = [&]() {
+                        int finalCount = 0;
+                        if (isProcessRunning(item.processName, finalCount) || finalCount > 0) {
                             item.startDelayExitTime = QDateTime();
-                            bool ok = launchProgram(item.targetPath, item.launchArgs);
-                            item.lastLaunchTime = now;
-                            item.lastGuardRestartTime = now;
-                            item.restartCount++;
-                            item.lastRestart = now;
-                            item.startTime = now;
                             running = true;
-                            trySendNotification(item, "guard_triggered",
-                                u"%1 守护触发重启"_s.arg(item.processName));
-                            logGuard(u"守护触发重启"_s, programId(item.processName, item.launchArgs));
-                            if (!ok) {
-                                trySendNotification(item, "start_failed",
-                                    u"%1 守护启动失败"_s.arg(item.processName));
-                                logGuard(u"守护启动失败"_s, programId(item.processName, item.launchArgs));
-                                if (!item.retryActive) {
-                                    item.retryActive = true;
-                                    item.retryStartTime = now;
-                                    item.currentRetryCount = 0;
-                                    item.lastRetryTime = now;
-                                }
-                            }
+                            return;
                         }
-                    } else {
+
                         bool ok = launchProgram(item.targetPath, item.launchArgs);
                         item.lastLaunchTime = now;
                         item.lastGuardRestartTime = now;
@@ -184,6 +161,19 @@ void SuperGuardian::checkProcesses() {
                                 item.lastRetryTime = now;
                             }
                         }
+                    };
+
+                    if (item.startDelaySecs > 0) {
+                        if (!item.startDelayExitTime.isValid()) {
+                            item.startDelayExitTime = now;
+                            trySendNotification(item, "process_exited",
+                                u"%1 进程已退出，将在 %2 秒后重启"_s.arg(item.processName).arg(item.startDelaySecs));
+                        }
+                        if (item.startDelayExitTime.msecsTo(now) >= item.startDelaySecs * 1000) {
+                            tryGuardLaunch();
+                        }
+                    } else {
+                        tryGuardLaunch();
                     }
                 }
             }
