@@ -15,13 +15,26 @@ static QJsonArray scheduleRulesToJson(const QList<ScheduleRule>& rules) {
     QJsonArray arr;
     for (const ScheduleRule& r : rules) {
         QJsonObject o;
-        o["type"] = (r.type == ScheduleRule::Periodic) ? "periodic" : "fixed";
+        if (r.type == ScheduleRule::Advanced)
+            o["type"] = "advanced";
+        else
+            o["type"] = (r.type == ScheduleRule::Periodic) ? "periodic" : "fixed";
         o["intervalSecs"] = r.intervalSecs;
         o["fixedTime"] = r.fixedTime.toString("HH:mm:ss");
         QJsonArray days;
         for (int d : r.daysOfWeek) days.append(d);
         o["daysOfWeek"] = days;
         o["nextTrigger"] = r.nextTrigger.toString(Qt::ISODate);
+        if (r.type == ScheduleRule::Advanced) {
+            o["advMinute"] = r.advMinute;
+            o["advHour"] = r.advHour;
+            o["advDay"] = r.advDay;
+            o["advMonth"] = r.advMonth;
+            o["advYear"] = r.advYear;
+            QJsonArray advDow;
+            for (int d : r.advDaysOfWeek) advDow.append(d);
+            o["advDaysOfWeek"] = advDow;
+        }
         arr.append(o);
     }
     return arr;
@@ -32,12 +45,27 @@ static QList<ScheduleRule> jsonToScheduleRules(const QJsonArray& arr) {
     for (const QJsonValue& v : arr) {
         QJsonObject o = v.toObject();
         ScheduleRule r;
-        r.type = (o["type"].toString() == "fixed") ? ScheduleRule::FixedTime : ScheduleRule::Periodic;
+        QString typeStr = o["type"].toString();
+        if (typeStr == "advanced")
+            r.type = ScheduleRule::Advanced;
+        else if (typeStr == "fixed")
+            r.type = ScheduleRule::FixedTime;
+        else
+            r.type = ScheduleRule::Periodic;
         r.intervalSecs = o["intervalSecs"].toInt(3600);
         r.fixedTime = QTime::fromString(o["fixedTime"].toString(), "HH:mm:ss");
         QJsonArray days = o["daysOfWeek"].toArray();
         for (const QJsonValue& dv : days) r.daysOfWeek.insert(dv.toInt());
         r.nextTrigger = QDateTime::fromString(o["nextTrigger"].toString(), Qt::ISODate);
+        if (r.type == ScheduleRule::Advanced) {
+            r.advMinute = o["advMinute"].toInt(0);
+            r.advHour = o["advHour"].toInt(-1);
+            r.advDay = o["advDay"].toInt(-1);
+            r.advMonth = o["advMonth"].toInt(-1);
+            r.advYear = o["advYear"].toInt(-1);
+            QJsonArray advDow = o["advDaysOfWeek"].toArray();
+            for (const QJsonValue& dv : advDow) r.advDaysOfWeek.insert(dv.toInt());
+        }
         rules.append(r);
     }
     return rules;

@@ -112,6 +112,65 @@ QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) 
     if (rule.type == ScheduleRule::Periodic) {
         return from.addSecs(rule.intervalSecs);
     }
+    if (rule.type == ScheduleRule::Advanced) {
+        QDateTime candidate = from.addSecs(60);
+        for (int attempt = 0; attempt < 366 * 24 * 60; ++attempt) {
+            QDate d = candidate.date();
+            QTime t = candidate.time();
+            if (rule.advYear > 0 && d.year() != rule.advYear) {
+                if (d.year() > rule.advYear) return QDateTime();
+                candidate = QDateTime(QDate(rule.advYear, 1, 1), QTime(0, 0));
+                continue;
+            }
+            if (rule.advMonth > 0 && d.month() != rule.advMonth) {
+                int targetMonth = rule.advMonth;
+                int targetYear = d.year();
+                if (d.month() > targetMonth) targetYear++;
+                if (rule.advYear > 0 && targetYear != rule.advYear) return QDateTime();
+                candidate = QDateTime(QDate(targetYear, targetMonth, 1), QTime(0, 0));
+                continue;
+            }
+            if (rule.advDay > 0 && d.day() != rule.advDay) {
+                int targetDay = rule.advDay;
+                QDate next = d;
+                if (d.day() > targetDay) {
+                    next = d.addMonths(1);
+                    next = QDate(next.year(), next.month(), 1);
+                }
+                int maxDay = QDate(next.year(), next.month(), 1).daysInMonth();
+                if (targetDay > maxDay) { candidate = QDateTime(next.addMonths(1), QTime(0, 0)); continue; }
+                candidate = QDateTime(QDate(next.year(), next.month(), targetDay), QTime(0, 0));
+                continue;
+            }
+            if (!rule.advDaysOfWeek.isEmpty() && !rule.advDaysOfWeek.contains(d.dayOfWeek())) {
+                candidate = QDateTime(d.addDays(1), QTime(0, 0));
+                continue;
+            }
+            if (rule.advHour >= 0 && t.hour() != rule.advHour) {
+                if (t.hour() > rule.advHour) {
+                    candidate = QDateTime(d.addDays(1), QTime(rule.advHour, 0));
+                } else {
+                    candidate = QDateTime(d, QTime(rule.advHour, 0));
+                }
+                continue;
+            }
+            if (rule.advMinute >= 0 && t.minute() != rule.advMinute) {
+                if (t.minute() > rule.advMinute) {
+                    if (rule.advHour >= 0) {
+                        candidate = QDateTime(d.addDays(1), QTime(rule.advHour, rule.advMinute));
+                    } else {
+                        candidate = QDateTime(d, QTime(t.hour(), rule.advMinute)).addSecs(3600);
+                    }
+                } else {
+                    candidate = QDateTime(d, QTime(t.hour(), rule.advMinute));
+                }
+                continue;
+            }
+            int finalMin = (rule.advMinute >= 0) ? rule.advMinute : t.minute();
+            return QDateTime(d, QTime(t.hour(), finalMin));
+        }
+        return QDateTime();
+    }
     // FixedTime: find next matching day+time
     QDateTime candidate(from.date(), rule.fixedTime);
     if (candidate <= from) candidate = candidate.addDays(1);
@@ -135,11 +194,43 @@ QDateTime nextTriggerTime(const QList<ScheduleRule>& rules) {
     return earliest;
 }
 
+QString formatAdvancedRule(const ScheduleRule& r) {
+    QString result;
+    if (r.advYear > 0)
+        result += u"%1年 "_s.arg(r.advYear);
+    else
+        result += u"每年 "_s;
+    if (r.advMonth > 0)
+        result += u"%1月 "_s.arg(r.advMonth);
+    else
+        result += u"每月 "_s;
+    if (r.advDay > 0) {
+        result += u"%1日"_s.arg(r.advDay);
+        if (!r.advDaysOfWeek.isEmpty())
+            result += u"&"_s + formatDaysShort(r.advDaysOfWeek);
+        result += u" "_s;
+    } else if (!r.advDaysOfWeek.isEmpty()) {
+        result += formatDaysShort(r.advDaysOfWeek) + u" "_s;
+    } else {
+        result += u"每天 "_s;
+    }
+    if (r.advHour >= 0 && r.advMinute >= 0)
+        result += u"%1时%2分"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advMinute, 2, 10, QChar('0'));
+    else if (r.advHour >= 0)
+        result += u"%1时 每分钟"_s.arg(r.advHour, 2, 10, QChar('0'));
+    else if (r.advMinute >= 0)
+        result += u"每小时 %1分"_s.arg(r.advMinute, 2, 10, QChar('0'));
+    else
+        result += u"每分钟"_s;
+    return result;
+}
+
 QString formatScheduleRules(const QList<ScheduleRule>& rules) {
     if (rules.isEmpty()) return u"-"_s;
     if (rules.size() == 1) {
         const ScheduleRule& r = rules[0];
         if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
+        if (r.type == ScheduleRule::Advanced) return formatAdvancedRule(r);
         return formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm"_s);
     }
     return u"%1个规则"_s.arg(rules.size());

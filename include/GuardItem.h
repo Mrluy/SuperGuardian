@@ -8,12 +8,20 @@
 #include <QUuid>
 
 struct ScheduleRule {
-    enum Type { Periodic, FixedTime };
+    enum Type { Periodic, FixedTime, Advanced };
     Type type = Periodic;
     int intervalSecs = 3600;
     QTime fixedTime;
     QSet<int> daysOfWeek;   // 1=Mon..7=Sun, empty=every day
     QDateTime nextTrigger;
+
+    // Advanced 类型专用字段
+    int advMinute = 0;          // 0-59
+    int advHour = -1;           // -1=每小时, 0-23
+    int advDay = -1;            // -1=每天, 1-31
+    int advMonth = -1;          // -1=每月, 1-12
+    int advYear = -1;           // -1=每年, 具体年份如2026
+    QSet<int> advDaysOfWeek;    // 1=Mon..7=Sun, empty=不限
 };
 
 struct RetryConfig {

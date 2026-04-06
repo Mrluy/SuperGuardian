@@ -13,7 +13,10 @@ static QJsonArray exportScheduleRules(const QList<ScheduleRule>& rules) {
     QJsonArray arr;
     for (const ScheduleRule& r : rules) {
         QJsonObject o;
-        o[u"type"_s] = (r.type == ScheduleRule::Periodic) ? u"periodic"_s : u"fixed"_s;
+        if (r.type == ScheduleRule::Advanced)
+            o[u"type"_s] = u"advanced"_s;
+        else
+            o[u"type"_s] = (r.type == ScheduleRule::Periodic) ? u"periodic"_s : u"fixed"_s;
         o[u"intervalSecs"_s] = r.intervalSecs;
         o[u"fixedTime"_s] = r.fixedTime.toString(u"HH:mm:ss"_s);
         QJsonArray days;
@@ -21,6 +24,16 @@ static QJsonArray exportScheduleRules(const QList<ScheduleRule>& rules) {
             days.append(d);
         o[u"daysOfWeek"_s] = days;
         o[u"nextTrigger"_s] = r.nextTrigger.toString(Qt::ISODate);
+        if (r.type == ScheduleRule::Advanced) {
+            o[u"advMinute"_s] = r.advMinute;
+            o[u"advHour"_s] = r.advHour;
+            o[u"advDay"_s] = r.advDay;
+            o[u"advMonth"_s] = r.advMonth;
+            o[u"advYear"_s] = r.advYear;
+            QJsonArray advDow;
+            for (int d : r.advDaysOfWeek) advDow.append(d);
+            o[u"advDaysOfWeek"_s] = advDow;
+        }
         arr.append(o);
     }
     return arr;

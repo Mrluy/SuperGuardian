@@ -24,13 +24,32 @@ SuperGuardian::SuperGuardian(QWidget *parent)
 
     class PathLineEdit : public QLineEdit {
     public:
+        std::function<void(const QStringList&)> onBatchDrop;
         PathLineEdit(QWidget* p=nullptr) : QLineEdit(p) { setAcceptDrops(true); }
     protected:
         void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
-        void dropEvent(QDropEvent* e) override { const QList<QUrl> urls = e->mimeData()->urls(); if (!urls.isEmpty()) setText(urls.first().toLocalFile()); }
+        void dropEvent(QDropEvent* e) override {
+            const QList<QUrl> urls = e->mimeData()->urls();
+            if (urls.isEmpty()) return;
+            if (urls.size() == 1) {
+                setText(urls.first().toLocalFile());
+            } else {
+                QStringList paths;
+                for (const QUrl& u : urls) paths << u.toLocalFile();
+                if (onBatchDrop) onBatchDrop(paths);
+            }
+        }
     };
 
     lineEdit = new PathLineEdit(this);
+    static_cast<PathLineEdit*>(lineEdit)->onBatchDrop = [this](const QStringList& paths) {
+        QStringList names;
+        for (const QString& f : paths) names << QFileInfo(f).fileName();
+        QString msg = u"确认添加以下 %1 个程序？\n\n%2"_s.arg(paths.size()).arg(names.join(u"\n"_s));
+        if (showMessageDialog(this, u"批量添加程序"_s, msg, true)) {
+            for (const QString& f : paths) addProgram(f);
+        }
+    };
     lineEdit->setPlaceholderText(u"输入文件完整路径；支持鼠标拖放文件到此处；系统内置工具（如 PowerShell）可仅输入名称；支持携带参数；支持识别快捷方式"_s);
     int lineH = lineEdit->fontMetrics().height();
     int inputH = (lineH * 2 + 10) * 3 / 4;

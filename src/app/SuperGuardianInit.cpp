@@ -78,8 +78,18 @@ void SuperGuardian::initSignals() {
     connect(autostartAct, &QAction::toggled, this, [this]() { updateToolbarIcons(); });
 
     connect(btnBrowse, &QPushButton::clicked, this, [this]() {
-        QString file = QFileDialog::getOpenFileName(this, u"选择程序"_s, "", "Executable (*.exe);;All Files (*)");
-        if (!file.isEmpty()) lineEdit->setText(file);
+        QStringList files = QFileDialog::getOpenFileNames(this, u"选择程序"_s, "", "Executable (*.exe);;All Files (*)");
+        if (files.isEmpty()) return;
+        if (files.size() == 1) {
+            lineEdit->setText(files.first());
+        } else {
+            QStringList names;
+            for (const QString& f : files) names << QFileInfo(f).fileName();
+            QString msg = u"确认添加以下 %1 个程序？\n\n%2"_s.arg(files.size()).arg(names.join(u"\n"_s));
+            if (showMessageDialog(this, u"批量添加程序"_s, msg, true)) {
+                for (const QString& f : files) addProgram(f);
+            }
+        }
     });
     connect(btnCancel, &QPushButton::clicked, this, [this]() { lineEdit->clear(); });
     connect(lineEdit, &QLineEdit::textChanged, this, [this](const QString& t){
