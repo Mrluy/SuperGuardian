@@ -228,6 +228,7 @@ void SuperGuardian::updateButtonStates(int row) {
     if (guardBtn) guardBtn->setEnabled(!runActive);
     if (srBtn) srBtn->setEnabled(!runActive);
     if (runBtn) runBtn->setEnabled(!guardOrRestartActive);
+    requestResetColumnWidths();
 }
 
 void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {

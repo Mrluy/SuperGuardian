@@ -49,6 +49,7 @@ private:
     int sortState = 0;
     int activeSortSection = -1;
     bool autoResizingColumns = false;
+    bool pendingResetColumnWidths = false;
     bool m_revertingHeader = false;
     bool m_exiting = false;
 
@@ -111,6 +112,7 @@ private:
     void showAboutDialog();
     void exportDiagnosticInfo();
     void initSignals();
+    void requestResetColumnWidths();
     void updateToolbarIcons();
     QIcon makeToolbarIcon(const QString& letter, bool active, const QString& theme) const;
 

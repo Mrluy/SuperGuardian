@@ -29,14 +29,25 @@ void updateOpWidgetStyle(DesktopSelectTable* table, int row) {
     bool hovered = row == table->hoveredRow();
     widget->setStyleSheet(opContainerStyle(currentThemeName() == "dark", selected, hovered));
 }
+
+int firstVisibleColumn(const DesktopSelectTable* table) {
+    if (!table)
+        return 0;
+    for (int col = 0; col < table->columnCount(); ++col) {
+        if (!table->isColumnHidden(col))
+            return col;
+    }
+    return 0;
+}
 }
 
 int DesktopSelectTable::dropTargetRow(const QPoint& pos) {
     int rc = rowCount();
     if (rc == 0)
         return 0;
+    const int refCol = firstVisibleColumn(this);
     for (int row = 0; row < rc; ++row) {
-        QRect rect = visualRect(model()->index(row, 0));
+        QRect rect = visualRect(model()->index(row, refCol));
         rect.setLeft(0);
         rect.setRight(viewport()->width());
         if (pos.y() < rect.center().y())
@@ -172,6 +183,7 @@ void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
 
     if (m_rowDragMode) {
         int target = dropTargetRow(e->pos());
+        const int refCol = firstVisibleColumn(this);
         if (!m_dropLine) {
             m_dropLine = new QFrame(viewport());
             m_dropLine->setFixedHeight(2);
@@ -179,9 +191,9 @@ void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
         }
         int y = 0;
         if (target < rowCount()) {
-            y = visualRect(model()->index(target, 0)).top();
+            y = visualRect(model()->index(target, refCol)).top();
         } else if (rowCount() > 0) {
-            y = visualRect(model()->index(rowCount() - 1, 0)).bottom() + 1;
+            y = visualRect(model()->index(rowCount() - 1, refCol)).bottom() + 1;
         }
         m_dropLine->setGeometry(0, y - 1, viewport()->width(), 2);
         m_dropLine->show();
@@ -196,8 +208,9 @@ void DesktopSelectTable::mouseMoveEvent(QMouseEvent* e) {
     m_band->setGeometry(rect);
 
     QItemSelection bandSelection;
+    const int refCol = firstVisibleColumn(this);
     for (int row = 0; row < rowCount(); ++row) {
-        QModelIndex first = model()->index(row, 0);
+        QModelIndex first = model()->index(row, refCol);
         QRect rowRect = visualRect(first);
         rowRect.setLeft(0);
         rowRect.setRight(viewport()->width());

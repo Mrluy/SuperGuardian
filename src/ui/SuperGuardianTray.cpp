@@ -221,6 +221,7 @@ void SuperGuardian::toggleVisible() {
         showNormal();
         raise();
         activateWindow();
+        QTimer::singleShot(0, this, &SuperGuardian::resetColumnWidths);
     }
 }
 
@@ -271,6 +272,7 @@ void SuperGuardian::changeEvent(QEvent* event) {
     if (event->type() == QEvent::WindowStateChange) {
         if (!(windowState() & Qt::WindowMinimized) && isVisible()) {
             show();
+            QTimer::singleShot(0, this, &SuperGuardian::resetColumnWidths);
         }
     }
     QMainWindow::changeEvent(event);
@@ -283,11 +285,7 @@ void SuperGuardian::resizeEvent(QResizeEvent* event) {
 
 void SuperGuardian::showEvent(QShowEvent* event) {
     QMainWindow::showEvent(event);
-    static bool firstShow = true;
-    if (firstShow) {
-        firstShow = false;
-        QTimer::singleShot(0, this, &SuperGuardian::distributeColumnWidths);
-    }
+    QTimer::singleShot(0, this, &SuperGuardian::resetColumnWidths);
 }
 
 bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
@@ -297,6 +295,7 @@ bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qint
         showNormal();
         raise();
         activateWindow();
+        QTimer::singleShot(0, this, &SuperGuardian::resetColumnWidths);
         if (result) *result = 0;
         return true;
     }

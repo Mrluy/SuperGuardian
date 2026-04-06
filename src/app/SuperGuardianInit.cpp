@@ -94,6 +94,25 @@ void SuperGuardian::initSignals() {
     connect(timer, &QTimer::timeout, this, &SuperGuardian::checkProcesses);
     timer->start(2000);
 
+    if (tableWidget && tableWidget->model()) {
+        connect(tableWidget->model(), &QAbstractItemModel::dataChanged,
+            this, [this](const QModelIndex&, const QModelIndex&, const QList<int>&) {
+                requestResetColumnWidths();
+            });
+        connect(tableWidget->model(), &QAbstractItemModel::rowsInserted,
+            this, [this](const QModelIndex&, int, int) {
+                requestResetColumnWidths();
+            });
+        connect(tableWidget->model(), &QAbstractItemModel::rowsRemoved,
+            this, [this](const QModelIndex&, int, int) {
+                requestResetColumnWidths();
+            });
+        connect(tableWidget->model(), &QAbstractItemModel::modelReset,
+            this, [this]() {
+                requestResetColumnWidths();
+            });
+    }
+
     connect(tray, &QSystemTrayIcon::activated, this, &SuperGuardian::onTrayActivated);
     static_cast<DesktopSelectTable*>(tableWidget)->onCellDoubleClicked = [this](int row, int col) {
         if (col == 10) return;
