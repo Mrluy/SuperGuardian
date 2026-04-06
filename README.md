@@ -460,4 +460,4 @@ powershell -File tools/package-release.ps1 -Version "1.0"
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=Mrluy/SuperGuardian&type=date&legend=top-left)](https://www.star-history.com/?repos=Mrluy%2FSuperGuardian&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=Mrluy/SuperGuardian&type=Date)](https://star-history.com/#Mrluy/SuperGuardian&Date)
