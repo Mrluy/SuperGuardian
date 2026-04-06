@@ -5,6 +5,84 @@
 #include "LogDatabase.h"
 #include <QtWidgets>
 
+namespace {
+
+struct OpenLocationChoice {
+    QString label;
+    QString path;
+};
+
+static QString resolveExistingPath(const QString& token, const QString& baseDir) {
+    QString value = token.trimmed();
+    if (value.isEmpty())
+        return QString();
+
+    QFileInfo directInfo(value);
+    if (directInfo.exists())
+        return directInfo.absoluteFilePath();
+
+    if (!baseDir.isEmpty() && QDir::isRelativePath(value)) {
+        QFileInfo relativeInfo(QDir(baseDir).filePath(value));
+        if (relativeInfo.exists())
+            return relativeInfo.absoluteFilePath();
+    }
+
+    const int eqPos = value.indexOf('=');
+    if (eqPos > 0 && eqPos + 1 < value.size())
+        return resolveExistingPath(value.mid(eqPos + 1), baseDir);
+
+    return QString();
+}
+
+static QList<OpenLocationChoice> collectOpenLocationChoices(const GuardItem& item) {
+    QList<OpenLocationChoice> choices;
+    QSet<QString> seenPaths;
+
+    auto addChoice = [&](const QString& label, const QString& path) {
+        const QString normalized = QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath());
+        if (normalized.isEmpty() || seenPaths.contains(normalized))
+            return;
+        seenPaths.insert(normalized);
+        choices.append({ label, normalized });
+    };
+
+    addChoice(u"程序路径"_s, item.targetPath);
+
+    if (!item.launchArgs.trimmed().isEmpty()) {
+        QStringList parts = QProcess::splitCommand(u"dummy "_s + item.launchArgs);
+        if (!parts.isEmpty())
+            parts.removeFirst();
+
+        const QString baseDir = QFileInfo(item.targetPath).absolutePath();
+        for (const QString& part : parts) {
+            const QString resolved = resolveExistingPath(part, baseDir);
+            if (resolved.isEmpty())
+                continue;
+
+            const QFileInfo info(resolved);
+            const QString displayPath = QDir::toNativeSeparators(resolved);
+            const QString label = info.isDir()
+                ? u"参数路径（文件夹）：%1"_s.arg(displayPath)
+                : u"参数路径（文件）：%1"_s.arg(displayPath);
+            addChoice(label, resolved);
+        }
+    }
+
+    return choices;
+}
+
+static void openPathInExplorer(const QString& path) {
+    QFileInfo info(path);
+    if (info.isDir()) {
+        QProcess::startDetached("explorer.exe", QStringList() << QDir::toNativeSeparators(info.absoluteFilePath()));
+        return;
+    }
+
+    QProcess::startDetached("explorer.exe", QStringList() << "/select," << QDir::toNativeSeparators(info.absoluteFilePath()));
+}
+
+}
+
 // ---- 右键菜单与表格行操作 ----
 
 void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
@@ -201,8 +279,32 @@ void SuperGuardian::onTableDoubleClicked(int row, int col) {
 void SuperGuardian::contextOpenFileLocation(int row) {
     int idx = findItemIndexById(rowId(row));
     if (idx < 0) return;
-    QString filePath = QDir::toNativeSeparators(items[idx].targetPath);
-    QProcess::startDetached("explorer.exe", QStringList() << "/select," << filePath);
+
+    const QList<OpenLocationChoice> choices = collectOpenLocationChoices(items[idx]);
+    if (choices.isEmpty())
+        return;
+
+    QString targetPath = choices.first().path;
+    if (choices.size() > 1) {
+        QStringList labels;
+        for (const OpenLocationChoice& choice : choices)
+            labels.append(choice.label);
+
+        bool ok = false;
+        QString selected = showItemDialog(this, u"打开文件所在的位置"_s,
+            u"检测到启动参数中包含文件路径，请选择要打开的位置："_s, labels, &ok);
+        if (!ok)
+            return;
+
+        for (const OpenLocationChoice& choice : choices) {
+            if (choice.label == selected) {
+                targetPath = choice.path;
+                break;
+            }
+        }
+    }
+
+    openPathInExplorer(targetPath);
 }
 
 // ---- 置顶操作 ----
