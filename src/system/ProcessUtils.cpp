@@ -1,12 +1,14 @@
 #include "ProcessUtils.h"
 #include "AppStorage.h"
 #include "LogDatabase.h"
+#include "ConfigDatabase.h"
 #include <windows.h>
 #include <tlhelp32.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <objbase.h>
+#include <dbghelp.h>
 #include <QFileIconProvider>
 #include <QFileInfo>
 #include <QCoreApplication>
@@ -131,7 +133,7 @@ QDateTime getProcessStartTime(const QString& processName) {
     return QDateTime();
 }
 
-bool launchProgram(const QString& path, const QString& args) {
+bool launchProgram(const QString& path, const QString& args, bool hideWindow) {
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
     sei.fMask = SEE_MASK_NOASYNC;
@@ -146,7 +148,7 @@ bool launchProgram(const QString& path, const QString& args) {
     }
     std::wstring wdir = QDir::toNativeSeparators(QFileInfo(path).absolutePath()).toStdWString();
     sei.lpDirectory = wdir.c_str();
-    sei.nShow = SW_SHOWNORMAL;
+    sei.nShow = hideWindow ? SW_HIDE : SW_SHOWNORMAL;
     BOOL ok = ShellExecuteExW(&sei);
     if (!ok) logRuntime(QString("launch guarded app failed: %1 (err=%2)").arg(path).arg(GetLastError()));
     return ok == TRUE;
@@ -171,6 +173,40 @@ void setAutostart(bool enable) {
 
 // --- Watchdog mode ---
 
+#pragma comment(lib, "dbghelp.lib")
+
+struct FindWndData { DWORD pid; HWND hwnd; };
+static BOOL CALLBACK enumWndCb(HWND hwnd, LPARAM lp) {
+    auto* d = reinterpret_cast<FindWndData*>(lp);
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == d->pid && IsWindowVisible(hwnd)) { d->hwnd = hwnd; return FALSE; }
+    return TRUE;
+}
+static HWND findMainWindow(DWORD pid) {
+    FindWndData d{pid, nullptr};
+    EnumWindows(enumWndCb, reinterpret_cast<LPARAM>(&d));
+    return d.hwnd;
+}
+
+static QString createMiniDump(DWORD pid) {
+    HANDLE proc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if (!proc) return {};
+    QString dir = appDataDirPath();
+    QDir().mkpath(dir);
+    QString path = dir + u"/hang_"_s + QDateTime::currentDateTime().toString(u"yyyyMMdd_HHmmss"_s) + u".dmp"_s;
+    HANDLE file = CreateFileW(path.toStdWString().c_str(), GENERIC_WRITE, 0, nullptr,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file != INVALID_HANDLE_VALUE) {
+        MiniDumpWriteDump(proc, pid, file, MiniDumpNormal, nullptr, nullptr, nullptr);
+        CloseHandle(file);
+    } else {
+        path.clear();
+    }
+    CloseHandle(proc);
+    return path;
+}
+
 int runWatchdogMode(int argc, char* argv[]) {
     Q_UNUSED(argc);
     Q_UNUSED(argv);
@@ -184,6 +220,7 @@ int runWatchdogMode(int argc, char* argv[]) {
     logRuntime(QString("watchdog started self=%1 main=%2 exe=%3").arg(selfPid).arg(parentPid).arg(parentExe));
 
     const QString workingDir = QFileInfo(parentExe).absolutePath();
+    int hangCounter = 0;   // 连续未响应计数（每次1秒轮询）
 
     while (true) {
         HANDLE h = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE, parentPid);
@@ -193,7 +230,43 @@ int runWatchdogMode(int argc, char* argv[]) {
             DWORD waitRc = WaitForSingleObject(h, 1000);
             CloseHandle(h);
             if (waitRc == WAIT_TIMEOUT) {
-                continue;
+                // 进程仍在运行，检查是否未响应
+                HWND mainWnd = findMainWindow(parentPid);
+                if (mainWnd) {
+                    DWORD_PTR result = 0;
+                    LRESULT lr = SendMessageTimeoutW(mainWnd, WM_NULL, 0, 0,
+                        SMTO_ABORTIFHUNG, 1000, &result);
+                    if (lr == 0 && GetLastError() == ERROR_TIMEOUT) {
+                        hangCounter++;
+                        if (hangCounter >= 3) {
+                            logRuntime(QString("main process not responding for %1s, creating dump").arg(hangCounter));
+                            QString dumpPath = createMiniDump(parentPid);
+                            if (!dumpPath.isEmpty())
+                                logRuntime(QString("dump created: %1").arg(dumpPath));
+                            // 终止未响应的进程
+                            HANDLE hp = OpenProcess(PROCESS_TERMINATE, FALSE, parentPid);
+                            if (hp) { TerminateProcess(hp, 0xDEAD); CloseHandle(hp); }
+                            // 记录重启原因
+                            auto& db = ConfigDatabase::instance();
+                            db.setValue(u"restart_reason"_s, u"hang"_s);
+                            if (!dumpPath.isEmpty())
+                                db.setValue(u"restart_dump_path"_s, dumpPath);
+                            hangCounter = 0;
+                            Sleep(1000);
+                            // 进入下方重启流程
+                        } else {
+                            continue;
+                        }
+                    } else {
+                        hangCounter = 0;
+                        continue;
+                    }
+                } else {
+                    hangCounter = 0;
+                    continue;
+                }
+            } else {
+                hangCounter = 0;
             }
         }
 
@@ -201,6 +274,10 @@ int runWatchdogMode(int argc, char* argv[]) {
         bool enabled = db.value(u"self_guard_enabled"_s, false).toBool();
         bool manualExit = db.value(u"self_guard_manual_exit"_s, false).toBool();
         if (!enabled || manualExit) break;
+
+        // 记录意外终止原因（如果不是hang触发的）
+        if (db.value(u"restart_reason"_s).toString().isEmpty())
+            db.setValue(u"restart_reason"_s, u"crash"_s);
 
         bool restarted = false;
         for (int attempt = 1; attempt <= 5; ++attempt) {

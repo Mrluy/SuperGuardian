@@ -368,9 +368,19 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         refreshList();
     });
 
-    // 定时运行模式下添加"持续运行时长"选项
+    // 定时运行模式下添加选项复选框
     QCheckBox* trackDurationCheck = nullptr;
+    QCheckBox* hideWindowCheck = nullptr;
     if (forRun) {
+        hideWindowCheck = new QCheckBox(u"隐藏运行窗口"_s);
+        hideWindowCheck->setToolTip(u"启动程序时隐藏其窗口，适用于命令行脚本等不需要显示窗口的程序"_s);
+        if (rows.size() == 1) {
+            int itemIdx = findItemIndexById(rowId(rows[0]));
+            if (itemIdx >= 0)
+                hideWindowCheck->setChecked(items[itemIdx].runHideWindow);
+        }
+        lay->addWidget(hideWindowCheck);
+
         trackDurationCheck = new QCheckBox(u"监控持续运行时长"_s);
         trackDurationCheck->setToolTip(u"选中时在程序列表中显示“持续运行时长”，未选中则始终显示“-”"_s);
         if (rows.size() == 1) {
@@ -412,18 +422,12 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         GuardItem& item = items[itemIdx];
         if (forRun) {
             item.runRules = finalRules;
-            item.scheduledRunEnabled = !finalRules.isEmpty();
             if (trackDurationCheck)
                 item.trackRunDuration = trackDurationCheck->isChecked();
-            if (item.scheduledRunEnabled) {
-                item.guarding = false;
-                item.restartRulesActive = false;
-            }
+            if (hideWindowCheck)
+                item.runHideWindow = hideWindowCheck->isChecked();
         } else {
             item.restartRules = finalRules;
-            item.restartRulesActive = !finalRules.isEmpty();
-            if (item.restartRulesActive)
-                item.scheduledRunEnabled = false;
         }
         auto setCell = [&](int col, const QString& text) {
             if (tableWidget->item(row, col)) {
@@ -435,26 +439,21 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
             setCell(7, formatScheduleRules(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-        } else {
-            setCell(7, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
-            QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
+        } else if (item.restartRulesActive) {
+            setCell(7, formatScheduleRules(item.restartRules));
+            QDateTime nt = nextTriggerTime(item.restartRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+        } else if (forRun && !item.runRules.isEmpty()) {
+            setCell(7, formatScheduleRules(item.runRules));
+            setCell(8, "-");
+        } else if (!forRun && !item.restartRules.isEmpty()) {
+            setCell(7, formatScheduleRules(item.restartRules));
+            setCell(8, "-");
+        } else {
+            setCell(7, u"-"_s);
+            setCell(8, "-");
         }
         setCell(9, item.scheduledRunEnabled ? "-" : formatStartDelay(item.startDelaySecs));
-
-        QWidget* opw = tableWidget->cellWidget(row, 10);
-        if (opw) {
-            QPushButton* gBtn = opw->findChild<QPushButton*>(QString("guardBtn_%1").arg(item.id));
-            QPushButton* sBtn = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(item.id));
-            QPushButton* rBtn = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(item.id));
-            if (gBtn) gBtn->setText(item.guarding ? u"关闭守护"_s : u"开始守护"_s);
-            if (sBtn) sBtn->setText(item.restartRulesActive ? u"关闭定时重启"_s : u"开启定时重启"_s);
-            if (rBtn) rBtn->setText(item.scheduledRunEnabled ? u"关闭定时运行"_s : u"开启定时运行"_s);
-        }
-        if (tableWidget->item(row, 2)) {
-            if (item.scheduledRunEnabled) tableWidget->item(row, 2)->setText(u"定时运行"_s);
-            else if (!item.guarding && !item.restartRulesActive) tableWidget->item(row, 2)->setText(u"未守护"_s);
-        }
         updateButtonStates(row);
         logOperation(forRun ? u"设置定时运行规则"_s : u"设置定时重启规则"_s, programId(item.processName, item.launchArgs));
     }

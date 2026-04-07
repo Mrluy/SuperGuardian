@@ -70,6 +70,7 @@ void SuperGuardian::exportConfig() {
         o[u"scheduledRunEnabled"_s] = item.scheduledRunEnabled;
         o[u"startDelaySecs"_s] = item.startDelaySecs;
         o[u"trackRunDuration"_s] = item.trackRunDuration;
+        o[u"runHideWindow"_s] = item.runHideWindow;
         if (!item.launchArgs.isEmpty())
             o[u"launchArgs"_s] = item.launchArgs;
 

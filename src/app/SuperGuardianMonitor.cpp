@@ -2,8 +2,10 @@
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
 #include "LogDatabase.h"
+#include "ConfigDatabase.h"
 #include <QtWidgets>
 #include <QThread>
+#include <windows.h>
 
 // ---- 进程监控主循环 ----
 
@@ -43,7 +45,7 @@ void SuperGuardian::checkProcesses() {
                 }
             }
             if (anyDue) {
-                bool ok = launchProgram(item.targetPath, item.launchArgs);
+                bool ok = launchProgram(item.targetPath, item.launchArgs, item.runHideWindow);
                 item.lastLaunchTime = now;
                 item.lastRestart = now;
                 item.restartCount++;
@@ -262,6 +264,25 @@ void SuperGuardian::checkProcesses() {
             }
         }
         if (orderChanged) performSort();
+    }
+
+    // 自我守护：定期检查watchdog进程是否存活，死亡则重新启动
+    if (selfGuardAct && selfGuardAct->isChecked()) {
+        auto& db = ConfigDatabase::instance();
+        int wdPid = db.value(u"watchdog_pid"_s, 0).toInt();
+        bool alive = false;
+        if (wdPid > 0) {
+            HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)wdPid);
+            if (h) {
+                DWORD exitCode = 0;
+                if (GetExitCodeProcess(h, &exitCode) && exitCode == STILL_ACTIVE)
+                    alive = true;
+                CloseHandle(h);
+            }
+        }
+        if (!alive) {
+            startWatchdogHelper();
+        }
     }
 
     saveSettings();

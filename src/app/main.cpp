@@ -56,5 +56,28 @@ int main(int argc, char* argv[]) {
     SuperGuardian w;
     if (!ConfigDatabase::instance().value(u"minimizeToTray"_s, false).toBool())
         w.show();
+
+    // 检查重启原因并弹窗通知
+    QTimer::singleShot(500, [&w]() {
+        auto& db = ConfigDatabase::instance();
+        QString reason = db.value(u"restart_reason"_s).toString();
+        if (reason.isEmpty()) return;
+        QString dumpPath = db.value(u"restart_dump_path"_s).toString();
+        db.remove(u"restart_reason"_s);
+        db.remove(u"restart_dump_path"_s);
+        QString msg;
+        if (reason == u"hang"_s) {
+            msg = u"检测到程序发生【未响应】状态，已自动转储并重启。"_s;
+            if (!dumpPath.isEmpty())
+                msg += u"\n\n转储文件：\n"_s + dumpPath;
+        } else {
+            msg = u"检测到程序意外终止，已通过自我守护自动重启。"_s;
+        }
+        w.show();
+        w.raise();
+        w.activateWindow();
+        QMessageBox::warning(&w, u"自动重启通知"_s, msg);
+    });
+
     return a.exec();
 }
