@@ -13,7 +13,7 @@ protected:
     void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
     void dropEvent(QDropEvent* e) override {
         const QList<QUrl> urls = e->mimeData()->urls();
-        if (!urls.isEmpty()) setText(urls.first().toLocalFile());
+        if (!urls.isEmpty()) setText(QDir::toNativeSeparators(urls.first().toLocalFile()));
     }
 };
 
@@ -172,7 +172,10 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addLayout(btnLay);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    const QString newPath = pathEdit->text().trimmed();
+    QString newPath = pathEdit->text().trimmed();
+    // 去除外层双引号
+    if (newPath.startsWith(u'"') && newPath.endsWith(u'"') && newPath.size() > 2)
+        newPath = newPath.mid(1, newPath.size() - 2);
     QString args = argsEdit->text().trimmed();
     for (int row : rows) {
         int itemIdx = findItemIndexById(rowId(row));

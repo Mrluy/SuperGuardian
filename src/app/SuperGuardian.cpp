@@ -32,10 +32,10 @@ SuperGuardian::SuperGuardian(QWidget *parent)
             const QList<QUrl> urls = e->mimeData()->urls();
             if (urls.isEmpty()) return;
             if (urls.size() == 1) {
-                setText(urls.first().toLocalFile());
+                setText(QDir::toNativeSeparators(urls.first().toLocalFile()));
             } else {
                 QStringList paths;
-                for (const QUrl& u : urls) paths << u.toLocalFile();
+                for (const QUrl& u : urls) paths << QDir::toNativeSeparators(u.toLocalFile());
                 if (onBatchDrop) onBatchDrop(paths);
             }
         }

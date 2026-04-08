@@ -5,6 +5,18 @@
 #include "LogDatabase.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
+#include <QDir>
+
+namespace {
+
+QString normalizeWindowsPath(const QString& path) {
+    QString trimmed = path.trimmed();
+    if (trimmed.isEmpty())
+        return trimmed;
+    return QDir::toNativeSeparators(QDir::cleanPath(trimmed));
+}
+
+}
 
 void SuperGuardian::parseAndAddFromInput() {
     QString text = lineEdit->text().trimmed();
@@ -246,13 +258,16 @@ void SuperGuardian::updateButtonStates(int row) {
 }
 
 void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
-    QString resolvedPath = path;
-    QFileInfo fi(path);
+    QString resolvedPath = normalizeWindowsPath(path);
+    if (resolvedPath.isEmpty())
+        return;
+
+    QFileInfo fi(resolvedPath);
     bool isSystemTool = false;
     if (!fi.exists()) {
-        QString found = QStandardPaths::findExecutable(path);
+        QString found = QStandardPaths::findExecutable(path.trimmed());
         if (found.isEmpty()) return;
-        resolvedPath = found;
+        resolvedPath = normalizeWindowsPath(found);
         isSystemTool = true;
     }
     if (!isSystemTool) {
@@ -269,7 +284,7 @@ void SuperGuardian::addProgram(const QString& path, const QString& extraArgs) {
     item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     item.path = resolvedPath;
     QString shortcutArgs;
-    item.targetPath = resolveShortcut(resolvedPath, &shortcutArgs);
+    item.targetPath = normalizeWindowsPath(resolveShortcut(resolvedPath, &shortcutArgs));
     if (!extraArgs.isEmpty())
         item.launchArgs = shortcutArgs.isEmpty() ? extraArgs : (shortcutArgs + " " + extraArgs);
     else

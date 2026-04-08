@@ -2,53 +2,18 @@
 #include "DialogHelpers.h"
 #include "ConfigDatabase.h"
 #include "LogDatabase.h"
-#include "ProcessUtils.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDir>
 
 using namespace Qt::Literals::StringLiterals;
 
-static QStringList csvParseLine(const QString& line) {
-    QStringList fields;
-    QString field;
-    bool inQuotes = false;
-    for (int i = 0; i < line.size(); ++i) {
-        QChar c = line[i];
-        if (inQuotes) {
-            if (c == u'"') {
-                if (i + 1 < line.size() && line[i + 1] == u'"') {
-                    field += u'"';
-                    ++i;
-                } else {
-                    inQuotes = false;
-                }
-            } else {
-                field += c;
-            }
-        } else {
-            if (c == u'"') {
-                inQuotes = true;
-            } else if (c == u',') {
-                fields << field;
-                field.clear();
-            } else {
-                field += c;
-            }
-        }
-    }
-    fields << field;
-    return fields;
-}
+namespace {
 
-static bool parseBool(const QString& s) {
-    return s.trimmed().compare(u"true"_s, Qt::CaseInsensitive) == 0
-        || s.trimmed() == u"1"_s;
-}
-
-static int promptImportMode(QWidget* parent, const QString& title) {
+int promptImportMode(QWidget* parent, const QString& title) {
     bool ok = false;
     const QString mode = showItemDialog(parent, title, u"请选择导入方式："_s,
         { u"增量导入（保留现有项）"_s, u"覆盖导入（清空后导入）"_s }, &ok);
@@ -57,9 +22,159 @@ static int promptImportMode(QWidget* parent, const QString& title) {
     return mode.startsWith(u"覆盖"_s) ? 2 : 1;
 }
 
+QString normalizedPathKey(const QString& path) {
+    return QDir::toNativeSeparators(path.trimmed()).toLower();
+}
+
+// 将结构化 JSON item（导出格式）转换为 loadSettings 能读取的 flat 格式
+QJsonObject structuredItemToFlat(const QJsonObject& src) {
+    QJsonObject o;
+
+    // 直通字段
+    auto copyIfExists = [&](const QString& key) {
+        if (src.contains(key)) o[key] = src[key];
+    };
+    copyIfExists(u"id"_s);
+    copyIfExists(u"path"_s);
+    copyIfExists(u"launchArgs"_s);
+    copyIfExists(u"note"_s);
+    copyIfExists(u"pinned"_s);
+    copyIfExists(u"insertionOrder"_s);
+    copyIfExists(u"scheduledRunEnabled"_s);
+    copyIfExists(u"startDelaySecs"_s);
+    copyIfExists(u"trackRunDuration"_s);
+    copyIfExists(u"runHideWindow"_s);
+    copyIfExists(u"lastRunHidden"_s);
+    copyIfExists(u"restartRulesActive"_s);
+
+    // guard: {enabled, startTime} → guard(bool), guardStartTime(string)
+    if (src.contains(u"guard"_s) && src[u"guard"_s].isObject()) {
+        QJsonObject g = src[u"guard"_s].toObject();
+        o[u"guard"_s] = g[u"enabled"_s].toBool();
+        o[u"guardStartTime"_s] = g[u"startTime"_s].toString();
+    } else if (src.contains(u"guard"_s)) {
+        // 兼容旧版 flat 格式（guard 直接是 bool）
+        o[u"guard"_s] = src[u"guard"_s];
+        copyIfExists(u"guardStartTime"_s);
+    }
+
+    // retry: {intervalSecs, maxDurationSecs, maxRetries} → flat
+    if (src.contains(u"retry"_s) && src[u"retry"_s].isObject()) {
+        QJsonObject r = src[u"retry"_s].toObject();
+        o[u"retryIntervalSecs"_s] = r[u"intervalSecs"_s].toInt(30);
+        o[u"retryMaxDurationSecs"_s] = r[u"maxDurationSecs"_s].toInt(300);
+        o[u"retryMaxRetries"_s] = r[u"maxRetries"_s].toInt(10);
+    } else {
+        copyIfExists(u"retryIntervalSecs"_s);
+        copyIfExists(u"retryMaxDurationSecs"_s);
+        copyIfExists(u"retryMaxRetries"_s);
+    }
+
+    // emailNotifications: {enabled, ...} → flat
+    if (src.contains(u"emailNotifications"_s) && src[u"emailNotifications"_s].isObject()) {
+        QJsonObject e = src[u"emailNotifications"_s].toObject();
+        o[u"emailNotifyEnabled"_s] = e[u"enabled"_s].toBool();
+        o[u"emailOnGuardTriggered"_s] = e[u"onGuardTriggered"_s].toBool();
+        o[u"emailOnStartFailed"_s] = e.contains(u"onStartFailed"_s) ? e[u"onStartFailed"_s].toBool() : true;
+        o[u"emailOnRestartFailed"_s] = e.contains(u"onRestartFailed"_s) ? e[u"onRestartFailed"_s].toBool() : true;
+        o[u"emailOnRunFailed"_s] = e.contains(u"onRunFailed"_s) ? e[u"onRunFailed"_s].toBool() : true;
+        o[u"emailOnProcessExited"_s] = e[u"onProcessExited"_s].toBool();
+        o[u"emailOnRetryExhausted"_s] = e.contains(u"onRetryExhausted"_s) ? e[u"onRetryExhausted"_s].toBool() : true;
+    } else {
+        copyIfExists(u"emailNotifyEnabled"_s);
+        copyIfExists(u"emailOnGuardTriggered"_s);
+        copyIfExists(u"emailOnStartFailed"_s);
+        copyIfExists(u"emailOnRestartFailed"_s);
+        copyIfExists(u"emailOnRunFailed"_s);
+        copyIfExists(u"emailOnProcessExited"_s);
+        copyIfExists(u"emailOnRetryExhausted"_s);
+    }
+
+    // status: {lastRestart, restartCount, startTime} → flat
+    if (src.contains(u"status"_s) && src[u"status"_s].isObject()) {
+        QJsonObject s = src[u"status"_s].toObject();
+        o[u"lastRestart"_s] = s[u"lastRestart"_s].toString();
+        o[u"restartCount"_s] = s[u"restartCount"_s].toInt();
+        o[u"startTime"_s] = s[u"startTime"_s].toString();
+    } else {
+        copyIfExists(u"lastRestart"_s);
+        copyIfExists(u"restartCount"_s);
+        copyIfExists(u"startTime"_s);
+    }
+
+    // runRules: QJsonArray → runRulesJson (compact JSON string)
+    if (src.contains(u"runRules"_s) && src[u"runRules"_s].isArray()) {
+        o[u"runRulesJson"_s] = QString::fromUtf8(
+            QJsonDocument(src[u"runRules"_s].toArray()).toJson(QJsonDocument::Compact));
+    } else {
+        copyIfExists(u"runRulesJson"_s);
+    }
+
+    // restartRules: QJsonArray → restartRulesJson (compact JSON string)
+    if (src.contains(u"restartRules"_s) && src[u"restartRules"_s].isArray()) {
+        o[u"restartRulesJson"_s] = QString::fromUtf8(
+            QJsonDocument(src[u"restartRules"_s].toArray()).toJson(QJsonDocument::Compact));
+    } else {
+        copyIfExists(u"restartRulesJson"_s);
+    }
+
+    return o;
+}
+
+// 将结构化 JSON 转换为 db.importFromJson 可用的 flat QJsonObject
+QJsonObject structuredJsonToFlat(const QJsonObject& root) {
+    QJsonObject flat;
+
+    // 简单顶层字段
+    if (root.contains(u"alwaysOnTop"_s)) flat[u"alwaysOnTop"_s] = root[u"alwaysOnTop"_s];
+    if (root.contains(u"emailEnabled"_s)) flat[u"emailEnabled"_s] = root[u"emailEnabled"_s];
+    if (root.contains(u"theme"_s)) flat[u"theme"_s] = root[u"theme"_s];
+
+    // smtp: 嵌套对象 → smtp/server, smtp/port, ...
+    if (root.contains(u"smtp"_s) && root[u"smtp"_s].isObject()) {
+        QJsonObject smtp = root[u"smtp"_s].toObject();
+        if (smtp.contains(u"server"_s)) flat[u"smtp/server"_s] = smtp[u"server"_s];
+        if (smtp.contains(u"port"_s)) flat[u"smtp/port"_s] = smtp[u"port"_s];
+        if (smtp.contains(u"useTls"_s)) flat[u"smtp/useTls"_s] = smtp[u"useTls"_s];
+        if (smtp.contains(u"username"_s)) flat[u"smtp/username"_s] = smtp[u"username"_s];
+        if (smtp.contains(u"password"_s)) flat[u"smtp/password"_s] = smtp[u"password"_s];
+        if (smtp.contains(u"fromAddress"_s)) flat[u"smtp/fromAddress"_s] = smtp[u"fromAddress"_s];
+        if (smtp.contains(u"fromName"_s)) flat[u"smtp/fromName"_s] = smtp[u"fromName"_s];
+        if (smtp.contains(u"toAddress"_s)) flat[u"smtp/toAddress"_s] = smtp[u"toAddress"_s];
+    }
+
+    // items: 结构化数组 → flat items JSON string
+    QJsonArray itemsArr;
+    if (root.contains(u"items"_s)) {
+        QJsonArray srcItems;
+        if (root[u"items"_s].isArray()) {
+            srcItems = root[u"items"_s].toArray();
+        } else if (root[u"items"_s].isString()) {
+            QJsonDocument d = QJsonDocument::fromJson(root[u"items"_s].toString().toUtf8());
+            if (d.isArray()) srcItems = d.array();
+        }
+        for (const QJsonValue& v : srcItems)
+            itemsArr.append(structuredItemToFlat(v.toObject()));
+    }
+    flat[u"items"_s] = QString::fromUtf8(QJsonDocument(itemsArr).toJson(QJsonDocument::Compact));
+
+    return flat;
+}
+
+QJsonArray parseFlatItemsArray(const QJsonValue& value) {
+    if (value.isString()) {
+        QJsonDocument doc = QJsonDocument::fromJson(value.toString().toUtf8());
+        if (doc.isArray()) return doc.array();
+    }
+    if (value.isArray()) return value.toArray();
+    return {};
+}
+
+}
+
 void SuperGuardian::importConfig() {
     QString filePath = QFileDialog::getOpenFileName(this,
-        u"导入配置"_s, QString(), u"CSV Files (*.csv)"_s);
+        u"导入配置"_s, QString(), u"JSON Files (*.json)"_s);
     if (filePath.isEmpty())
         return;
 
@@ -74,178 +189,77 @@ void SuperGuardian::importConfig() {
         return;
     }
 
-    QTextStream in(&f);
-    in.setEncoding(QStringConverter::Utf8);
-
-    // 解析注释行（全局设置）和 CSV 数据
-    QMap<QString, QString> globalSettings;
-    QStringList headers;
-    QList<QStringList> dataRows;
-
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        if (line.isEmpty()) continue;
-        // 跳过 UTF-8 BOM
-        if (!globalSettings.isEmpty() || headers.isEmpty()) {
-            if (line.startsWith(QChar(0xFEFF)))
-                line = line.mid(1);
-        }
-        if (line.startsWith(u"#"_s)) {
-            // 注释行：# key=value
-            QString content = line.mid(1).trimmed();
-            int eq = content.indexOf(u'=');
-            if (eq > 0)
-                globalSettings[content.left(eq).trimmed()] = content.mid(eq + 1);
-            continue;
-        }
-        if (headers.isEmpty()) {
-            headers = csvParseLine(line);
-            continue;
-        }
-        QStringList row = csvParseLine(line);
-        if (!row.isEmpty() && !row[0].trimmed().isEmpty())
-            dataRows << row;
-    }
+    QJsonParseError err{};
+    QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &err);
     f.close();
-
-    if (headers.isEmpty() || dataRows.isEmpty()) {
+    if (!doc.isObject()) {
         showMessageDialog(this, u"导入失败"_s,
-            u"CSV 文件格式无效或不包含有效的程序列表。"_s);
+            err.error == QJsonParseError::NoError
+                ? u"JSON 文件格式无效。"_s
+                : u"JSON 解析失败：%1"_s.arg(err.errorString()));
         return;
     }
 
-    // 建立列名到索引的映射
-    QMap<QString, int> colIdx;
-    for (int i = 0; i < headers.size(); ++i)
-        colIdx[headers[i].trimmed()] = i;
-
-    auto getField = [&](const QStringList& row, const QString& name) -> QString {
-        int idx = colIdx.value(name, -1);
-        if (idx < 0 || idx >= row.size()) return QString();
-        return row[idx].trimmed();
-    };
-
-    // 应用全局设置
+    // 将结构化 JSON 转换为 flat 格式
+    QJsonObject importedFlat = structuredJsonToFlat(doc.object());
     auto& db = ConfigDatabase::instance();
-    if (globalSettings.contains(u"alwaysOnTop"_s))
-        db.setValue(u"alwaysOnTop"_s, parseBool(globalSettings[u"alwaysOnTop"_s]));
-    if (globalSettings.contains(u"emailEnabled"_s))
-        db.setValue(u"emailEnabled"_s, parseBool(globalSettings[u"emailEnabled"_s]));
-    if (globalSettings.contains(u"theme"_s))
-        db.setValue(u"theme"_s, globalSettings[u"theme"_s]);
-
-    if (globalSettings.contains(u"smtp.server"_s)) {
-        smtpConfig.server = globalSettings[u"smtp.server"_s];
-        smtpConfig.port = globalSettings.value(u"smtp.port"_s, u"587"_s).toInt();
-        smtpConfig.useTls = parseBool(globalSettings.value(u"smtp.useTls"_s, u"true"_s));
-        smtpConfig.username = globalSettings.value(u"smtp.username"_s);
-        smtpConfig.password = globalSettings.value(u"smtp.password"_s);
-        smtpConfig.fromAddress = globalSettings.value(u"smtp.fromAddress"_s);
-        smtpConfig.fromName = globalSettings.value(u"smtp.fromName"_s);
-        smtpConfig.toAddress = globalSettings.value(u"smtp.toAddress"_s);
-        db.setValue(u"smtp/server"_s, smtpConfig.server);
-        db.setValue(u"smtp/port"_s, smtpConfig.port);
-        db.setValue(u"smtp/useTls"_s, smtpConfig.useTls);
-        db.setValue(u"smtp/username"_s, smtpConfig.username);
-        db.setValue(u"smtp/password"_s, smtpConfig.password);
-        db.setValue(u"smtp/fromAddress"_s, smtpConfig.fromAddress);
-        db.setValue(u"smtp/fromName"_s, smtpConfig.fromName);
-        db.setValue(u"smtp/toAddress"_s, smtpConfig.toAddress);
-    }
-
-    // 构建导入的 items JSON（复用 loadSettings 的格式）
-    QJsonArray importedItems;
-    for (const QStringList& row : dataRows) {
-        QJsonObject o;
-        QString path = getField(row, u"path"_s);
-        if (path.isEmpty()) continue;
-        o[u"path"_s] = path;
-        o[u"launchArgs"_s] = getField(row, u"launchArgs"_s);
-        o[u"note"_s] = getField(row, u"note"_s);
-        o[u"pinned"_s] = parseBool(getField(row, u"pinned"_s));
-        o[u"insertionOrder"_s] = getField(row, u"insertionOrder"_s).toInt();
-        o[u"guard"_s] = parseBool(getField(row, u"guarding"_s));
-        o[u"guardStartTime"_s] = getField(row, u"guardStartTime"_s);
-        o[u"scheduledRunEnabled"_s] = parseBool(getField(row, u"scheduledRunEnabled"_s));
-        o[u"trackRunDuration"_s] = parseBool(getField(row, u"trackRunDuration"_s));
-        o[u"runHideWindow"_s] = parseBool(getField(row, u"runHideWindow"_s));
-        o[u"lastRunHidden"_s] = parseBool(getField(row, u"lastRunHidden"_s));
-        o[u"startDelaySecs"_s] = qMax(0, getField(row, u"startDelaySecs"_s).toInt());
-        o[u"restartRulesActive"_s] = parseBool(getField(row, u"restartRulesActive"_s));
-
-        QString runJson = getField(row, u"runRulesJson"_s);
-        if (!runJson.isEmpty()) o[u"runRulesJson"_s] = runJson;
-        QString restartJson = getField(row, u"restartRulesJson"_s);
-        if (!restartJson.isEmpty()) o[u"restartRulesJson"_s] = restartJson;
-
-        o[u"retryIntervalSecs"_s] = qMax(1, getField(row, u"retryIntervalSecs"_s).toInt());
-        o[u"retryMaxRetries"_s] = getField(row, u"retryMaxRetries"_s).toInt();
-        o[u"retryMaxDurationSecs"_s] = getField(row, u"retryMaxDurationSecs"_s).toInt();
-
-        o[u"emailNotifyEnabled"_s] = parseBool(getField(row, u"emailNotifyEnabled"_s));
-        o[u"emailOnGuardTriggered"_s] = parseBool(getField(row, u"emailOnGuardTriggered"_s));
-        o[u"emailOnStartFailed"_s] = parseBool(getField(row, u"emailOnStartFailed"_s));
-        o[u"emailOnRestartFailed"_s] = parseBool(getField(row, u"emailOnRestartFailed"_s));
-        o[u"emailOnRunFailed"_s] = parseBool(getField(row, u"emailOnRunFailed"_s));
-        o[u"emailOnProcessExited"_s] = parseBool(getField(row, u"emailOnProcessExited"_s));
-        o[u"emailOnRetryExhausted"_s] = parseBool(getField(row, u"emailOnRetryExhausted"_s));
-
-        o[u"lastRestart"_s] = getField(row, u"lastRestart"_s);
-        o[u"restartCount"_s] = getField(row, u"restartCount"_s).toInt();
-        o[u"startTime"_s] = getField(row, u"startTime"_s);
-
-        importedItems.append(o);
-    }
-
-    // 合并或覆盖
     QJsonObject finalJson;
+
     if (importMode == 1) {
-        // 增量：合并到现有配置
+        // 增量导入：合并
         QJsonObject currentJson = db.exportToJson();
-        QJsonArray currentItems;
-        QString currentItemsStr = currentJson.value(u"items"_s).toString();
-        if (!currentItemsStr.isEmpty()) {
-            QJsonDocument cd = QJsonDocument::fromJson(currentItemsStr.toUtf8());
-            if (cd.isArray()) currentItems = cd.array();
+        finalJson = currentJson;
+
+        // 覆盖非 items 字段
+        for (auto it = importedFlat.constBegin(); it != importedFlat.constEnd(); ++it) {
+            if (it.key() != u"items"_s)
+                finalJson[it.key()] = it.value();
         }
 
-        // 按 path 去重合并
+        // 合并 items
+        QJsonArray currentItems = parseFlatItemsArray(currentJson.value(u"items"_s));
+        QJsonArray importedItems = parseFlatItemsArray(importedFlat.value(u"items"_s));
+
         QHash<QString, int> pathIndex;
         for (int i = 0; i < currentItems.size(); ++i) {
-            QJsonObject ci = currentItems[i].toObject();
-            QString key = QDir::toNativeSeparators(ci.value(u"path"_s).toString().trimmed()).toLower();
-            if (!key.isEmpty()) pathIndex[key] = i;
+            QJsonObject item = currentItems[i].toObject();
+            QString key = normalizedPathKey(item.value(u"path"_s).toString());
+            if (!key.isEmpty())
+                pathIndex[key] = i;
         }
-        for (const QJsonValue& v : importedItems) {
-            QJsonObject item = v.toObject();
-            QString key = QDir::toNativeSeparators(item.value(u"path"_s).toString().trimmed()).toLower();
-            if (key.isEmpty()) continue;
-            if (pathIndex.contains(key))
+
+        for (const QJsonValue& value : importedItems) {
+            QJsonObject item = value.toObject();
+            QString key = normalizedPathKey(item.value(u"path"_s).toString());
+            if (key.isEmpty())
+                continue;
+            if (pathIndex.contains(key)) {
                 currentItems[pathIndex[key]] = item;
-            else {
+            } else {
                 pathIndex[key] = currentItems.size();
                 currentItems.append(item);
             }
         }
 
-        // 重新编号 insertionOrder
         for (int i = 0; i < currentItems.size(); ++i) {
             QJsonObject item = currentItems[i].toObject();
             item[u"insertionOrder"_s] = i;
             currentItems[i] = item;
         }
 
-        finalJson = currentJson;
-        finalJson[u"items"_s] = QString::fromUtf8(QJsonDocument(currentItems).toJson(QJsonDocument::Compact));
+        finalJson[u"items"_s] = QString::fromUtf8(
+            QJsonDocument(currentItems).toJson(QJsonDocument::Compact));
     } else {
-        // 覆盖：直接使用导入的
+        // 覆盖导入
+        finalJson = importedFlat;
+        QJsonArray importedItems = parseFlatItemsArray(finalJson.value(u"items"_s));
         for (int i = 0; i < importedItems.size(); ++i) {
             QJsonObject item = importedItems[i].toObject();
             item[u"insertionOrder"_s] = i;
             importedItems[i] = item;
         }
-        finalJson = db.exportToJson();
-        finalJson[u"items"_s] = QString::fromUtf8(QJsonDocument(importedItems).toJson(QJsonDocument::Compact));
+        finalJson[u"items"_s] = QString::fromUtf8(
+            QJsonDocument(importedItems).toJson(QJsonDocument::Compact));
     }
 
     db.importFromJson(finalJson);
@@ -254,7 +268,6 @@ void SuperGuardian::importConfig() {
     loadSettings();
     applySavedTrayOptions();
 
-    // 导入后取消所有全局功能
     db.setValue(u"globalGuardEnabled"_s, false);
     db.setValue(u"globalRestartEnabled"_s, false);
     db.setValue(u"globalRunEnabled"_s, false);

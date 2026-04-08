@@ -37,9 +37,13 @@ int measureContentWidth(QTableWidget* tableWidget, int column) {
         QFontMetrics fm(item->font().family().isEmpty() ? tableWidget->font() : item->font());
         int textW = fm.horizontalAdvance(item->text()) + 16;
 
+        if (!qvariant_cast<QIcon>(item->data(Qt::DecorationRole)).isNull()) {
+            // Keep width estimation aligned with delegate painting, which reserves
+            // horizontal space for the leading decoration icon before the text.
+            textW += 24;
+        }
+
         if (column == kProgramColumn) {
-            if (!qvariant_cast<QIcon>(item->data(Qt::DecorationRole)).isNull())
-                textW += 24;
             if (item->data(Qt::UserRole + 2).toBool())
                 textW += 20;
         }
