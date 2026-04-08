@@ -102,14 +102,30 @@
     <ClCompile Include="src\app\SuperGuardian.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\config\SuperGuardianConfigReset.cpp" />
-    <ClCompile Include="src\ui\SuperGuardianWhitelistTest.cpp" />
-    <ClCompile Include="src\ui\WhitelistData.cpp" />
-    <ClCompile Include="src\ui\ScheduleRuleEditor.cpp" />
-    <ClCompile Include="src\ui\SuperGuardianDialogsSmtp.cpp" />
-    <ClCompile Include="src\ui\SuperGuardianWindow.cpp" />
-    <ClCompile Include="src\ui\SuperGuardianHeaderSort.cpp" />
-    <ClCompile Include="src\app\SuperGuardianProgramOps.cpp" />
+    <ClCompile Include="src\ui\ScheduleRuleEditor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\config\SuperGuardianConfigReset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\SuperGuardianDialogsSmtp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\SuperGuardianHeaderSort.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\SuperGuardianProgramOps.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\SuperGuardianWhitelistTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\SuperGuardianWindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ui\WhitelistData.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\AppStorage.h">
@@ -139,8 +155,12 @@
     <ClInclude Include="include\ThemeManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\WhitelistData.h" />
-    <ClInclude Include="include\ScheduleRuleEditor.h" />
+    <ClInclude Include="include\ScheduleRuleEditor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\WhitelistData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="include\SuperGuardian.h">
@@ -172,6 +192,8 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <Image Include="img\app.ico" />
+    <Image Include="img\app.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
