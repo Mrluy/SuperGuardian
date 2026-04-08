@@ -6,6 +6,17 @@
 
 namespace {
 
+class DropLineEdit : public QLineEdit {
+public:
+    DropLineEdit(QWidget* p = nullptr) : QLineEdit(p) { setAcceptDrops(true); }
+protected:
+    void dragEnterEvent(QDragEnterEvent* e) override { if (e->mimeData()->hasUrls()) e->acceptProposedAction(); }
+    void dropEvent(QDropEvent* e) override {
+        const QList<QUrl> urls = e->mimeData()->urls();
+        if (!urls.isEmpty()) setText(urls.first().toLocalFile());
+    }
+};
+
 QString buildProgramDisplayText(const GuardItem& item) {
     if (!item.note.isEmpty())
         return item.note;
@@ -136,7 +147,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     QVBoxLayout* lay = new QVBoxLayout(&dlg);
 
     lay->addWidget(new QLabel(u"启动程序路径："_s));
-    QLineEdit* pathEdit = new QLineEdit();
+    QLineEdit* pathEdit = new DropLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) pathEdit->setText(items[itemIdx].targetPath);
@@ -144,7 +155,7 @@ void SuperGuardian::contextSetLaunchArgs(const QList<int>& rows) {
     lay->addWidget(pathEdit);
 
     lay->addWidget(new QLabel(u"启动参数（留空表示无参数）："_s));
-    QLineEdit* argsEdit = new QLineEdit();
+    QLineEdit* argsEdit = new DropLineEdit();
     if (rows.size() == 1) {
         int itemIdx = findItemIndexById(rowId(rows[0]));
         if (itemIdx >= 0) argsEdit->setText(items[itemIdx].launchArgs);

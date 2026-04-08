@@ -129,7 +129,7 @@ private slots:
     void contextKillProgram(int row);
     void contextToggleGuard(int row);
     void contextRemoveItem(int row);
-    void contextSetScheduleRules(const QList<int>& rows, bool forRun);
+    void contextSetScheduleRules(const QList<int>& rows, bool forRun, bool activateOnConfirm = false);
     void contextSetStartDelay(const QList<int>& rows);
     void contextSetRetryConfig(const QList<int>& rows);
     void contextSetEmailNotify(const QList<int>& rows);

@@ -3,6 +3,7 @@
 #include "ProcessUtils.h"
 #include "AppStorage.h"
 #include "LogDatabase.h"
+#include "ThemeManager.h"
 #include <QtWidgets>
 
 void SuperGuardian::parseAndAddFromInput() {
@@ -94,11 +95,24 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
 
     // col 7/8: 定时运行时显示 runRules，否则显示 restartRules
     if (item.scheduledRunEnabled && !item.runRules.isEmpty()) {
-        tableWidget->setItem(row, 7, makeItem(formatScheduleRules(item.runRules)));
+        QTableWidgetItem* ruleItem = makeItem(formatScheduleRules(item.runRules));
+        ruleItem->setToolTip(formatScheduleRulesDetail(item.runRules));
+        tableWidget->setItem(row, 7, ruleItem);
         QDateTime nt = nextTriggerTime(item.runRules);
         tableWidget->setItem(row, 8, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
+
+        // 隐藏窗口图标
+        QString iconDir = (currentThemeName() == u"dark"_s) ? u"light"_s : u"dark"_s;
+        QIcon hideIcon(u":/SuperGuardian/%1/hide.png"_s.arg(iconDir));
+        if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
+            lastCell->setIcon(item.lastRunHidden ? hideIcon : QIcon());
+        if (QTableWidgetItem* nextCell = tableWidget->item(row, 8))
+            nextCell->setIcon(item.runHideWindow ? hideIcon : QIcon());
     } else {
-        tableWidget->setItem(row, 7, makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s));
+        QTableWidgetItem* ruleItem = makeItem(item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
+        if (item.restartRulesActive)
+            ruleItem->setToolTip(formatScheduleRulesDetail(item.restartRules));
+        tableWidget->setItem(row, 7, ruleItem);
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
         tableWidget->setItem(row, 8, makeItem(nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-"));
     }
@@ -180,7 +194,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             updateButtonStates(displayRow);
             saveSettings();
         } else {
-            contextSetScheduleRules(QList<int>{displayRow}, false);
+            contextSetScheduleRules(QList<int>{displayRow}, false, true);
         }
     });
 
@@ -200,7 +214,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
             updateButtonStates(displayRow);
             saveSettings();
         } else {
-            contextSetScheduleRules(QList<int>{displayRow}, true);
+            contextSetScheduleRules(QList<int>{displayRow}, true, true);
         }
     });
 

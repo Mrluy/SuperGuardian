@@ -140,6 +140,7 @@ void SuperGuardian::loadSettings() {
         item.scheduledRunEnabled = o[u"scheduledRunEnabled"_s].toBool();
         item.trackRunDuration = o[u"trackRunDuration"_s].toBool();
         item.runHideWindow = o[u"runHideWindow"_s].toBool();
+        item.lastRunHidden = o[u"lastRunHidden"_s].toBool();
         if (o.contains(u"runRulesJson"_s)) {
             QJsonDocument rulesDoc = QJsonDocument::fromJson(o[u"runRulesJson"_s].toString().toUtf8());
             item.runRules = jsonToScheduleRules(rulesDoc.array());
@@ -212,6 +213,7 @@ void SuperGuardian::saveSettings() {
         o[u"scheduledRunEnabled"_s] = items[i].scheduledRunEnabled;
         o[u"trackRunDuration"_s] = items[i].trackRunDuration;
         o[u"runHideWindow"_s] = items[i].runHideWindow;
+        o[u"lastRunHidden"_s] = items[i].lastRunHidden;
         QJsonDocument runDoc(scheduleRulesToJson(items[i].runRules));
         o[u"runRulesJson"_s] = QString::fromUtf8(runDoc.toJson(QJsonDocument::Compact));
 

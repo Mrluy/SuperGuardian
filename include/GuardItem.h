@@ -67,6 +67,7 @@ struct GuardItem {
     bool scheduledRunEnabled = false;
     QList<ScheduleRule> runRules;
     bool runHideWindow = false;
+    bool lastRunHidden = false;
     bool trackRunDuration = false;
 
     RetryConfig retryConfig;

@@ -235,3 +235,20 @@ QString formatScheduleRules(const QList<ScheduleRule>& rules) {
     }
     return u"%1个规则"_s.arg(rules.size());
 }
+
+QString formatScheduleRulesDetail(const QList<ScheduleRule>& rules) {
+    if (rules.isEmpty()) return u"-"_s;
+    QStringList lines;
+    for (int i = 0; i < rules.size(); ++i) {
+        const ScheduleRule& r = rules[i];
+        QString text;
+        if (r.type == ScheduleRule::Periodic)
+            text = formatRestartInterval(r.intervalSecs);
+        else if (r.type == ScheduleRule::Advanced)
+            text = formatAdvancedRule(r);
+        else
+            text = formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm"_s);
+        lines << u"[%1] %2"_s.arg(i + 1).arg(text);
+    }
+    return lines.join(u"\n"_s);
+}

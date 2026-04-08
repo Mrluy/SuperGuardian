@@ -3,6 +3,7 @@
 #include "ProcessUtils.h"
 #include "LogDatabase.h"
 #include "ConfigDatabase.h"
+#include "ThemeManager.h"
 #include <QtWidgets>
 #include <QThread>
 #include <windows.h>
@@ -48,6 +49,7 @@ void SuperGuardian::checkProcesses() {
                 bool ok = launchProgram(item.targetPath, item.launchArgs, item.runHideWindow);
                 item.lastLaunchTime = now;
                 item.lastRestart = now;
+                item.lastRunHidden = item.runHideWindow;
                 item.restartCount++;
                 logScheduledRun(u"定时运行触发"_s, programId(item.processName, item.launchArgs));
                 if (!ok) {
@@ -81,8 +83,23 @@ void SuperGuardian::checkProcesses() {
             setCell(6, "-");
             QString rulesText = formatScheduleRules(item.runRules);
             setCell(7, rulesText);
+            if (tableWidget->item(row, 7))
+                tableWidget->item(row, 7)->setToolTip(formatScheduleRulesDetail(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+
+            // 隐藏窗口图标：浅色主题用dark文件夹，深色主题用light文件夹
+            {
+                QString iconDir = (currentThemeName() == u"dark"_s) ? u"light"_s : u"dark"_s;
+                QIcon hideIcon(u":/SuperGuardian/%1/hide.png"_s.arg(iconDir));
+                // 上次执行列：如果上次定时运行使用了隐藏窗口
+                if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
+                    lastCell->setIcon(item.lastRunHidden ? hideIcon : QIcon());
+                // 下次执行列：如果当前激活了隐藏运行窗口
+                if (QTableWidgetItem* nextCell = tableWidget->item(row, 8))
+                    nextCell->setIcon(item.runHideWindow ? hideIcon : QIcon());
+            }
+
             setCell(9, "-");
             continue;
         }
@@ -237,10 +254,17 @@ void SuperGuardian::checkProcesses() {
             setCell(6, "-");
         }
         setCell(4, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+        // 非定时运行模式：清除隐藏图标
+        if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
+            lastCell->setIcon(QIcon());
         setCell(5, QString::number(item.restartCount));
         setCell(7, item.restartRulesActive ? formatScheduleRules(item.restartRules) : u"-"_s);
+        if (tableWidget->item(row, 7))
+            tableWidget->item(row, 7)->setToolTip(item.restartRulesActive ? formatScheduleRulesDetail(item.restartRules) : u"-"_s);
         QDateTime nt = item.restartRulesActive ? nextTriggerTime(item.restartRules) : QDateTime();
         setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
+        if (QTableWidgetItem* nextCell = tableWidget->item(row, 8))
+            nextCell->setIcon(QIcon());
         setCell(9, formatStartDelay(item.startDelaySecs));
     }
 

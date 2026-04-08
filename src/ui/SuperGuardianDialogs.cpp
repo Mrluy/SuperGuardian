@@ -6,7 +6,7 @@
 
 // ---- 定时规则设置对话框（多规则，支持周期和固定时间） ----
 
-void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun) {
+void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun, bool activateOnConfirm) {
     QList<ScheduleRule> initRules;
     if (rows.size() == 1) {
         int itemIdx = findItemIndexById(rowId(rows[0]));
@@ -420,36 +420,65 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun)
         int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         GuardItem& item = items[itemIdx];
-        if (forRun) {
-            item.runRules = finalRules;
-            if (trackDurationCheck)
-                item.trackRunDuration = trackDurationCheck->isChecked();
-            if (hideWindowCheck)
-                item.runHideWindow = hideWindowCheck->isChecked();
-        } else {
-            item.restartRules = finalRules;
-        }
+        QWidget* opw = tableWidget->cellWidget(row, 10);
         auto setCell = [&](int col, const QString& text) {
             if (tableWidget->item(row, col)) {
                 tableWidget->item(row, col)->setText(text);
                 tableWidget->item(row, col)->setToolTip(text);
             }
         };
+        auto setButtonText = [&](const QString& objectName, const QString& text) {
+            if (!opw) return;
+            if (QPushButton* button = opw->findChild<QPushButton*>(objectName))
+                button->setText(text);
+        };
+        if (forRun) {
+            item.runRules = finalRules;
+            if (trackDurationCheck)
+                item.trackRunDuration = trackDurationCheck->isChecked();
+            if (hideWindowCheck)
+                item.runHideWindow = hideWindowCheck->isChecked();
+            if (activateOnConfirm) {
+                item.scheduledRunEnabled = !item.runRules.isEmpty();
+                setButtonText(QString("runBtn_%1").arg(item.id),
+                    item.scheduledRunEnabled ? u"关闭定时运行"_s : u"开启定时运行"_s);
+            }
+        } else {
+            item.restartRules = finalRules;
+            if (activateOnConfirm) {
+                item.restartRulesActive = !item.restartRules.isEmpty();
+                setButtonText(QString("srBtn_%1").arg(item.id),
+                    item.restartRulesActive ? u"关闭定时重启"_s : u"开启定时重启"_s);
+            }
+        }
         if (item.scheduledRunEnabled) {
+            setCell(2, u"定时运行"_s);
             setCell(7, formatScheduleRules(item.runRules));
+            if (tableWidget->item(row, 7))
+                tableWidget->item(row, 7)->setToolTip(formatScheduleRulesDetail(item.runRules));
             QDateTime nt = nextTriggerTime(item.runRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         } else if (item.restartRulesActive) {
+            if (!item.guarding)
+                setCell(2, u"-"_s);
             setCell(7, formatScheduleRules(item.restartRules));
+            if (tableWidget->item(row, 7))
+                tableWidget->item(row, 7)->setToolTip(formatScheduleRulesDetail(item.restartRules));
             QDateTime nt = nextTriggerTime(item.restartRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
         } else if (forRun && !item.runRules.isEmpty()) {
             setCell(7, formatScheduleRules(item.runRules));
+            if (tableWidget->item(row, 7))
+                tableWidget->item(row, 7)->setToolTip(formatScheduleRulesDetail(item.runRules));
             setCell(8, "-");
         } else if (!forRun && !item.restartRules.isEmpty()) {
             setCell(7, formatScheduleRules(item.restartRules));
+            if (tableWidget->item(row, 7))
+                tableWidget->item(row, 7)->setToolTip(formatScheduleRulesDetail(item.restartRules));
             setCell(8, "-");
         } else {
+            if (!item.guarding)
+                setCell(2, u"未守护"_s);
             setCell(7, u"-"_s);
             setCell(8, "-");
         }
