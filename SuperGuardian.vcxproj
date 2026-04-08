@@ -108,6 +108,7 @@
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\app\SuperGuardianProgramOps.cpp" />
     <ClCompile Include="src\config\SuperGuardianConfigReset.cpp" />
     <ClCompile Include="src\table\DesktopSelectTable.cpp" />
     <ClCompile Include="src\ui\DialogHelpers.cpp" />
@@ -118,11 +119,14 @@
     <ClCompile Include="src\config\SuperGuardianConfigExport.cpp" />
     <ClCompile Include="src\config\SuperGuardianConfigImport.cpp" />
     <ClCompile Include="src\config\SuperGuardianDiagnostics.cpp" />
+    <ClCompile Include="src\ui\ScheduleRuleEditor.cpp" />
     <ClCompile Include="src\ui\SuperGuardianDialogs.cpp" />
     <ClCompile Include="src\ui\SuperGuardianDialogsEmail.cpp" />
     <ClCompile Include="src\app\SuperGuardianInit.cpp" />
     <ClCompile Include="src\app\SuperGuardianMonitor.cpp" />
     <ClCompile Include="src\app\SuperGuardianProcess.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianDialogsSmtp.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianHeaderSort.cpp" />
     <ClCompile Include="src\ui\SuperGuardianSettings.cpp" />
     <ClCompile Include="src\ui\SuperGuardianTray.cpp" />
     <ClCompile Include="src\theme\ThemeManager.cpp" />
@@ -133,6 +137,7 @@
     <ClCompile Include="src\app\SuperGuardianBatchOps.cpp" />
     <ClCompile Include="src\ui\SuperGuardianItemDialogs.cpp" />
     <ClCompile Include="src\ui\SuperGuardianWhitelistTest.cpp" />
+    <ClCompile Include="src\ui\SuperGuardianWindow.cpp" />
     <ClCompile Include="src\ui\WhitelistData.cpp" />
     <QtRcc Include="resources.qrc" />
     <QtRcc Include="SuperGuardian.qrc" />
@@ -161,6 +166,7 @@
     <ClInclude Include="include\GuardItem.h" />
     <ClInclude Include="include\GuardTableWidgets.h" />
     <ClInclude Include="include\ProcessUtils.h" />
+    <ClInclude Include="include\ScheduleRuleEditor.h" />
     <ClInclude Include="include\ThemeManager.h" />
     <ClInclude Include="include\WhitelistData.h" />
   </ItemGroup>

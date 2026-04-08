@@ -8,12 +8,9 @@
 #include <QThread>
 #include <windows.h>
 
-// ---- 进程监控主循环 ----
-
 void SuperGuardian::checkProcesses() {
     QDateTime now = QDateTime::currentDateTime();
 
-    // 全局功能开关
     bool globalGuardOn = globalGuardAct && globalGuardAct->isChecked();
     bool globalRestartOn = globalRestartAct && globalRestartAct->isChecked();
     bool globalRunOn = globalRunAct && globalRunAct->isChecked();
@@ -29,6 +26,13 @@ void SuperGuardian::checkProcesses() {
 
         if (!hasGuard && !hasScheduledRestart && !hasScheduledRun) continue;
 
+        auto setCell = [&](int col, const QString& text) {
+            if (tableWidget->item(row, col)) {
+                tableWidget->item(row, col)->setText(text);
+                tableWidget->item(row, col)->setToolTip(text);
+            }
+        };
+
         int count = 0;
         bool running = isProcessRunning(item.processName, count);
         bool scheduledRestarted = false;
@@ -36,7 +40,6 @@ void SuperGuardian::checkProcesses() {
         if (running && item.startDelayExitTime.isValid())
             item.startDelayExitTime = QDateTime();
 
-        // 定时运行逻辑
         if (hasScheduledRun) {
             bool anyDue = false;
             for (ScheduleRule& rule : item.runRules) {
@@ -63,20 +66,12 @@ void SuperGuardian::checkProcesses() {
                     }
                 }
             }
-            auto setCell = [&](int col, const QString& text) {
-                if (tableWidget->item(row, col)) {
-                    tableWidget->item(row, col)->setText(text);
-                    tableWidget->item(row, col)->setToolTip(text);
-                }
-            };
             setCell(2, u"定时运行"_s);
-            {
-                if (item.trackRunDuration) {
-                    QDateTime procStart = getProcessStartTime(item.processName);
-                    setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
-                } else {
-                    setCell(3, "-");
-                }
+            if (item.trackRunDuration) {
+                QDateTime procStart = getProcessStartTime(item.processName);
+                setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+            } else {
+                setCell(3, "-");
             }
             setCell(4, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
             setCell(5, "-");
@@ -88,23 +83,17 @@ void SuperGuardian::checkProcesses() {
             QDateTime nt = nextTriggerTime(item.runRules);
             setCell(8, nt.isValid() ? nt.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
 
-            // 隐藏窗口图标：浅色主题用dark文件夹，深色主题用light文件夹
-            {
-                QString iconDir = (currentThemeName() == u"dark"_s) ? u"light"_s : u"dark"_s;
-                QIcon hideIcon(u":/SuperGuardian/%1/hide.png"_s.arg(iconDir));
-                // 上次执行列：如果上次定时运行使用了隐藏窗口
-                if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
-                    lastCell->setIcon(item.lastRunHidden ? hideIcon : QIcon());
-                // 下次执行列：如果当前激活了隐藏运行窗口
-                if (QTableWidgetItem* nextCell = tableWidget->item(row, 8))
-                    nextCell->setIcon(item.runHideWindow ? hideIcon : QIcon());
-            }
+            QString iconDir = (currentThemeName() == u"dark"_s) ? u"light"_s : u"dark"_s;
+            QIcon hideIcon(u":/SuperGuardian/%1/hide.png"_s.arg(iconDir));
+            if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
+                lastCell->setIcon(item.lastRunHidden ? hideIcon : QIcon());
+            if (QTableWidgetItem* nextCell = tableWidget->item(row, 8))
+                nextCell->setIcon(item.runHideWindow ? hideIcon : QIcon());
 
             setCell(9, "-");
             continue;
         }
 
-        // 定时重启逻辑
         if (hasScheduledRestart) {
             bool anyDue = false;
             for (ScheduleRule& rule : item.restartRules) {
@@ -145,7 +134,6 @@ void SuperGuardian::checkProcesses() {
             }
         }
 
-        // 守护逻辑
         if (hasGuard && !running && !scheduledRestarted) {
             if (!item.lastLaunchTime.isValid() || item.lastLaunchTime.secsTo(now) >= 10) {
                 int recount = 0;
@@ -198,7 +186,6 @@ void SuperGuardian::checkProcesses() {
             }
         }
 
-        // 重试逻辑
         if (item.retryActive && !running) {
             bool expired = false;
             if (item.retryConfig.maxRetries > 0 && item.currentRetryCount >= item.retryConfig.maxRetries) expired = true;
@@ -230,13 +217,6 @@ void SuperGuardian::checkProcesses() {
             item.notifiedRetryExhausted = false;
         }
 
-        // 更新UI
-        auto setCell = [&](int col, const QString& text) {
-            if (tableWidget->item(row, col)) {
-                tableWidget->item(row, col)->setText(text);
-                tableWidget->item(row, col)->setToolTip(text);
-            }
-        };
         if (hasGuard) {
             setCell(2, running ? u"运行中"_s : u"已重启"_s);
         } else if (hasScheduledRestart) {
@@ -254,7 +234,6 @@ void SuperGuardian::checkProcesses() {
             setCell(6, "-");
         }
         setCell(4, item.lastRestart.isValid() ? item.lastRestart.toString(u"yyyy年M月d日 hh:mm:ss"_s) : "-");
-        // 非定时运行模式：清除隐藏图标
         if (QTableWidgetItem* lastCell = tableWidget->item(row, 4))
             lastCell->setIcon(QIcon());
         setCell(5, QString::number(item.restartCount));
@@ -268,7 +247,6 @@ void SuperGuardian::checkProcesses() {
         setCell(9, formatStartDelay(item.startDelaySecs));
     }
 
-    // 动态列排序：当排序列内容变化时更新排序
     if (sortState != 0 && activeSortSection >= 2 && activeSortSection <= 9) {
         Qt::SortOrder order = (sortState == 1) ? Qt::AscendingOrder : Qt::DescendingOrder;
         bool orderChanged = false;
@@ -290,7 +268,6 @@ void SuperGuardian::checkProcesses() {
         if (orderChanged) performSort();
     }
 
-    // 自我守护：定期检查watchdog进程是否存活，死亡则重新启动
     if (selfGuardAct && selfGuardAct->isChecked()) {
         auto& db = ConfigDatabase::instance();
         int wdPid = db.value(u"watchdog_pid"_s, 0).toInt();
