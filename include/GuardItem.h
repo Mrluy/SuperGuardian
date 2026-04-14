@@ -33,11 +33,11 @@ struct RetryConfig {
 struct EmailNotifyConfig {
     bool enabled = false;
     bool onGuardTriggered = false;
-    bool onStartFailed = true;
-    bool onScheduledRestartFailed = true;
-    bool onScheduledRunFailed = true;
+    bool onStartFailed = false;
+    bool onScheduledRestartFailed = false;
+    bool onScheduledRunFailed = false;
     bool onProcessExited = false;
-    bool onRetryExhausted = true;
+    bool onRetryExhausted = false;
 };
 
 struct GuardItem {

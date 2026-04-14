@@ -72,23 +72,32 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
                     copiedRulesTime = QDateTime::currentDateTime();
             });
         }
+        if (!editRules->isEmpty()) {
+            ctxMenu.addAction(u"复制全部规则"_s, [&]() {
+                syncRulesFromList();
+                copiedScheduleRules = *editRules;
+                if (!copiedScheduleRules.isEmpty())
+                    copiedRulesTime = QDateTime::currentDateTime();
+            });
+        }
         bool canPaste = !copiedScheduleRules.isEmpty() && copiedRulesTime.isValid()
             && copiedRulesTime.secsTo(QDateTime::currentDateTime()) < 7200;
-        QAction* pasteAct = ctxMenu.addAction(u"粘贴规则"_s, [&]() {
-            if (copiedScheduleRules.isEmpty()) return;
-            if (!copiedRulesTime.isValid() || copiedRulesTime.secsTo(QDateTime::currentDateTime()) >= 7200) {
-                copiedScheduleRules.clear();
-                return;
-            }
-            syncRulesFromList();
-            for (const ScheduleRule& r : copiedScheduleRules) {
-                ScheduleRule nr = r;
-                nr.nextTrigger = calculateNextTrigger(nr);
-                editRules->append(nr);
-            }
-            refreshList();
-        });
-        pasteAct->setEnabled(canPaste);
+        if (canPaste) {
+            ctxMenu.addAction(u"粘贴规则"_s, [&]() {
+                if (copiedScheduleRules.isEmpty()) return;
+                if (!copiedRulesTime.isValid() || copiedRulesTime.secsTo(QDateTime::currentDateTime()) >= 7200) {
+                    copiedScheduleRules.clear();
+                    return;
+                }
+                syncRulesFromList();
+                for (const ScheduleRule& r : copiedScheduleRules) {
+                    ScheduleRule nr = r;
+                    nr.nextTrigger = calculateNextTrigger(nr);
+                    editRules->append(nr);
+                }
+                refreshList();
+            });
+        }
         ctxMenu.exec(ruleList->viewport()->mapToGlobal(pos));
     });
 

@@ -56,6 +56,8 @@ private:
     QStringList duplicateWhitelist;
     QList<ScheduleRule> copiedScheduleRules;
     QDateTime copiedRulesTime;
+    GuardItem copiedItem;
+    bool hasCopiedItem = false;
 
     void addProgram(const QString& path, const QString& extraArgs = QString());
     void parseAndAddFromInput();

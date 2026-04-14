@@ -16,58 +16,43 @@ static QString resolveExistingPath(const QString& token, const QString& baseDir)
     QString value = token.trimmed();
     if (value.isEmpty())
         return QString();
-
     QFileInfo directInfo(value);
     if (directInfo.exists())
         return directInfo.absoluteFilePath();
-
     if (!baseDir.isEmpty() && QDir::isRelativePath(value)) {
         QFileInfo relativeInfo(QDir(baseDir).filePath(value));
         if (relativeInfo.exists())
             return relativeInfo.absoluteFilePath();
     }
-
     const int eqPos = value.indexOf('=');
     if (eqPos > 0 && eqPos + 1 < value.size())
         return resolveExistingPath(value.mid(eqPos + 1), baseDir);
-
     return QString();
 }
 
 static QList<OpenLocationChoice> collectOpenLocationChoices(const GuardItem& item) {
     QList<OpenLocationChoice> choices;
     QSet<QString> seenPaths;
-
     auto addChoice = [&](const QString& label, const QString& path) {
         const QString normalized = QDir::toNativeSeparators(QFileInfo(path).absoluteFilePath());
-        if (normalized.isEmpty() || seenPaths.contains(normalized))
-            return;
+        if (normalized.isEmpty() || seenPaths.contains(normalized)) return;
         seenPaths.insert(normalized);
         choices.append({ label, normalized });
     };
-
     addChoice(u"程序路径"_s, item.targetPath);
-
     if (!item.launchArgs.trimmed().isEmpty()) {
         QStringList parts = QProcess::splitCommand(u"dummy "_s + item.launchArgs);
-        if (!parts.isEmpty())
-            parts.removeFirst();
-
+        if (!parts.isEmpty()) parts.removeFirst();
         const QString baseDir = QFileInfo(item.targetPath).absolutePath();
         for (const QString& part : parts) {
             const QString resolved = resolveExistingPath(part, baseDir);
-            if (resolved.isEmpty())
-                continue;
-
+            if (resolved.isEmpty()) continue;
             const QFileInfo info(resolved);
             const QString displayPath = QDir::toNativeSeparators(resolved);
-            const QString label = info.isDir()
-                ? u"参数路径（文件夹）：%1"_s.arg(displayPath)
-                : u"参数路径（文件）：%1"_s.arg(displayPath);
-            addChoice(label, resolved);
+            addChoice(info.isDir() ? u"参数路径（文件夹）：%1"_s.arg(displayPath)
+                : u"参数路径（文件）：%1"_s.arg(displayPath), resolved);
         }
     }
-
     return choices;
 }
 
@@ -87,10 +72,44 @@ static void openPathInExplorer(const QString& path) {
 
 void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     QModelIndex idx = tableWidget->indexAt(pos);
-    if (!idx.isValid()) return;
-    int row = idx.row();
 
-    // --- Item context menu ---
+    auto doPaste = [this]() {
+        GuardItem newItem = copiedItem;
+        newItem.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        newItem.guarding = false;
+        newItem.restartRulesActive = false;
+        newItem.scheduledRunEnabled = false;
+        newItem.restartCount = 0;
+        newItem.guardStartTime = QDateTime();
+        newItem.startTime = QDateTime();
+        newItem.lastRestart = QDateTime();
+        newItem.lastLaunchTime = QDateTime();
+        newItem.lastGuardRestartTime = QDateTime();
+        newItem.startDelayExitTime = QDateTime();
+        newItem.retryActive = false;
+        newItem.currentRetryCount = 0;
+        newItem.notifiedStartFailed = false;
+        newItem.notifiedRestartFailed = false;
+        newItem.notifiedRunFailed = false;
+        newItem.notifiedRetryExhausted = false;
+        int maxOrder = 0;
+        for (const auto& it : items) maxOrder = qMax(maxOrder, it.insertionOrder);
+        newItem.insertionOrder = maxOrder + 1;
+        items.append(newItem);
+        logOperation(u"粘贴程序"_s, programId(newItem.processName, newItem.launchArgs));
+        rebuildTableFromItems();
+        saveSettings();
+    };
+
+    if (!idx.isValid()) {
+        if (!hasCopiedItem) return;
+        QMenu menu(this);
+        menu.addAction(u"粘贴"_s, this, doPaste);
+        menu.exec(tableWidget->viewport()->mapToGlobal(pos));
+        return;
+    }
+
+    int row = idx.row();
     int itemIndex = findItemIndexById(rowId(row));
     if (itemIndex < 0) return;
 
@@ -116,19 +135,7 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     std::sort(targetRows.begin(), targetRows.end());
     targetRows.erase(std::unique(targetRows.begin(), targetRows.end()), targetRows.end());
 
-    QMenu menu(this);
-
-    // 备注（最上方）
-    menu.addAction(u"备注"_s, this, [this, targetRows]() { contextSetNote(targetRows); });
-
-    // Pin toggle
-    bool allPinned = true;
-    for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
-    menu.addAction(allPinned ? u"取消置顶"_s : u"置顶"_s,
-        this, [this, targetRows]() { contextTogglePin(targetRows); });
-    menu.addSeparator();
-
-    // 检查是否有任一目标行处于定时运行模式或守护/定时重启模式
+    // 检查功能状态
     bool anyScheduledRun = false;
     bool anyGuardOrRestart = false;
     bool anyActive = false;
@@ -141,7 +148,33 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
         }
     }
 
+    QMenu menu(this);
+
+    // 备注
+    menu.addAction(u"备注"_s, this, [this, targetRows]() { contextSetNote(targetRows); });
+    // 置顶
+    bool allPinned = true;
+    for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].pinned) { allPinned = false; break; } }
+    menu.addAction(allPinned ? u"取消置顶"_s : u"置顶"_s,
+        this, [this, targetRows]() { contextTogglePin(targetRows); });
+
+    menu.addSeparator();
+
+    // 定时重启规则（定时运行模式下隐藏）
+    if (!anyScheduledRun)
+        menu.addAction(u"定时重启规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
+    // 设置启动延时（定时运行模式下隐藏）
+    if (!anyScheduledRun)
+        menu.addAction(u"设置启动延时"_s, this, [this, targetRows]() { contextSetStartDelay(targetRows); });
+    // 定时运行规则（守护或定时重启时隐藏）
+    if (!anyGuardOrRestart)
+        menu.addAction(u"定时运行规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
+
+    menu.addSeparator();
+
+    // 手动启动
     menu.addAction(u"手动启动"_s, this, [this, targetRows]() { for (int row : targetRows) contextStartProgram(row); });
+    // 终止进程
     menu.addAction(u"终止进程"_s, this, [this, targetRows]() {
         QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 1)
             ? tableWidget->item(targetRows[0], 1)->text() : QString();
@@ -151,59 +184,47 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
         if (!showMessageDialog(this, u"终止进程"_s, msg, true)) return;
         for (int row : targetRows) contextKillProgram(row);
     });
-    QAction* launchConfigAct = menu.addAction(u"设置启动程序/参数"_s, this, [this, targetRows]() { contextSetLaunchArgs(targetRows); });
-    QAction* restartRulesAct = menu.addAction(u"定时重启规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, false); });
-    QAction* startDelayAct = menu.addAction(u"设置启动延时"_s, this, [this, targetRows]() { contextSetStartDelay(targetRows); });
-    QAction* runRulesAct = menu.addAction(u"定时运行规则"_s, this, [this, targetRows]() { contextSetScheduleRules(targetRows, true); });
+    // 重试设置
     menu.addAction(u"重试设置"_s, this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
+    // 邮件提醒设置
     menu.addAction(u"邮件提醒设置"_s, this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
 
-    // 定时运行时禁用定时重启规则和设置启动延时
-    if (anyScheduledRun) {
-        restartRulesAct->setEnabled(false);
-        startDelayAct->setEnabled(false);
+    menu.addSeparator();
+
+    // 复制（单选时可用）
+    if (targetRows.size() == 1) {
+        menu.addAction(u"复制"_s, this, [this, targetRows]() {
+            int ii = findItemIndexById(rowId(targetRows[0]));
+            if (ii >= 0) {
+                copiedItem = items[ii];
+                hasCopiedItem = true;
+            }
+        });
     }
-    // 守护或定时重启时禁用定时运行规则
-    if (anyGuardOrRestart) {
-        runRulesAct->setEnabled(false);
-    }
+    // 粘贴
+    if (hasCopiedItem)
+        menu.addAction(u"粘贴"_s, this, doPaste);
 
     menu.addSeparator();
 
-    // 复制定时规则
-    if (targetRows.size() == 1) {
-        int ii = findItemIndexById(rowId(targetRows[0]));
-        if (ii >= 0) {
-            QAction* copyRestartAct = menu.addAction(u"复制定时重启规则"_s, this, [this, ii]() {
-                copiedScheduleRules = items[ii].restartRules;
-                copiedRulesTime = QDateTime::currentDateTime();
-            });
-            if (items[ii].restartRules.isEmpty()) copyRestartAct->setEnabled(false);
-            QAction* copyRunAct = menu.addAction(u"复制定时运行规则"_s, this, [this, ii]() {
-                copiedScheduleRules = items[ii].runRules;
-                copiedRulesTime = QDateTime::currentDateTime();
-            });
-            if (items[ii].runRules.isEmpty()) copyRunAct->setEnabled(false);
-        }
-    }
-
-    menu.addSeparator();
-
-    if (targetRows.size() == 1) {
+    // 打开文件所在位置（单选时可用）
+    if (targetRows.size() == 1)
         menu.addAction(u"打开文件所在的位置"_s, this, [this, row]() { contextOpenFileLocation(row); });
+    // 移除项（有活跃功能时隐藏）
+    if (!anyActive) {
+        menu.addAction(u"移除项"_s, this, [this, targetRows]() {
+            QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 1)
+                ? tableWidget->item(targetRows[0], 1)->text() : QString();
+            QString msg = targetRows.size() == 1
+                ? u"确认移除【%1】吗？"_s.arg(name)
+                : u"确认移除选中的 %1 个程序项吗？"_s.arg(targetRows.size());
+            if (!showMessageDialog(this, u"移除项"_s, msg, true)) return;
+            QList<int> rows = targetRows;
+            std::sort(rows.begin(), rows.end(), std::greater<int>());
+            for (int row : rows) contextRemoveItem(row);
+        });
     }
-    QAction* removeAct = menu.addAction(u"移除项"_s, this, [this, targetRows]() {
-        QString name = targetRows.size() == 1 && tableWidget->item(targetRows[0], 1)
-            ? tableWidget->item(targetRows[0], 1)->text() : QString();
-        QString msg = targetRows.size() == 1
-            ? u"确认移除【%1】吗？"_s.arg(name)
-            : u"确认移除选中的 %1 个程序项吗？"_s.arg(targetRows.size());
-        if (!showMessageDialog(this, u"移除项"_s, msg, true)) return;
-        QList<int> rows = targetRows;
-        std::sort(rows.begin(), rows.end(), std::greater<int>());
-        for (int row : rows) contextRemoveItem(row);
-    });
-    if (anyActive) removeAct->setEnabled(false);
+
     menu.exec(tableWidget->viewport()->mapToGlobal(pos));
 }
 

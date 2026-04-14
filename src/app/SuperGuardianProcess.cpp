@@ -1,6 +1,7 @@
 #include "SuperGuardian.h"
 #include "DialogHelpers.h"
 #include "ProcessUtils.h"
+#include "LogDatabase.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
 
@@ -117,6 +118,20 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     opLay->addWidget(runBtn);
     tableWidget->setCellWidget(row, 10, opWidget);
 
+    auto setupBtnContextMenu = [this](QPushButton* btn, const QString& itemId) {
+        btn->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(btn, &QPushButton::customContextMenuRequested, this, [this, itemId, btn](const QPoint&) {
+            int displayRow = findRowById(itemId);
+            if (displayRow < 0) return;
+            tableWidget->selectRow(displayRow);
+            QRect cellRect = tableWidget->visualItemRect(tableWidget->item(displayRow, 1));
+            onTableContextMenuRequested(cellRect.center());
+        });
+    };
+    setupBtnContextMenu(guardBtn, item.id);
+    setupBtnContextMenu(srBtn, item.id);
+    setupBtnContextMenu(runBtn, item.id);
+
     // Guard button
     connect(guardBtn, &QPushButton::clicked, this, [this, itemId = item.id]() {
         int idx = findItemIndexById(itemId);
@@ -130,6 +145,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         if (it.guarding) {
             it.startTime = QDateTime::currentDateTime();
             it.guardStartTime = QDateTime::currentDateTime();
+            logOperation(u"开始守护"_s, programId(it.processName, it.launchArgs));
             int count = 0;
             bool running = isProcessRunning(it.processName, count);
             if (!running && count == 0) {
@@ -139,6 +155,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         } else {
             it.restartCount = 0;
             it.guardStartTime = QDateTime();
+            logOperation(u"关闭守护"_s, programId(it.processName, it.launchArgs));
             if (!it.restartRulesActive) {
                 if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText(u"未守护"_s);
             }
@@ -159,6 +176,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         GuardItem& it = items[idx];
         if (it.restartRulesActive) {
             it.restartRulesActive = false;
+            logOperation(u"关闭定时重启"_s, programId(it.processName, it.launchArgs));
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(u"开启定时重启"_s);
             if (tableWidget->item(displayRow, 7)) tableWidget->item(displayRow, 7)->setText("-");
@@ -179,6 +197,7 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         GuardItem& it = items[idx];
         if (it.scheduledRunEnabled) {
             it.scheduledRunEnabled = false;
+            logOperation(u"关闭定时运行"_s, programId(it.processName, it.launchArgs));
             QPushButton* b = qobject_cast<QPushButton*>(sender());
             if (b) b->setText(u"开启定时运行"_s);
             if (tableWidget->item(displayRow, 2)) tableWidget->item(displayRow, 2)->setText(u"未守护"_s);

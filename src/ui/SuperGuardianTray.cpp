@@ -181,6 +181,7 @@ void SuperGuardian::runSelfGuardTest() {
 
     ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, false);
     startWatchdogHelper();
+    logOperation(u"测试自我守护"_s);
     logRuntime(u"manual self-guard test triggered"_s);
     ::TerminateProcess(GetCurrentProcess(), 99);
 }

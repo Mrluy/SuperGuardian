@@ -5,9 +5,12 @@
 #include <QtWidgets>
 
 static QString emailTargetDisplayName(const GuardItem& item) {
+    QString display = item.processName;
+    if (!item.launchArgs.trimmed().isEmpty())
+        display += u" "_s + item.launchArgs.trimmed();
     if (!item.note.trimmed().isEmpty())
-        return u"%1（%2）"_s.arg(item.note.trimmed(), item.processName);
-    return item.processName;
+        display = u"%1（%2）"_s.arg(item.note.trimmed(), display);
+    return display;
 }
 
 // ---- 重试设置对话框 ----
@@ -57,6 +60,7 @@ void SuperGuardian::contextSetRetryConfig(const QList<int>& rows) {
         items[itemIdx].retryConfig.retryIntervalSecs = intervalSpin->value();
         items[itemIdx].retryConfig.maxRetries = maxRetriesSpin->value();
         items[itemIdx].retryConfig.maxDurationSecs = maxDurSpin->value();
+        logOperation(u"设置重试配置"_s, programId(items[itemIdx].processName, items[itemIdx].launchArgs));
     }
     saveSettings();
 }
@@ -81,8 +85,6 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
     QCheckBox* cbRunFailed = new QCheckBox(u"定时运行失败"_s);
     QCheckBox* cbExited = new QCheckBox(u"进程退出"_s);
     QCheckBox* cbRetryExhausted = new QCheckBox(u"重试耗尽"_s);
-    cbStartFailed->setChecked(true); cbRestartFailed->setChecked(true);
-    cbRunFailed->setChecked(true); cbRetryExhausted->setChecked(true);
 
     lay->addWidget(cbGuardTriggered);
     lay->addWidget(cbStartFailed);
@@ -130,6 +132,9 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
     if (otherProgramCount == 0)
         applyInfoLbl->setText(u"没有可应用的其它程序"_s);
 
+    int applyPage = 0;
+    const int applyPageSize = 10;
+
     auto refreshApplyInfo = [&]() {
         if (extraTargetIds.isEmpty()) {
             applyInfoLbl->setText(otherProgramCount > 0 ? u"未选择其它程序"_s : u"没有可应用的其它程序"_s);
@@ -142,10 +147,50 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
             if (itemIdx >= 0)
                 names.append(emailTargetDisplayName(items[itemIdx]));
         }
-        applyInfoLbl->setText(u"将同步到 %1 个程序：%2"_s
-            .arg(names.size())
-            .arg(names.join(u"、"_s)));
+        int total = names.size();
+        int totalPages = (total + applyPageSize - 1) / applyPageSize;
+        if (applyPage >= totalPages) applyPage = totalPages - 1;
+        if (applyPage < 0) applyPage = 0;
+
+        int startIdx = applyPage * applyPageSize;
+        int endIdx = qMin(startIdx + applyPageSize, total);
+        QString text = u"将同步到 %1 个程序"_s.arg(total);
+        if (totalPages > 1)
+            text += u"（第 %1/%2 页）"_s.arg(applyPage + 1).arg(totalPages);
+        text += u"：\n"_s;
+        for (int i = startIdx; i < endIdx; ++i)
+            text += names[i] + u"\n"_s;
+        applyInfoLbl->setText(text.trimmed());
     };
+
+    QPushButton* prevPageBtn = new QPushButton(u"上一页"_s);
+    QPushButton* nextPageBtn = new QPushButton(u"下一页"_s);
+    prevPageBtn->setVisible(false);
+    nextPageBtn->setVisible(false);
+
+    auto updatePageButtons = [&]() {
+        int total = extraTargetIds.size();
+        int totalPages = (total + applyPageSize - 1) / applyPageSize;
+        bool multiPage = totalPages > 1;
+        prevPageBtn->setVisible(multiPage);
+        nextPageBtn->setVisible(multiPage);
+        prevPageBtn->setEnabled(applyPage > 0);
+        nextPageBtn->setEnabled(applyPage < totalPages - 1);
+    };
+
+    QHBoxLayout* pageLay = new QHBoxLayout();
+    pageLay->addWidget(prevPageBtn);
+    pageLay->addWidget(nextPageBtn);
+    pageLay->addStretch();
+    lay->addLayout(pageLay);
+
+    QObject::connect(prevPageBtn, &QPushButton::clicked, [&]() {
+        if (applyPage > 0) { --applyPage; refreshApplyInfo(); updatePageButtons(); }
+    });
+    QObject::connect(nextPageBtn, &QPushButton::clicked, [&]() {
+        int totalPages = (static_cast<int>(extraTargetIds.size()) + applyPageSize - 1) / applyPageSize;
+        if (applyPage < totalPages - 1) { ++applyPage; refreshApplyInfo(); updatePageButtons(); }
+    });
 
     QObject::connect(applyOtherBtn, &QPushButton::clicked, [&]() {
         QDialog pickDlg(&dlg, kDialogFlags);
@@ -155,17 +200,36 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
         QVBoxLayout* pickLay = new QVBoxLayout(&pickDlg);
         pickLay->addWidget(new QLabel(u"勾选需要同步当前邮件提醒设置的其它程序："_s));
 
+        QLineEdit* searchEdit = new QLineEdit(&pickDlg);
+        searchEdit->setPlaceholderText(u"搜索程序..."_s);
+        searchEdit->setClearButtonEnabled(true);
+        pickLay->addWidget(searchEdit);
+
         QListWidget* list = new QListWidget(&pickDlg);
+        list->setSpacing(0);
+        list->setUniformItemSizes(true);
         pickLay->addWidget(list, 1);
 
-        for (const GuardItem& item : items) {
-            if (sourceIds.contains(item.id))
-                continue;
-            QListWidgetItem* listItem = new QListWidgetItem(emailTargetDisplayName(item), list);
-            listItem->setFlags(listItem->flags() | Qt::ItemIsUserCheckable);
-            listItem->setCheckState(extraTargetIds.contains(item.id) ? Qt::Checked : Qt::Unchecked);
-            listItem->setData(Qt::UserRole, item.id);
-        }
+        auto populateList = [&]() {
+            for (const GuardItem& item : items) {
+                if (sourceIds.contains(item.id))
+                    continue;
+                QString displayName = emailTargetDisplayName(item);
+                QListWidgetItem* listItem = new QListWidgetItem(displayName, list);
+                listItem->setFlags(listItem->flags() | Qt::ItemIsUserCheckable);
+                listItem->setCheckState(extraTargetIds.contains(item.id) ? Qt::Checked : Qt::Unchecked);
+                listItem->setData(Qt::UserRole, item.id);
+            }
+        };
+        populateList();
+
+        QObject::connect(searchEdit, &QLineEdit::textChanged, [&](const QString& text) {
+            QString keyword = text.trimmed().toLower();
+            for (int i = 0; i < list->count(); ++i) {
+                QListWidgetItem* it = list->item(i);
+                it->setHidden(!keyword.isEmpty() && !it->text().toLower().contains(keyword));
+            }
+        });
 
         QHBoxLayout* toolLay = new QHBoxLayout();
         QPushButton* selectAllBtn = new QPushButton(u"全选"_s);
@@ -177,11 +241,13 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
 
         QObject::connect(selectAllBtn, &QPushButton::clicked, [&]() {
             for (int i = 0; i < list->count(); ++i)
-                list->item(i)->setCheckState(Qt::Checked);
+                if (!list->item(i)->isHidden())
+                    list->item(i)->setCheckState(Qt::Checked);
         });
         QObject::connect(clearBtn, &QPushButton::clicked, [&]() {
             for (int i = 0; i < list->count(); ++i)
-                list->item(i)->setCheckState(Qt::Unchecked);
+                if (!list->item(i)->isHidden())
+                    list->item(i)->setCheckState(Qt::Unchecked);
         });
 
         QHBoxLayout* pickBtnLay = new QHBoxLayout();
@@ -204,7 +270,9 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
             if (listItem->checkState() == Qt::Checked)
                 extraTargetIds.insert(listItem->data(Qt::UserRole).toString());
         }
+        applyPage = 0;
         refreshApplyInfo();
+        updatePageButtons();
     });
 
     lay->addStretch();
@@ -232,11 +300,13 @@ void SuperGuardian::contextSetEmailNotify(const QList<int>& rows) {
         int itemIdx = findItemIndexById(rowId(row));
         if (itemIdx < 0) continue;
         applyEmailNotify(items[itemIdx].emailNotify);
+        logOperation(u"设置邮件提醒"_s, programId(items[itemIdx].processName, items[itemIdx].launchArgs));
     }
     for (const QString& id : extraTargetIds) {
         int itemIdx = findItemIndexById(id);
         if (itemIdx < 0) continue;
         applyEmailNotify(items[itemIdx].emailNotify);
+        logOperation(u"设置邮件提醒"_s, programId(items[itemIdx].processName, items[itemIdx].launchArgs));
     }
     saveSettings();
 }

@@ -1,5 +1,6 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
+#include "LogDatabase.h"
 #include <QtWidgets>
 #include <QThread>
 
@@ -161,6 +162,7 @@ void SuperGuardian::showUpdateDialog() {
             return;
         }
         dialog.accept();
+        logOperation(u"恢复旧版本"_s);
         if (showMessageDialog(this, u"恢复成功"_s,
             u"已恢复到备份版本。是否立即重启软件？"_s, true)) {
             saveSettings();
@@ -252,6 +254,7 @@ void SuperGuardian::showUpdateDialog() {
 
         dialog.accept();
 
+        logOperation(u"软件更新"_s);
         showMessageDialog(this, u"更新成功"_s,
             u"程序已更新成功。旧版本已备份到 bak/%1/\n软件将自动重启以应用更新。"_s.arg(timestamp));
         saveSettings();
