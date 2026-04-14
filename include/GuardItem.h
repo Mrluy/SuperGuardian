@@ -16,6 +16,7 @@ struct ScheduleRule {
     QDateTime nextTrigger;
 
     // Advanced 类型专用字段
+    int advSecond = -1;         // -1=不指定, 0-59
     int advMinute = 0;          // 0-59
     int advHour = -1;           // -1=每小时, 0-23
     int advDay = -1;            // -1=每天, 1-31

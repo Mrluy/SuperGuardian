@@ -37,7 +37,8 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QSpinBox* daySpin = new QSpinBox(); daySpin->setRange(0, 99999); daySpin->setSuffix(u" 天"_s);
     QSpinBox* hourSpin = new QSpinBox(); hourSpin->setRange(0, 23); hourSpin->setSuffix(u" 小时"_s);
     QSpinBox* minSpin = new QSpinBox(); minSpin->setRange(0, 59); minSpin->setSuffix(u" 分钟"_s);
-    pLay->addWidget(daySpin); pLay->addWidget(hourSpin); pLay->addWidget(minSpin);
+    QSpinBox* secSpin = new QSpinBox(); secSpin->setRange(0, 59); secSpin->setSuffix(u" 秒"_s);
+    pLay->addWidget(daySpin); pLay->addWidget(hourSpin); pLay->addWidget(minSpin); pLay->addWidget(secSpin);
     al->addWidget(periodicWidget);
 
     // 固定时间
@@ -45,8 +46,8 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QVBoxLayout* fLay = new QVBoxLayout(fixedWidget);
     fLay->setContentsMargins(0, 4, 0, 0);
     fLay->addWidget(new QLabel(u"时间："_s));
-    QTimeEdit* timeEdit = new QTimeEdit(QTime(0, 0));
-    timeEdit->setDisplayFormat("HH:mm");
+    QTimeEdit* timeEdit = new QTimeEdit(QTime(0, 0, 0));
+    timeEdit->setDisplayFormat("HH:mm:ss");
     fLay->addWidget(timeEdit);
     fLay->addWidget(new QLabel(u"星期（不选则每天）："_s));
     QHBoxLayout* dowLay = new QHBoxLayout();
@@ -100,8 +101,12 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QCheckBox* advMinCheck = new QCheckBox(u"指定分钟"_s);
     advMinCheck->setChecked(true);
     QSpinBox* advMinSpin = new QSpinBox(); advMinSpin->setRange(0, 59); advMinSpin->setSuffix(u" 分"_s);
+    QCheckBox* advSecCheck = new QCheckBox(u"指定秒"_s);
+    QSpinBox* advSecSpin = new QSpinBox(); advSecSpin->setRange(0, 59); advSecSpin->setSuffix(u" 秒"_s);
+    advSecSpin->setEnabled(false);
     advTimeLay->addWidget(advHourCheck); advTimeLay->addWidget(advHourSpin);
     advTimeLay->addWidget(advMinCheck); advTimeLay->addWidget(advMinSpin);
+    advTimeLay->addWidget(advSecCheck); advTimeLay->addWidget(advSecSpin);
     advLay->addLayout(advTimeLay);
 
     QObject::connect(advYearCheck, &QCheckBox::toggled, advYearSpin, &QSpinBox::setEnabled);
@@ -109,6 +114,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QObject::connect(advDayCheck, &QCheckBox::toggled, advDaySpin, &QSpinBox::setEnabled);
     QObject::connect(advHourCheck, &QCheckBox::toggled, advHourSpin, &QSpinBox::setEnabled);
     QObject::connect(advMinCheck, &QCheckBox::toggled, advMinSpin, &QSpinBox::setEnabled);
+    QObject::connect(advSecCheck, &QCheckBox::toggled, advSecSpin, &QSpinBox::setEnabled);
 
     advWidget->setVisible(false);
     al->addWidget(advWidget);
@@ -134,6 +140,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
             daySpin->setValue(total / 86400);
             hourSpin->setValue((total % 86400) / 3600);
             minSpin->setValue((total % 3600) / 60);
+            secSpin->setValue(total % 60);
         } else if (existing->type == ScheduleRule::FixedTime) {
             switchType(1);
             timeEdit->setTime(existing->fixedTime);
@@ -149,6 +156,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
             if (existing->advHour >= 0) { advHourCheck->setChecked(true); advHourSpin->setValue(existing->advHour); }
             if (existing->advMinute >= 0) { advMinCheck->setChecked(true); advMinSpin->setValue(existing->advMinute); }
             else { advMinCheck->setChecked(false); }
+            if (existing->advSecond >= 0) { advSecCheck->setChecked(true); advSecSpin->setValue(existing->advSecond); }
             for (int d = 0; d < 7; d++) {
                 if (existing->advDaysOfWeek.contains(d + 1))
                     advDowChecks[d]->setChecked(true);
@@ -172,7 +180,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
         ScheduleRule rule;
         if (periodicBtn->isChecked()) {
             rule.type = ScheduleRule::Periodic;
-            rule.intervalSecs = daySpin->value() * 86400 + hourSpin->value() * 3600 + minSpin->value() * 60;
+            rule.intervalSecs = daySpin->value() * 86400 + hourSpin->value() * 3600 + minSpin->value() * 60 + secSpin->value();
             if (rule.intervalSecs <= 0) {
                 showMessageDialog(&dlg, u"提示"_s, u"周期不能为 0。"_s);
                 continue;
@@ -185,6 +193,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
             }
         } else {
             rule.type = ScheduleRule::Advanced;
+            rule.advSecond = advSecCheck->isChecked() ? advSecSpin->value() : -1;
             rule.advMinute = advMinCheck->isChecked() ? advMinSpin->value() : -1;
             rule.advHour = advHourCheck->isChecked() ? advHourSpin->value() : -1;
             rule.advDay = advDayCheck->isChecked() ? advDaySpin->value() : -1;
@@ -208,10 +217,10 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
                 if (rule.advDay > maxDays)
                     err = u"%1月最多只有 %2 天，无法指定第 %3 天。"_s.arg(rule.advMonth).arg(maxDays).arg(rule.advDay);
             }
-            if (err.isEmpty() && rule.advHour < 0 && rule.advMinute < 0
+            if (err.isEmpty() && rule.advHour < 0 && rule.advMinute < 0 && rule.advSecond < 0
                 && rule.advDay < 0 && rule.advMonth < 0 && rule.advYear < 0
                 && rule.advDaysOfWeek.isEmpty()) {
-                err = u"所有条件均未指定，规则将每分钟触发。请至少设置一个时间条件。"_s;
+                err = u"所有条件均未指定，规则将每秒触发。请至少设置一个时间条件。"_s;
             }
             if (err.isEmpty()) {
                 QDateTime next = calculateNextTrigger(rule);

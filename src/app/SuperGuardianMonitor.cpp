@@ -37,6 +37,9 @@ void SuperGuardian::checkProcesses() {
         bool running = isProcessRunning(item.processName, count);
         bool scheduledRestarted = false;
 
+        if (hasGuard && !item.guardStartTime.isValid())
+            item.guardStartTime = now;
+
         if (running && item.startDelayExitTime.isValid())
             item.startDelayExitTime = QDateTime();
 
@@ -106,28 +109,29 @@ void SuperGuardian::checkProcesses() {
                 bool cooldown = item.lastGuardRestartTime.isValid()
                     && item.lastGuardRestartTime.secsTo(now) < 30;
                 if (!cooldown) {
+                    bool wasRunning = running;
                     if (running) {
                         killProcessesByName(item.processName);
-                        if (item.startDelaySecs > 0)
-                            QThread::msleep(static_cast<unsigned long>(item.startDelaySecs * 1000));
-                        bool ok = launchProgram(item.targetPath, item.launchArgs);
-                        item.lastLaunchTime = now;
-                        item.lastRestart = now;
-                        item.startTime = now;
-                        scheduledRestarted = true;
-                        item.startDelayExitTime = QDateTime();
-                        item.lastGuardRestartTime = now;
-                        running = true;
-                        logScheduledRestart(u"定时重启触发"_s, programId(item.processName, item.launchArgs));
-                        if (!ok) {
-                            trySendNotification(item, "restart_failed",
-                                u"%1 定时重启后启动失败"_s.arg(item.processName));
-                            if (!item.retryActive) {
-                                item.retryActive = true;
-                                item.retryStartTime = now;
-                                item.currentRetryCount = 0;
-                                item.lastRetryTime = now;
-                            }
+                    }
+                    if (item.startDelaySecs > 0)
+                        QThread::msleep(static_cast<unsigned long>(item.startDelaySecs * 1000));
+                    bool ok = launchProgram(item.targetPath, item.launchArgs);
+                    item.lastLaunchTime = now;
+                    item.lastRestart = now;
+                    item.startTime = now;
+                    scheduledRestarted = true;
+                    item.startDelayExitTime = QDateTime();
+                    item.lastGuardRestartTime = now;
+                    running = true;
+                    logScheduledRestart(wasRunning ? u"定时重启触发"_s : u"定时重启触发（程序未运行，已启动）"_s, programId(item.processName, item.launchArgs));
+                    if (!ok) {
+                        trySendNotification(item, "restart_failed",
+                            u"%1 定时重启后启动失败"_s.arg(item.processName));
+                        if (!item.retryActive) {
+                            item.retryActive = true;
+                            item.retryStartTime = now;
+                            item.currentRetryCount = 0;
+                            item.lastRetryTime = now;
                         }
                     }
                 }

@@ -80,15 +80,16 @@ int showIntDialog(QWidget* parent, const QString& title, const QString& label,
 
 QString formatRestartInterval(int secs) {
     if (secs <= 0) return u"-"_s;
-    int totalMins = secs / 60;
-    int days = totalMins / 1440;
-    int hours = (totalMins % 1440) / 60;
-    int mins = totalMins % 60;
+    int days = secs / 86400;
+    int hours = (secs % 86400) / 3600;
+    int mins = (secs % 3600) / 60;
+    int remainSecs = secs % 60;
     QString detail;
     if (days > 0) detail += QString::number(days) + u"天"_s;
     if (hours > 0) detail += QString::number(hours) + u"小时"_s;
     if (mins > 0) detail += QString::number(mins) + u"分钟"_s;
-    if (detail.isEmpty()) detail = u"1分钟"_s;
+    if (remainSecs > 0) detail += QString::number(remainSecs) + u"秒"_s;
+    if (detail.isEmpty()) detail = u"0秒"_s;
     return u"周期 "_s + detail;
 }
 
@@ -113,13 +114,13 @@ QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) 
         return from.addSecs(rule.intervalSecs);
     }
     if (rule.type == ScheduleRule::Advanced) {
-        QDateTime candidate = from.addSecs(60);
+        QDateTime candidate = from.addSecs(1);
         for (int attempt = 0; attempt < 366 * 24 * 60; ++attempt) {
             QDate d = candidate.date();
             QTime t = candidate.time();
             if (rule.advYear > 0 && d.year() != rule.advYear) {
                 if (d.year() > rule.advYear) return QDateTime();
-                candidate = QDateTime(QDate(rule.advYear, 1, 1), QTime(0, 0));
+                candidate = QDateTime(QDate(rule.advYear, 1, 1), QTime(0, 0, 0));
                 continue;
             }
             if (rule.advMonth > 0 && d.month() != rule.advMonth) {
@@ -127,7 +128,7 @@ QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) 
                 int targetYear = d.year();
                 if (d.month() > targetMonth) targetYear++;
                 if (rule.advYear > 0 && targetYear != rule.advYear) return QDateTime();
-                candidate = QDateTime(QDate(targetYear, targetMonth, 1), QTime(0, 0));
+                candidate = QDateTime(QDate(targetYear, targetMonth, 1), QTime(0, 0, 0));
                 continue;
             }
             if (rule.advDay > 0 && d.day() != rule.advDay) {
@@ -138,36 +139,54 @@ QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from) 
                     next = QDate(next.year(), next.month(), 1);
                 }
                 int maxDay = QDate(next.year(), next.month(), 1).daysInMonth();
-                if (targetDay > maxDay) { candidate = QDateTime(next.addMonths(1), QTime(0, 0)); continue; }
-                candidate = QDateTime(QDate(next.year(), next.month(), targetDay), QTime(0, 0));
+                if (targetDay > maxDay) { candidate = QDateTime(next.addMonths(1), QTime(0, 0, 0)); continue; }
+                candidate = QDateTime(QDate(next.year(), next.month(), targetDay), QTime(0, 0, 0));
                 continue;
             }
             if (!rule.advDaysOfWeek.isEmpty() && !rule.advDaysOfWeek.contains(d.dayOfWeek())) {
-                candidate = QDateTime(d.addDays(1), QTime(0, 0));
+                candidate = QDateTime(d.addDays(1), QTime(0, 0, 0));
                 continue;
             }
             if (rule.advHour >= 0 && t.hour() != rule.advHour) {
                 if (t.hour() > rule.advHour) {
-                    candidate = QDateTime(d.addDays(1), QTime(rule.advHour, 0));
+                    candidate = QDateTime(d.addDays(1), QTime(rule.advHour, 0, 0));
                 } else {
-                    candidate = QDateTime(d, QTime(rule.advHour, 0));
+                    candidate = QDateTime(d, QTime(rule.advHour, 0, 0));
                 }
                 continue;
             }
             if (rule.advMinute >= 0 && t.minute() != rule.advMinute) {
                 if (t.minute() > rule.advMinute) {
                     if (rule.advHour >= 0) {
-                        candidate = QDateTime(d.addDays(1), QTime(rule.advHour, rule.advMinute));
+                        candidate = QDateTime(d.addDays(1), QTime(rule.advHour, rule.advMinute, 0));
                     } else {
-                        candidate = QDateTime(d, QTime(t.hour(), rule.advMinute)).addSecs(3600);
+                        candidate = QDateTime(d, QTime(t.hour(), rule.advMinute, 0)).addSecs(3600);
                     }
                 } else {
-                    candidate = QDateTime(d, QTime(t.hour(), rule.advMinute));
+                    candidate = QDateTime(d, QTime(t.hour(), rule.advMinute, 0));
+                }
+                continue;
+            }
+            if (rule.advSecond >= 0 && t.second() != rule.advSecond) {
+                int finalMin = (rule.advMinute >= 0) ? rule.advMinute : t.minute();
+                if (t.second() > rule.advSecond) {
+                    if (rule.advMinute >= 0) {
+                        if (rule.advHour >= 0) {
+                            candidate = QDateTime(d.addDays(1), QTime(rule.advHour, rule.advMinute, rule.advSecond));
+                        } else {
+                            candidate = QDateTime(d, QTime(t.hour(), finalMin, rule.advSecond)).addSecs(3600);
+                        }
+                    } else {
+                        candidate = QDateTime(d, QTime(t.hour(), t.minute(), rule.advSecond)).addSecs(60);
+                    }
+                } else {
+                    candidate = QDateTime(d, QTime(t.hour(), finalMin, rule.advSecond));
                 }
                 continue;
             }
             int finalMin = (rule.advMinute >= 0) ? rule.advMinute : t.minute();
-            return QDateTime(d, QTime(t.hour(), finalMin));
+            int finalSec = (rule.advSecond >= 0) ? rule.advSecond : t.second();
+            return QDateTime(d, QTime(t.hour(), finalMin, finalSec));
         }
         return QDateTime();
     }
@@ -214,14 +233,22 @@ QString formatAdvancedRule(const ScheduleRule& r) {
     } else {
         result += u"每天 "_s;
     }
-    if (r.advHour >= 0 && r.advMinute >= 0)
+    if (r.advHour >= 0 && r.advMinute >= 0 && r.advSecond >= 0)
+        result += u"%1时%2分%3秒"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advMinute, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
+    else if (r.advHour >= 0 && r.advMinute >= 0)
         result += u"%1时%2分"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advMinute, 2, 10, QChar('0'));
+    else if (r.advHour >= 0 && r.advSecond >= 0)
+        result += u"%1时 每分钟 %2秒"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
+    else if (r.advMinute >= 0 && r.advSecond >= 0)
+        result += u"每小时 %1分%2秒"_s.arg(r.advMinute, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
     else if (r.advHour >= 0)
         result += u"%1时 每分钟"_s.arg(r.advHour, 2, 10, QChar('0'));
     else if (r.advMinute >= 0)
         result += u"每小时 %1分"_s.arg(r.advMinute, 2, 10, QChar('0'));
+    else if (r.advSecond >= 0)
+        result += u"每分钟 %1秒"_s.arg(r.advSecond, 2, 10, QChar('0'));
     else
-        result += u"每分钟"_s;
+        result += u"每秒"_s;
     return result;
 }
 
@@ -231,7 +258,7 @@ QString formatScheduleRules(const QList<ScheduleRule>& rules) {
         const ScheduleRule& r = rules[0];
         if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
         if (r.type == ScheduleRule::Advanced) return formatAdvancedRule(r);
-        return formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm"_s);
+        return formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm:ss"_s);
     }
     return u"%1个规则"_s.arg(rules.size());
 }
@@ -247,7 +274,7 @@ QString formatScheduleRulesDetail(const QList<ScheduleRule>& rules) {
         else if (r.type == ScheduleRule::Advanced)
             text = formatAdvancedRule(r);
         else
-            text = formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm"_s);
+            text = formatDaysShort(r.daysOfWeek) + u" "_s + r.fixedTime.toString(u"HH:mm:ss"_s);
         lines << u"[%1] %2"_s.arg(i + 1).arg(text);
     }
     return lines.join(u"\n"_s);

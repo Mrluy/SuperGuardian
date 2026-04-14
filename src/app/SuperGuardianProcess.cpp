@@ -118,19 +118,21 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
     opLay->addWidget(runBtn);
     tableWidget->setCellWidget(row, 10, opWidget);
 
-    auto setupBtnContextMenu = [this](QPushButton* btn, const QString& itemId) {
-        btn->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(btn, &QPushButton::customContextMenuRequested, this, [this, itemId, btn](const QPoint&) {
-            int displayRow = findRowById(itemId);
-            if (displayRow < 0) return;
-            tableWidget->selectRow(displayRow);
-            QRect cellRect = tableWidget->visualItemRect(tableWidget->item(displayRow, 1));
-            onTableContextMenuRequested(cellRect.center());
-        });
+    auto setupContextMenu = [this, itemId = item.id](QWidget* w) {
+        w->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(w, &QWidget::customContextMenuRequested, this,
+            [this, w, itemId](const QPoint& pos) {
+                int displayRow = findRowById(itemId);
+                if (displayRow < 0)
+                    return;
+                tableWidget->selectRow(displayRow);
+                onTableContextMenuRequested(tableWidget->viewport()->mapFromGlobal(w->mapToGlobal(pos)));
+            });
     };
-    setupBtnContextMenu(guardBtn, item.id);
-    setupBtnContextMenu(srBtn, item.id);
-    setupBtnContextMenu(runBtn, item.id);
+    setupContextMenu(opWidget);
+    setupContextMenu(guardBtn);
+    setupContextMenu(srBtn);
+    setupContextMenu(runBtn);
 
     // Guard button
     connect(guardBtn, &QPushButton::clicked, this, [this, itemId = item.id]() {
@@ -143,14 +145,17 @@ void SuperGuardian::setupTableRow(int row, const GuardItem& item) {
         QPushButton* b = qobject_cast<QPushButton*>(sender());
         if (b) b->setText(it.guarding ? u"关闭守护"_s : u"开始守护"_s);
         if (it.guarding) {
-            it.startTime = QDateTime::currentDateTime();
-            it.guardStartTime = QDateTime::currentDateTime();
             logOperation(u"开始守护"_s, programId(it.processName, it.launchArgs));
-            int count = 0;
-            bool running = isProcessRunning(it.processName, count);
-            if (!running && count == 0) {
-                launchProgram(it.targetPath, it.launchArgs);
-                it.lastLaunchTime = QDateTime::currentDateTime();
+            const bool globalGuardOn = globalGuardAct && globalGuardAct->isChecked();
+            if (globalGuardOn) {
+                it.startTime = QDateTime::currentDateTime();
+                it.guardStartTime = QDateTime::currentDateTime();
+                int count = 0;
+                bool running = isProcessRunning(it.processName, count);
+                if (!running && count == 0) {
+                    launchProgram(it.targetPath, it.launchArgs);
+                    it.lastLaunchTime = QDateTime::currentDateTime();
+                }
             }
         } else {
             it.restartCount = 0;
@@ -230,8 +235,20 @@ void SuperGuardian::updateButtonStates(int row) {
     bool guardOrRestartActive = it.guarding || it.restartRulesActive;
     bool runActive = it.scheduledRunEnabled;
 
-    if (guardBtn) guardBtn->setEnabled(!runActive);
-    if (srBtn) srBtn->setEnabled(!runActive);
-    if (runBtn) runBtn->setEnabled(!guardOrRestartActive);
+    if (guardBtn) {
+        const bool enabled = !runActive;
+        guardBtn->setEnabled(enabled);
+        guardBtn->setAttribute(Qt::WA_TransparentForMouseEvents, !enabled);
+    }
+    if (srBtn) {
+        const bool enabled = !runActive;
+        srBtn->setEnabled(enabled);
+        srBtn->setAttribute(Qt::WA_TransparentForMouseEvents, !enabled);
+    }
+    if (runBtn) {
+        const bool enabled = !guardOrRestartActive;
+        runBtn->setEnabled(enabled);
+        runBtn->setAttribute(Qt::WA_TransparentForMouseEvents, !enabled);
+    }
     requestResetColumnWidths();
 }

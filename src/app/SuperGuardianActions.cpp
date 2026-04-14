@@ -252,14 +252,17 @@ void SuperGuardian::contextToggleGuard(int row) {
         if (b) b->setText(items[idx].guarding ? u"关闭守护"_s : u"开始守护"_s);
     }
     if (items[idx].guarding) {
-        items[idx].startTime = QDateTime::currentDateTime();
-        items[idx].guardStartTime = QDateTime::currentDateTime();
         logOperation(u"开始守护"_s, programId(items[idx].processName, items[idx].launchArgs));
-        int count = 0;
-        bool running = isProcessRunning(items[idx].processName, count);
-        if (!running && count == 0) {
-            launchProgram(items[idx].targetPath, items[idx].launchArgs);
-            items[idx].lastLaunchTime = QDateTime::currentDateTime();
+        const bool globalGuardOn = globalGuardAct && globalGuardAct->isChecked();
+        if (globalGuardOn) {
+            items[idx].startTime = QDateTime::currentDateTime();
+            items[idx].guardStartTime = QDateTime::currentDateTime();
+            int count = 0;
+            bool running = isProcessRunning(items[idx].processName, count);
+            if (!running && count == 0) {
+                launchProgram(items[idx].targetPath, items[idx].launchArgs);
+                items[idx].lastLaunchTime = QDateTime::currentDateTime();
+            }
         }
     } else {
         items[idx].restartCount = 0;

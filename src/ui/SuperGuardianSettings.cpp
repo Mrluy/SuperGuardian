@@ -26,6 +26,7 @@ static QJsonArray scheduleRulesToJson(const QList<ScheduleRule>& rules) {
         o["daysOfWeek"] = days;
         o["nextTrigger"] = r.nextTrigger.toString(Qt::ISODate);
         if (r.type == ScheduleRule::Advanced) {
+            o["advSecond"] = r.advSecond;
             o["advMinute"] = r.advMinute;
             o["advHour"] = r.advHour;
             o["advDay"] = r.advDay;
@@ -58,6 +59,7 @@ static QList<ScheduleRule> jsonToScheduleRules(const QJsonArray& arr) {
         for (const QJsonValue& dv : days) r.daysOfWeek.insert(dv.toInt());
         r.nextTrigger = QDateTime::fromString(o["nextTrigger"].toString(), Qt::ISODate);
         if (r.type == ScheduleRule::Advanced) {
+            r.advSecond = o["advSecond"].toInt(-1);
             r.advMinute = o["advMinute"].toInt(0);
             r.advHour = o["advHour"].toInt(-1);
             r.advDay = o["advDay"].toInt(-1);

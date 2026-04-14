@@ -24,6 +24,7 @@ static QJsonArray exportScheduleRules(const QList<ScheduleRule>& rules) {
         o[u"daysOfWeek"_s] = days;
         o[u"nextTrigger"_s] = r.nextTrigger.isValid() ? r.nextTrigger.toString(Qt::ISODate) : u""_s;
         if (r.type == ScheduleRule::Advanced) {
+            o[u"advSecond"_s] = r.advSecond;
             o[u"advMinute"_s] = r.advMinute;
             o[u"advHour"_s] = r.advHour;
             o[u"advDay"_s] = r.advDay;
