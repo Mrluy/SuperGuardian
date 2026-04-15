@@ -359,13 +359,14 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
     navLay->setContentsMargins(0, 0, 0, 2);
     navLay->setSpacing(4);
 
-    // dark主题使用light文件夹图标，反之亦然（与makeToolbarIcon一致）
-    QString iconDir = isDark ? u"light"_s : u"dark"_s;
-
     QPushButton* prevBtn = new QPushButton();
     QPushButton* nextBtn = new QPushButton();
-    prevBtn->setIcon(QIcon(u":/SuperGuardian/%1/L.png"_s.arg(iconDir)));
-    nextBtn->setIcon(QIcon(u":/SuperGuardian/%1/R.png"_s.arg(iconDir)));
+    const QString prevIconPath = isDark ? u":/SuperGuardian/light/L.png"_s
+                                        : u":/SuperGuardian/dark/L.png"_s;
+    const QString nextIconPath = isDark ? u":/SuperGuardian/light/R.png"_s
+                                        : u":/SuperGuardian/dark/R.png"_s;
+    prevBtn->setIcon(QIcon(prevIconPath));
+    nextBtn->setIcon(QIcon(nextIconPath));
     prevBtn->setIconSize(QSize(16, 16));
     nextBtn->setIconSize(QSize(16, 16));
     prevBtn->setFixedSize(28, 28);

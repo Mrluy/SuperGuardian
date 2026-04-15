@@ -1,5 +1,6 @@
 #include "ScheduleRuleEditor.h"
 #include "DialogHelpers.h"
+#include "ThemeManager.h"
 #include <QtWidgets>
 #include <QTimeZone>
 
@@ -78,7 +79,7 @@ static void refreshMonthPreview(
     QList<QDateTime> displayTimes = computeTriggersInMonth(rule, year, month, 25);
 
     // 日历高亮
-    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    bool isDark = currentThemeName() == u"dark"_s;
     QTextCharFormat normalFmt;
     QTextCharFormat highlightFmt;
     highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
@@ -138,7 +139,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
         b->setCheckable(true);
         b->setAutoExclusive(true);
     }
-    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    bool isDark = currentThemeName() == u"dark"_s;
     QString checkedStyle = isDark
         ? u"QPushButton:checked { background-color: #21466f; color: #ffffff; border: 1px solid #60cdff; border-bottom: 2px solid #60cdff; }"_s
         : u"QPushButton:checked { background-color: #dbeafe; color: #1a1a1a; border: 1px solid #005fb7; border-bottom: 2px solid #005fb7; }"_s;

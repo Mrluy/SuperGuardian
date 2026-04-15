@@ -3,6 +3,7 @@
 #include "ScheduleRuleEditor.h"
 #include "ProcessUtils.h"
 #include "LogDatabase.h"
+#include "ThemeManager.h"
 #include <QtWidgets>
 #include <QTimeZone>
 
@@ -42,7 +43,7 @@ static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* 
     // 计算用于列表显示的触发时间（最多25条）
     QList<QDateTime> displayTimes = computeAllRulesInMonth(rules, year, month, 25);
 
-    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    bool isDark = currentThemeName() == u"dark"_s;
     QTextCharFormat normalFmt;
     QTextCharFormat highlightFmt;
     highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
@@ -273,7 +274,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     mainLay->addWidget(leftWidget, 1);
 
     // ===== 右侧：计划预览 =====
-    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    bool isDark = currentThemeName() == u"dark"_s;
     QWidget* previewWidget = new QWidget();
     QVBoxLayout* prevLay = new QVBoxLayout(previewWidget);
     prevLay->setContentsMargins(8, 0, 0, 0);
