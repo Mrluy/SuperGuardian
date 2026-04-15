@@ -94,6 +94,9 @@ private:
     QString formatDuration(qint64 secs) const;
     void createDesktopShortcut();
     void showUpdateDialog();
+    void checkForOnlineUpdates(bool automatic, QWidget* uiParent = nullptr, QLabel* statusLabel = nullptr);
+    bool installUpdatePackage(const QString& selectedFile, QWidget* dialogParent, bool confirmSelection,
+        const QString& confirmMessage = QString());
     void centerWindow();
     void showDuplicateWhitelistDialog();
     void toggleAlwaysOnTop();

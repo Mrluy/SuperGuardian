@@ -5,6 +5,8 @@
 #include "GuardTableWidgets.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
+#include <functional>
+#include <memory>
 #include <windows.h>
 
 // ---- 信号连接与初始化 ----
@@ -217,6 +219,18 @@ void SuperGuardian::initSignals() {
                 createDesktopShortcut();
             }
         });
+    }
+
+    if (cfg.value(u"autoCheckUpdates"_s, false).toBool()) {
+        auto delayedUpdateCheck = std::make_shared<std::function<void()>>();
+        *delayedUpdateCheck = [this, delayedUpdateCheck]() {
+            if (QApplication::activeModalWidget()) {
+                QTimer::singleShot(1200, this, *delayedUpdateCheck);
+                return;
+            }
+            checkForOnlineUpdates(true, this);
+        };
+        QTimer::singleShot(2500, this, *delayedUpdateCheck);
     }
 
     // 表头拖动排序：操作列始终在最右

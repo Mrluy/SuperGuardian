@@ -45,6 +45,7 @@ void SuperGuardian::exportConfig() {
 
     QJsonObject root;
     root[u"alwaysOnTop"_s] = db.value(u"alwaysOnTop"_s, false).toBool();
+    root[u"autoCheckUpdates"_s] = db.value(u"autoCheckUpdates"_s, false).toBool();
     root[u"emailEnabled"_s] = db.value(u"emailEnabled"_s, false).toBool();
     root[u"theme"_s] = db.value(u"theme"_s, u"dark"_s).toString();
 

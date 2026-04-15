@@ -127,6 +127,7 @@ QJsonObject structuredJsonToFlat(const QJsonObject& root) {
 
     // 简单顶层字段
     if (root.contains(u"alwaysOnTop"_s)) flat[u"alwaysOnTop"_s] = root[u"alwaysOnTop"_s];
+    if (root.contains(u"autoCheckUpdates"_s)) flat[u"autoCheckUpdates"_s] = root[u"autoCheckUpdates"_s];
     if (root.contains(u"emailEnabled"_s)) flat[u"emailEnabled"_s] = root[u"emailEnabled"_s];
     if (root.contains(u"theme"_s)) flat[u"theme"_s] = root[u"theme"_s];
 
