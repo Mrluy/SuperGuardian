@@ -19,3 +19,4 @@ QString formatAdvancedRule(const ScheduleRule& r);
 QString formatDaysShort(const QSet<int>& days);
 QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from = QDateTime::currentDateTime());
 QDateTime nextTriggerTime(const QList<ScheduleRule>& rules);
+QList<QDateTime> computeTriggersInMonth(const ScheduleRule& rule, int year, int month, int maxCount = 500);

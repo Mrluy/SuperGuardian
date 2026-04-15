@@ -42,49 +42,18 @@ static ScheduleRule buildRuleFromUI(
     return rule;
 }
 
-// 计算最多 count 条即将触发的时间
-static QList<QDateTime> computePreviewTimes(const ScheduleRule& rule, int count = 20) {
-    QList<QDateTime> times;
-    if (rule.type == ScheduleRule::Periodic && rule.intervalSecs <= 0)
-        return times;
-    QDateTime cur = QDateTime::currentDateTime();
-    for (int i = 0; i < count; ++i) {
-        QDateTime next = calculateNextTrigger(rule, cur);
-        if (!next.isValid()) break;
-        times.append(next);
-        cur = next;
-    }
-    return times;
-}
-
-// 更新预览列表和日历高亮
-static void refreshPreview(
-    QListWidget* previewList, QCalendarWidget* calendar, QLabel* ruleDescLabel,
-    const ScheduleRule& rule, const QList<QDateTime>& extraTimes = {})
+// 更新月度预览面板（仿 TrueNAS SCALE 风格，按月显示触发时间）
+static void refreshMonthPreview(
+    QListWidget* previewList, QCalendarWidget* calendar,
+    QLabel* ruleDescLabel, QLabel* summaryLabel,
+    const ScheduleRule& rule, const QDate& filterDate = QDate())
 {
     previewList->clear();
+    int year = calendar->yearShown();
+    int month = calendar->monthShown();
 
-    // 当前规则的预览
-    QList<QDateTime> times = computePreviewTimes(rule, 20);
-
-    // 合并额外时间（已有规则的触发时间）并去重排序
-    QSet<qint64> seen;
-    QList<QDateTime> allTimes;
-    for (const QDateTime& t : times) {
-        qint64 key = t.toSecsSinceEpoch();
-        if (!seen.contains(key)) {
-            seen.insert(key);
-            allTimes.append(t);
-        }
-    }
-    for (const QDateTime& t : extraTimes) {
-        qint64 key = t.toSecsSinceEpoch();
-        if (!seen.contains(key)) {
-            seen.insert(key);
-            allTimes.append(t);
-        }
-    }
-    std::sort(allTimes.begin(), allTimes.end());
+    // 计算当前显示月份内的触发时间
+    QList<QDateTime> monthTimes = computeTriggersInMonth(rule, year, month, 500);
 
     // 规则描述
     QString desc;
@@ -97,29 +66,65 @@ static void refreshPreview(
     ruleDescLabel->setText(desc);
 
     // 日历高亮
+    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
     QTextCharFormat normalFmt;
     QTextCharFormat highlightFmt;
-    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
     highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
     highlightFmt.setForeground(isDark ? QColor(96, 205, 255) : QColor(0, 95, 183));
-
-    // 清除之前的高亮
     calendar->setDateTextFormat(QDate(), normalFmt);
 
     QSet<QDate> highlightDates;
-    for (const QDateTime& t : allTimes) {
+    for (const QDateTime& t : monthTimes)
         highlightDates.insert(t.date());
-        previewList->addItem(t.toString(u"yyyy-MM-dd HH:mm:ss"_s));
-    }
     for (const QDate& d : highlightDates)
         calendar->setDateTextFormat(d, highlightFmt);
 
-    if (!allTimes.isEmpty())
-        calendar->setSelectedDate(allTimes.first().date());
+    // 摘要信息
+    static constexpr QStringView dowNames[] = { u"", u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
+    bool truncated = (monthTimes.size() >= 500);
+    if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
+        int dayCount = 0;
+        for (const QDateTime& t : monthTimes)
+            if (t.date() == filterDate) dayCount++;
+        summaryLabel->setText(u"%1年%2月%3日 %4 — %5 次触发\n点击其他日期或切换月份查看全月"_s
+            .arg(filterDate.year()).arg(filterDate.month()).arg(filterDate.day())
+            .arg(dowNames[filterDate.dayOfWeek()]).arg(dayCount));
+    } else {
+        QString text = u"本月 %1 次触发"_s.arg(monthTimes.size());
+        if (truncated) text += u"（最多显示 500 条）"_s;
+        if (!monthTimes.isEmpty()) text += u"\n点击高亮日期查看当日详情"_s;
+        summaryLabel->setText(text);
+    }
+
+    // 填充触发时间列表
+    if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
+        // 过滤模式：只显示选中日期的触发时间
+        for (const QDateTime& t : monthTimes) {
+            if (t.date() == filterDate)
+                previewList->addItem(t.toString(u"HH:mm:ss"_s));
+        }
+    } else {
+        // 全月模式：按日期分组显示
+        QDate lastDate;
+        for (const QDateTime& t : monthTimes) {
+            if (t.date() != lastDate) {
+                lastDate = t.date();
+                QString headerText = lastDate.toString(u"yyyy-MM-dd"_s) + u" "_s
+                    + dowNames[lastDate.dayOfWeek()].toString();
+                QListWidgetItem* headerItem = new QListWidgetItem(headerText);
+                QFont hdrFont = previewList->font();
+                hdrFont.setBold(true);
+                headerItem->setFont(hdrFont);
+                headerItem->setFlags(headerItem->flags() & ~Qt::ItemIsSelectable);
+                headerItem->setBackground(isDark ? QColor(40, 40, 45) : QColor(240, 240, 245));
+                previewList->addItem(headerItem);
+            }
+            previewList->addItem(u"    %1"_s.arg(t.toString(u"HH:mm:ss"_s)));
+        }
+    }
 }
 
-bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, ScheduleRule& outRule,
-                                const QList<ScheduleRule>& otherRules) {
+bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, ScheduleRule& outRule) {
     QDialog dlg(parent, kDialogFlags);
     dlg.setWindowTitle(existing ? u"编辑规则"_s : u"添加规则"_s);
     dlg.setMinimumSize(720, 460);
@@ -329,18 +334,21 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
         : u"color: #999999; font-size: 11px;"_s);
     prevLay->addWidget(tzLabel);
 
+    QLabel* summaryLabel = new QLabel(u"-"_s);
+    summaryLabel->setWordWrap(true);
+    summaryLabel->setStyleSheet(isDark
+        ? u"color: #cccccc; padding: 2px 0;"_s
+        : u"color: #333333; padding: 2px 0;"_s);
+    prevLay->addWidget(summaryLabel);
+
     QListWidget* previewList = new QListWidget();
     previewList->setAlternatingRowColors(true);
     prevLay->addWidget(previewList, 1);
 
     mainLay->addWidget(previewWidget, 1);
 
-    // 预计算其他规则的触发时间用于合并预览
-    QList<QDateTime> otherTimes;
-    for (const ScheduleRule& r : otherRules) {
-        QList<QDateTime> t = computePreviewTimes(r, 10);
-        otherTimes.append(t);
-    }
+    // 日期过滤状态（用于点击日历高亮日期查看当日详情）
+    QDate previewFilterDate;
 
     // 刷新预览的 lambda
     auto doRefreshPreview = [&]() {
@@ -352,18 +360,36 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
             advDayCheck, advDaySpin, advDowChecks,
             advHourCheck, advHourSpin, advMinCheck, advMinSpin,
             advSecCheck, advSecSpin);
-        refreshPreview(previewList, calendar, ruleDescLabel, rule, otherTimes);
+        refreshMonthPreview(previewList, calendar, ruleDescLabel, summaryLabel, rule, previewFilterDate);
     };
+
+    // 规则控件变化时清除日期过滤并刷新
+    auto onRuleChanged = [&]() {
+        previewFilterDate = QDate();
+        doRefreshPreview();
+    };
+
+    // 日历月份导航切换 → 清除过滤并重新计算该月预览
+    QObject::connect(calendar, &QCalendarWidget::currentPageChanged, &dlg, [&](int, int) {
+        previewFilterDate = QDate();
+        doRefreshPreview();
+    });
+
+    // 日历日期点击 → 切换日期过滤（再次点击同一日期取消过滤）
+    QObject::connect(calendar, &QCalendarWidget::clicked, &dlg, [&](const QDate& date) {
+        previewFilterDate = (previewFilterDate == date) ? QDate() : date;
+        doRefreshPreview();
+    });
 
     // 连接所有控件的变化信号到预览刷新
     auto connectRefresh = [&](QSpinBox* sb) {
-        QObject::connect(sb, &QSpinBox::valueChanged, &dlg, doRefreshPreview);
+        QObject::connect(sb, &QSpinBox::valueChanged, &dlg, onRuleChanged);
     };
     auto connectCheckRefresh = [&](QCheckBox* cb) {
-        QObject::connect(cb, &QCheckBox::toggled, &dlg, doRefreshPreview);
+        QObject::connect(cb, &QCheckBox::toggled, &dlg, onRuleChanged);
     };
     connectRefresh(daySpin); connectRefresh(hourSpin); connectRefresh(minSpin); connectRefresh(secSpin);
-    QObject::connect(timeEdit, &QTimeEdit::timeChanged, &dlg, doRefreshPreview);
+    QObject::connect(timeEdit, &QTimeEdit::timeChanged, &dlg, onRuleChanged);
     for (int d = 0; d < 7; d++) {
         connectCheckRefresh(dowChecks[d]);
         connectCheckRefresh(advDowChecks[d]);
@@ -374,9 +400,9 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     connectCheckRefresh(advHourCheck); connectRefresh(advHourSpin);
     connectCheckRefresh(advMinCheck); connectRefresh(advMinSpin);
     connectCheckRefresh(advSecCheck); connectRefresh(advSecSpin);
-    QObject::connect(periodicBtn, &QPushButton::clicked, &dlg, doRefreshPreview);
-    QObject::connect(fixedBtn, &QPushButton::clicked, &dlg, doRefreshPreview);
-    QObject::connect(advancedBtn, &QPushButton::clicked, &dlg, doRefreshPreview);
+    QObject::connect(periodicBtn, &QPushButton::clicked, &dlg, onRuleChanged);
+    QObject::connect(fixedBtn, &QPushButton::clicked, &dlg, onRuleChanged);
+    QObject::connect(advancedBtn, &QPushButton::clicked, &dlg, onRuleChanged);
 
     // 初始刷新
     doRefreshPreview();

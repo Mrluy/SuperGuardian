@@ -213,6 +213,54 @@ QDateTime nextTriggerTime(const QList<ScheduleRule>& rules) {
     return earliest;
 }
 
+QList<QDateTime> computeTriggersInMonth(const ScheduleRule& rule, int year, int month, int maxCount) {
+    QList<QDateTime> times;
+    QDate firstDay(year, month, 1);
+    if (!firstDay.isValid()) return times;
+    QDateTime monthStart(firstDay, QTime(0, 0, 0));
+    QDateTime monthEnd(QDate(year, month, firstDay.daysInMonth()), QTime(23, 59, 59));
+    QDateTime now = QDateTime::currentDateTime();
+
+    if (rule.type == ScheduleRule::Periodic) {
+        if (rule.intervalSecs <= 0) return times;
+        if (monthEnd < now) return times;
+        qint64 interval = static_cast<qint64>(rule.intervalSecs);
+        // 计算第一个落在目标月内的触发序号 k (触发时间 = now + k * interval)
+        qint64 secsToMonthStart = now.secsTo(monthStart);
+        qint64 minK = (secsToMonthStart > 0)
+            ? (secsToMonthStart + interval - 1) / interval
+            : 1;
+        if (minK < 1) minK = 1;
+        for (qint64 k = minK; times.size() < maxCount; ++k) {
+            QDateTime trigger = now.addSecs(k * interval);
+            if (trigger > monthEnd) break;
+            times.append(trigger);
+        }
+    } else if (rule.type == ScheduleRule::FixedTime) {
+        for (int day = 1; day <= firstDay.daysInMonth(); ++day) {
+            QDate d(year, month, day);
+            QDateTime dt(d, rule.fixedTime);
+            if (dt <= now) continue;
+            if (!rule.daysOfWeek.isEmpty() && !rule.daysOfWeek.contains(d.dayOfWeek()))
+                continue;
+            times.append(dt);
+            if (times.size() >= maxCount) break;
+        }
+    } else if (rule.type == ScheduleRule::Advanced) {
+        QDateTime cur = (monthStart > now) ? monthStart.addSecs(-1) : now;
+        for (int safety = 0; safety < maxCount * 2 + 10000; ++safety) {
+            QDateTime next = calculateNextTrigger(rule, cur);
+            if (!next.isValid() || next > monthEnd) break;
+            if (next >= monthStart) {
+                times.append(next);
+                if (times.size() >= maxCount) break;
+            }
+            cur = next;
+        }
+    }
+    return times;
+}
+
 QString formatAdvancedRule(const ScheduleRule& r) {
     QString result;
     if (r.advYear > 0)
