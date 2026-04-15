@@ -262,42 +262,16 @@ QList<QDateTime> computeTriggersInMonth(const ScheduleRule& rule, int year, int 
 }
 
 QString formatAdvancedRule(const ScheduleRule& r) {
-    QString result;
-    if (r.advYear > 0)
-        result += u"%1年 "_s.arg(r.advYear);
-    else
-        result += u"每年 "_s;
-    if (r.advMonth > 0)
-        result += u"%1月 "_s.arg(r.advMonth);
-    else
-        result += u"每月 "_s;
-    if (r.advDay > 0) {
-        result += u"%1日"_s.arg(r.advDay);
-        if (!r.advDaysOfWeek.isEmpty())
-            result += u"&"_s + formatDaysShort(r.advDaysOfWeek);
-        result += u" "_s;
-    } else if (!r.advDaysOfWeek.isEmpty()) {
-        result += formatDaysShort(r.advDaysOfWeek) + u" "_s;
-    } else {
-        result += u"每天 "_s;
-    }
-    if (r.advHour >= 0 && r.advMinute >= 0 && r.advSecond >= 0)
-        result += u"%1时%2分%3秒"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advMinute, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
-    else if (r.advHour >= 0 && r.advMinute >= 0)
-        result += u"%1时%2分"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advMinute, 2, 10, QChar('0'));
-    else if (r.advHour >= 0 && r.advSecond >= 0)
-        result += u"%1时 每分钟 %2秒"_s.arg(r.advHour, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
-    else if (r.advMinute >= 0 && r.advSecond >= 0)
-        result += u"每小时 %1分%2秒"_s.arg(r.advMinute, 2, 10, QChar('0')).arg(r.advSecond, 2, 10, QChar('0'));
-    else if (r.advHour >= 0)
-        result += u"%1时 每分钟"_s.arg(r.advHour, 2, 10, QChar('0'));
-    else if (r.advMinute >= 0)
-        result += u"每小时 %1分"_s.arg(r.advMinute, 2, 10, QChar('0'));
-    else if (r.advSecond >= 0)
-        result += u"每分钟 %1秒"_s.arg(r.advSecond, 2, 10, QChar('0'));
-    else
-        result += u"每秒"_s;
-    return result;
+    QStringList parts;
+    if (r.advYear > 0) parts << u"%1年"_s.arg(r.advYear);
+    if (r.advMonth > 0) parts << u"%1月"_s.arg(r.advMonth);
+    if (r.advDay > 0) parts << u"%1日"_s.arg(r.advDay);
+    if (!r.advDaysOfWeek.isEmpty()) parts << formatDaysShort(r.advDaysOfWeek);
+    if (r.advHour >= 0) parts << u"%1时"_s.arg(r.advHour, 2, 10, QChar('0'));
+    if (r.advMinute >= 0) parts << u"%1分"_s.arg(r.advMinute, 2, 10, QChar('0'));
+    if (r.advSecond >= 0) parts << u"%1秒"_s.arg(r.advSecond, 2, 10, QChar('0'));
+    if (parts.isEmpty()) return u"无计划"_s;
+    return parts.join(u" "_s);
 }
 
 QString formatScheduleRules(const QList<ScheduleRule>& rules) {
@@ -326,4 +300,193 @@ QString formatScheduleRulesDetail(const QList<ScheduleRule>& rules) {
         lines << u"[%1] %2"_s.arg(i + 1).arg(text);
     }
     return lines.join(u"\n"_s);
+}
+
+// ── MonthOnlyCalendar ──
+void MonthOnlyCalendar::paintCell(QPainter* painter, const QRect& rect, QDate date) const {
+    if (date.month() != monthShown() || date.year() != yearShown()) return;
+    QCalendarWidget::paintCell(painter, rect, date);
+}
+
+// ── YearComboBox ──
+void YearComboBox::showPopup() {
+    QComboBox::showPopup();
+    if (QAbstractItemView* v = view()) {
+        int scrollTo = qMax(0, currentIndex() - 2);
+        v->scrollTo(model()->index(scrollTo, 0), QAbstractItemView::PositionAtTop);
+    }
+}
+
+// ── 创建带自定义导航栏的日历控件 ──
+CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
+    CalendarWithNav nav;
+    nav.widget = new QWidget(parent);
+    QVBoxLayout* vlay = new QVBoxLayout(nav.widget);
+    vlay->setContentsMargins(0, 0, 0, 0);
+    vlay->setSpacing(0);
+
+    // 自定义导航栏
+    QHBoxLayout* navLay = new QHBoxLayout();
+    navLay->setContentsMargins(0, 0, 0, 2);
+    navLay->setSpacing(4);
+
+    QPushButton* prevBtn = new QPushButton(u"◀"_s);
+    QPushButton* nextBtn = new QPushButton(u"▶"_s);
+    prevBtn->setFixedSize(28, 28);
+    nextBtn->setFixedSize(28, 28);
+    prevBtn->setFlat(true);
+    nextBtn->setFlat(true);
+
+    // 年份下拉
+    nav.yearCombo = new YearComboBox();
+    for (int y = 2000; y <= 2099; ++y)
+        nav.yearCombo->addItem(u"%1年"_s.arg(y), y);
+    nav.yearCombo->setMaxVisibleItems(12);
+
+    // 月份下拉
+    nav.monthCombo = new QComboBox();
+    static constexpr QStringView monthNames[] = {
+        u"1月", u"2月", u"3月", u"4月", u"5月", u"6月",
+        u"7月", u"8月", u"9月", u"10月", u"11月", u"12月"
+    };
+    for (int m = 0; m < 12; ++m)
+        nav.monthCombo->addItem(monthNames[m].toString(), m + 1);
+
+    navLay->addWidget(prevBtn, 0);
+    navLay->addWidget(nav.yearCombo, 1);
+    navLay->addWidget(nav.monthCombo, 1);
+    navLay->addWidget(nextBtn, 0);
+    vlay->addLayout(navLay);
+
+    // 日历
+    nav.calendar = new MonthOnlyCalendar();
+    nav.calendar->setNavigationBarVisible(false);
+    nav.calendar->setGridVisible(true);
+    nav.calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    nav.calendar->setFixedHeight(200);
+    vlay->addWidget(nav.calendar);
+
+    // 初始同步
+    int curYear = nav.calendar->yearShown();
+    int curMonth = nav.calendar->monthShown();
+    nav.yearCombo->setCurrentIndex(qBound(0, curYear - 2000, 99));
+    nav.monthCombo->setCurrentIndex(curMonth - 1);
+
+    // 连接 ← → 按钮
+    QObject::connect(prevBtn, &QPushButton::clicked, nav.calendar, [cal = nav.calendar]() {
+        int y = cal->yearShown(), m = cal->monthShown();
+        if (m == 1) { y--; m = 12; } else { m--; }
+        if (y >= 2000 && y <= 2099) cal->setCurrentPage(y, m);
+    });
+    QObject::connect(nextBtn, &QPushButton::clicked, nav.calendar, [cal = nav.calendar]() {
+        int y = cal->yearShown(), m = cal->monthShown();
+        if (m == 12) { y++; m = 1; } else { m++; }
+        if (y >= 2000 && y <= 2099) cal->setCurrentPage(y, m);
+    });
+
+    // 下拉变化 → 切换日历页面
+    QObject::connect(nav.yearCombo, &QComboBox::currentIndexChanged, nav.calendar,
+        [cal = nav.calendar, mc = nav.monthCombo](int idx) {
+            cal->setCurrentPage(2000 + idx, mc->currentIndex() + 1);
+        });
+    QObject::connect(nav.monthCombo, &QComboBox::currentIndexChanged, nav.calendar,
+        [cal = nav.calendar, yc = nav.yearCombo](int idx) {
+            cal->setCurrentPage(yc->currentData().toInt(), idx + 1);
+        });
+
+    // 日历页面变化 → 同步下拉（用 QSignalBlocker 防止递归）
+    QObject::connect(nav.calendar, &QCalendarWidget::currentPageChanged, nav.widget,
+        [yc = nav.yearCombo, mc = nav.monthCombo](int year, int month) {
+            QSignalBlocker yb(yc);
+            QSignalBlocker mb(mc);
+            yc->setCurrentIndex(qBound(0, year - 2000, 99));
+            mc->setCurrentIndex(month - 1);
+        });
+
+    return nav;
+}
+
+// ── 计算月内触发总次数（数学计算，不生成列表）──
+int countTriggersInMonth(const ScheduleRule& rule, int year, int month) {
+    QDate firstDay(year, month, 1);
+    if (!firstDay.isValid()) return 0;
+    QDateTime monthStart(firstDay, QTime(0, 0, 0));
+    QDateTime monthEnd(QDate(year, month, firstDay.daysInMonth()), QTime(23, 59, 59));
+    QDateTime now = QDateTime::currentDateTime();
+
+    if (rule.type == ScheduleRule::Periodic) {
+        if (rule.intervalSecs <= 0 || monthEnd < now) return 0;
+        qint64 interval = static_cast<qint64>(rule.intervalSecs);
+        qint64 secsToMonthStart = now.secsTo(monthStart);
+        qint64 minK = (secsToMonthStart > 0) ? (secsToMonthStart + interval - 1) / interval : 1;
+        if (minK < 1) minK = 1;
+        qint64 secsToMonthEnd = now.secsTo(monthEnd);
+        qint64 maxK = secsToMonthEnd / interval;
+        return (maxK >= minK) ? static_cast<int>(qMin(maxK - minK + 1, (qint64)9999999)) : 0;
+    } else if (rule.type == ScheduleRule::FixedTime) {
+        int count = 0;
+        for (int day = 1; day <= firstDay.daysInMonth(); ++day) {
+            QDate d(year, month, day);
+            QDateTime dt(d, rule.fixedTime);
+            if (dt <= now) continue;
+            if (!rule.daysOfWeek.isEmpty() && !rule.daysOfWeek.contains(d.dayOfWeek())) continue;
+            count++;
+        }
+        return count;
+    } else {
+        QDateTime cur = (monthStart > now) ? monthStart.addSecs(-1) : now;
+        int count = 0;
+        for (int safety = 0; safety < 100000; ++safety) {
+            QDateTime next = calculateNextTrigger(rule, cur);
+            if (!next.isValid() || next > monthEnd) break;
+            if (next >= monthStart) count++;
+            cur = next;
+        }
+        return count;
+    }
+}
+
+// ── 计算月内有触发的日期集合（不生成完整时间列表）──
+QSet<QDate> triggerDatesInMonth(const ScheduleRule& rule, int year, int month) {
+    QSet<QDate> dates;
+    QDate firstDay(year, month, 1);
+    if (!firstDay.isValid()) return dates;
+    int daysInMonth = firstDay.daysInMonth();
+    QDateTime monthStart(firstDay, QTime(0, 0, 0));
+    QDateTime monthEnd(QDate(year, month, daysInMonth), QTime(23, 59, 59));
+    QDateTime now = QDateTime::currentDateTime();
+
+    if (rule.type == ScheduleRule::Periodic) {
+        if (rule.intervalSecs <= 0 || monthEnd < now) return dates;
+        qint64 interval = static_cast<qint64>(rule.intervalSecs);
+        for (int day = 1; day <= daysInMonth; ++day) {
+            QDate d(year, month, day);
+            QDateTime dayStart(d, QTime(0, 0, 0));
+            QDateTime dayEnd(d, QTime(23, 59, 59));
+            if (dayEnd < now) continue;
+            QDateTime effectiveStart = (dayStart > now) ? dayStart : now.addSecs(1);
+            qint64 secsToStart = now.secsTo(effectiveStart);
+            qint64 minK = (secsToStart + interval - 1) / interval;
+            if (minK < 1) minK = 1;
+            if (now.addSecs(minK * interval) <= dayEnd) dates.insert(d);
+        }
+    } else if (rule.type == ScheduleRule::FixedTime) {
+        for (int day = 1; day <= daysInMonth; ++day) {
+            QDate d(year, month, day);
+            QDateTime dt(d, rule.fixedTime);
+            if (dt <= now) continue;
+            if (!rule.daysOfWeek.isEmpty() && !rule.daysOfWeek.contains(d.dayOfWeek())) continue;
+            dates.insert(d);
+        }
+    } else {
+        QDateTime cur = (monthStart > now) ? monthStart.addSecs(-1) : now;
+        for (int safety = 0; safety < 100000; ++safety) {
+            QDateTime next = calculateNextTrigger(rule, cur);
+            if (!next.isValid() || next > monthEnd) break;
+            if (next >= monthStart) dates.insert(next.date());
+            if (dates.size() >= daysInMonth) break;
+            cur = next;
+        }
+    }
+    return dates;
 }

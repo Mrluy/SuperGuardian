@@ -52,9 +52,6 @@ static void refreshMonthPreview(
     int year = calendar->yearShown();
     int month = calendar->monthShown();
 
-    // 计算当前显示月份内的触发时间
-    QList<QDateTime> monthTimes = computeTriggersInMonth(rule, year, month, 500);
-
     // 规则描述
     QString desc;
     if (rule.type == ScheduleRule::Periodic)
@@ -65,6 +62,24 @@ static void refreshMonthPreview(
         desc = formatDaysShort(rule.daysOfWeek) + u" "_s + rule.fixedTime.toString(u"HH:mm:ss"_s);
     ruleDescLabel->setText(desc);
 
+    // 高级规则未指定任何条件时，直接显示提示
+    if (rule.type == ScheduleRule::Advanced
+        && rule.advHour < 0 && rule.advMinute < 0 && rule.advSecond < 0
+        && rule.advDay < 0 && rule.advMonth < 0 && rule.advYear < 0
+        && rule.advDaysOfWeek.isEmpty()) {
+        bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+        calendar->setDateTextFormat(QDate(), QTextCharFormat());
+        summaryLabel->setText(u"请至少勾选一个时间条件"_s);
+        return;
+    }
+
+    // 计算完整触发次数和触发日期
+    int totalCount = countTriggersInMonth(rule, year, month);
+    QSet<QDate> highlightDates = triggerDatesInMonth(rule, year, month);
+
+    // 计算用于列表显示的触发时间（最多25条）
+    QList<QDateTime> displayTimes = computeTriggersInMonth(rule, year, month, 25);
+
     // 日历高亮
     bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
     QTextCharFormat normalFmt;
@@ -72,41 +87,46 @@ static void refreshMonthPreview(
     highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
     highlightFmt.setForeground(isDark ? QColor(96, 205, 255) : QColor(0, 95, 183));
     calendar->setDateTextFormat(QDate(), normalFmt);
-
-    QSet<QDate> highlightDates;
-    for (const QDateTime& t : monthTimes)
-        highlightDates.insert(t.date());
     for (const QDate& d : highlightDates)
         calendar->setDateTextFormat(d, highlightFmt);
 
     // 摘要信息
     static constexpr QStringView dowNames[] = { u"", u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
-    bool truncated = (monthTimes.size() >= 500);
     if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
         int dayCount = 0;
-        for (const QDateTime& t : monthTimes)
+        for (const QDateTime& t : displayTimes)
             if (t.date() == filterDate) dayCount++;
-        summaryLabel->setText(u"%1年%2月%3日 %4 — %5 次触发\n点击其他日期或切换月份查看全月"_s
+        // 如果列表截断导致dayCount不准确，使用单独计算
+        if (totalCount > 25) {
+            ScheduleRule tmp = rule;
+            // 粗略估算：使用triggerDatesInMonth检查该日期是否有触发
+            dayCount = highlightDates.contains(filterDate) ? qMax(dayCount, 1) : 0;
+        }
+        summaryLabel->setText(u"%1年%2月%3日 %4\n点击其他日期或切换月份查看全月"_s
             .arg(filterDate.year()).arg(filterDate.month()).arg(filterDate.day())
-            .arg(dowNames[filterDate.dayOfWeek()]).arg(dayCount));
+            .arg(dowNames[filterDate.dayOfWeek()]));
     } else {
-        QString text = u"本月 %1 次触发"_s.arg(monthTimes.size());
-        if (truncated) text += u"（最多显示 500 条）"_s;
-        if (!monthTimes.isEmpty()) text += u"\n点击高亮日期查看当日详情"_s;
-        summaryLabel->setText(text);
+        summaryLabel->setText(u"本月 %1 次触发"_s.arg(totalCount));
     }
 
     // 填充触发时间列表
     if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
-        // 过滤模式：只显示选中日期的触发时间
-        for (const QDateTime& t : monthTimes) {
-            if (t.date() == filterDate)
+        // 过滤模式：计算该日期的触发时间
+        // 需要重新计算以获取该日的所有触发（最多25条）
+        QList<QDateTime> allMonth = computeTriggersInMonth(rule, year, month, 500);
+        int shown = 0;
+        for (const QDateTime& t : allMonth) {
+            if (t.date() == filterDate) {
                 previewList->addItem(t.toString(u"HH:mm:ss"_s));
+                if (++shown >= 25) break;
+            }
         }
     } else {
-        // 全月模式：按日期分组显示
+        // 全月模式：按日期分组显示（最多25条触发时间）
         QDate lastDate;
-        for (const QDateTime& t : monthTimes) {
+        int shown = 0;
+        for (const QDateTime& t : displayTimes) {
+            if (shown >= 25) break;
             if (t.date() != lastDate) {
                 lastDate = t.date();
                 QString headerText = lastDate.toString(u"yyyy-MM-dd"_s) + u" "_s
@@ -120,6 +140,14 @@ static void refreshMonthPreview(
                 previewList->addItem(headerItem);
             }
             previewList->addItem(u"    %1"_s.arg(t.toString(u"HH:mm:ss"_s)));
+            shown++;
+        }
+        if (totalCount > 25) {
+            QListWidgetItem* moreItem = new QListWidgetItem(
+                u"    … 还有 %1 条"_s.arg(totalCount - 25));
+            moreItem->setFlags(moreItem->flags() & ~Qt::ItemIsSelectable);
+            moreItem->setForeground(isDark ? QColor(150, 150, 150) : QColor(120, 120, 120));
+            previewList->addItem(moreItem);
         }
     }
 }
@@ -190,56 +218,51 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QWidget* advWidget = new QWidget();
     QVBoxLayout* advLay = new QVBoxLayout(advWidget);
     advLay->setContentsMargins(0, 4, 0, 0);
+    advLay->setSpacing(4);
 
-    QHBoxLayout* advYearMonthLay = new QHBoxLayout();
-    QCheckBox* advYearCheck = new QCheckBox(u"年"_s);
-    QSpinBox* advYearSpin = new QSpinBox(); advYearSpin->setRange(2020, 2099); advYearSpin->setValue(QDate::currentDate().year());
-    advYearSpin->setEnabled(false);
-    advYearMonthLay->addWidget(advYearCheck); advYearMonthLay->addWidget(advYearSpin);
-    QCheckBox* advMonthCheck = new QCheckBox(u"月"_s);
-    QSpinBox* advMonthSpin = new QSpinBox(); advMonthSpin->setRange(1, 12); advMonthSpin->setSuffix(u" 月"_s);
-    advMonthSpin->setEnabled(false);
-    advYearMonthLay->addWidget(advMonthCheck); advYearMonthLay->addWidget(advMonthSpin);
-    advLay->addLayout(advYearMonthLay);
+    auto addSectionTitle = [&](const QString& title) {
+        QLabel* lbl = new QLabel(title);
+        QFont f = lbl->font(); f.setBold(true); lbl->setFont(f);
+        advLay->addWidget(lbl);
+        QFrame* line = new QFrame();
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        advLay->addWidget(line);
+    };
 
-    QHBoxLayout* advDayLay = new QHBoxLayout();
-    QCheckBox* advDayCheck = new QCheckBox(u"日"_s);
-    QSpinBox* advDaySpin = new QSpinBox(); advDaySpin->setRange(1, 31); advDaySpin->setSuffix(u" 日"_s);
-    advDaySpin->setEnabled(false);
-    advDayLay->addWidget(advDayCheck); advDayLay->addWidget(advDaySpin);
-    advDayLay->addStretch();
-    advLay->addLayout(advDayLay);
+    // ── 时间 ──
+    addSectionTitle(u"时间"_s);
+    auto makeTimeRow = [&](const QString& label, int lo, int hi, const QString& suffix) {
+        QHBoxLayout* row = new QHBoxLayout();
+        QCheckBox* cb = new QCheckBox(label);
+        QSpinBox* sb = new QSpinBox(); sb->setRange(lo, hi); sb->setSuffix(suffix); sb->setEnabled(false);
+        row->addWidget(cb); row->addWidget(sb, 1);
+        advLay->addLayout(row);
+        QObject::connect(cb, &QCheckBox::toggled, sb, &QSpinBox::setEnabled);
+        return std::make_pair(cb, sb);
+    };
+    auto [advHourCheck, advHourSpin] = makeTimeRow(u"小时"_s, 0, 23, u" 时"_s);
+    auto [advMinCheck, advMinSpin] = makeTimeRow(u"分钟"_s, 0, 59, u" 分"_s);
+    auto [advSecCheck, advSecSpin] = makeTimeRow(u"秒"_s, 0, 59, u" 秒"_s);
 
-    advLay->addWidget(new QLabel(u"星期（不选则不限制）："_s));
-    QHBoxLayout* advDowLay = new QHBoxLayout();
+    // ── 日期 ──
+    addSectionTitle(u"日期"_s);
+    auto [advYearCheck, advYearSpin] = makeTimeRow(u"年"_s, 2020, 2099, u""_s);
+    advYearSpin->setValue(QDate::currentDate().year());
+    auto [advMonthCheck, advMonthSpin] = makeTimeRow(u"月"_s, 1, 12, u" 月"_s);
+    auto [advDayCheck, advDaySpin] = makeTimeRow(u"日"_s, 1, 31, u" 日"_s);
+
+    // ── 星期几 ──
+    addSectionTitle(u"星期几"_s);
+    static constexpr QStringView advDowNames[] = { u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
+    QGridLayout* advDowGrid = new QGridLayout();
+    advDowGrid->setSpacing(2);
     QCheckBox* advDowChecks[7];
     for (int d = 0; d < 7; d++) {
-        advDowChecks[d] = new QCheckBox(dayNames[d].toString());
-        advDowLay->addWidget(advDowChecks[d]);
+        advDowChecks[d] = new QCheckBox(advDowNames[d].toString());
+        advDowGrid->addWidget(advDowChecks[d], d / 4, d % 4);
     }
-    advLay->addLayout(advDowLay);
-
-    QHBoxLayout* advTimeLay = new QHBoxLayout();
-    QCheckBox* advHourCheck = new QCheckBox(u"小时"_s);
-    QSpinBox* advHourSpin = new QSpinBox(); advHourSpin->setRange(0, 23); advHourSpin->setSuffix(u" 时"_s);
-    advHourSpin->setEnabled(false);
-    QCheckBox* advMinCheck = new QCheckBox(u"分钟"_s);
-    advMinCheck->setChecked(true);
-    QSpinBox* advMinSpin = new QSpinBox(); advMinSpin->setRange(0, 59); advMinSpin->setSuffix(u" 分"_s);
-    QCheckBox* advSecCheck = new QCheckBox(u"秒"_s);
-    QSpinBox* advSecSpin = new QSpinBox(); advSecSpin->setRange(0, 59); advSecSpin->setSuffix(u" 秒"_s);
-    advSecSpin->setEnabled(false);
-    advTimeLay->addWidget(advHourCheck); advTimeLay->addWidget(advHourSpin);
-    advTimeLay->addWidget(advMinCheck); advTimeLay->addWidget(advMinSpin);
-    advTimeLay->addWidget(advSecCheck); advTimeLay->addWidget(advSecSpin);
-    advLay->addLayout(advTimeLay);
-
-    QObject::connect(advYearCheck, &QCheckBox::toggled, advYearSpin, &QSpinBox::setEnabled);
-    QObject::connect(advMonthCheck, &QCheckBox::toggled, advMonthSpin, &QSpinBox::setEnabled);
-    QObject::connect(advDayCheck, &QCheckBox::toggled, advDaySpin, &QSpinBox::setEnabled);
-    QObject::connect(advHourCheck, &QCheckBox::toggled, advHourSpin, &QSpinBox::setEnabled);
-    QObject::connect(advMinCheck, &QCheckBox::toggled, advMinSpin, &QSpinBox::setEnabled);
-    QObject::connect(advSecCheck, &QCheckBox::toggled, advSecSpin, &QSpinBox::setEnabled);
+    advLay->addLayout(advDowGrid);
 
     advWidget->setVisible(false);
     al->addWidget(advWidget);
@@ -280,7 +303,6 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
             if (existing->advDay > 0) { advDayCheck->setChecked(true); advDaySpin->setValue(existing->advDay); }
             if (existing->advHour >= 0) { advHourCheck->setChecked(true); advHourSpin->setValue(existing->advHour); }
             if (existing->advMinute >= 0) { advMinCheck->setChecked(true); advMinSpin->setValue(existing->advMinute); }
-            else { advMinCheck->setChecked(false); }
             if (existing->advSecond >= 0) { advSecCheck->setChecked(true); advSecSpin->setValue(existing->advSecond); }
             for (int d = 0; d < 7; d++) {
                 if (existing->advDaysOfWeek.contains(d + 1))
@@ -320,12 +342,9 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
         : u"color: #666666; padding: 2px 0;"_s);
     prevLay->addWidget(ruleDescLabel);
 
-    QCalendarWidget* calendar = new QCalendarWidget();
-    calendar->setGridVisible(true);
-    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
-    calendar->setFixedHeight(200);
-    calendar->setNavigationBarVisible(true);
-    prevLay->addWidget(calendar);
+    CalendarWithNav calNav = createCalendarWithNav(isDark);
+    QCalendarWidget* calendar = calNav.calendar;
+    prevLay->addWidget(calNav.widget);
 
     QLabel* tzLabel = new QLabel(u"系统时区：%1"_s.arg(
         QString::fromUtf8(QTimeZone::systemTimeZone().id())));
@@ -345,7 +364,8 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     previewList->setAlternatingRowColors(true);
     prevLay->addWidget(previewList, 1);
 
-    mainLay->addWidget(previewWidget, 1);
+    previewWidget->setFixedWidth(280);
+    mainLay->addWidget(previewWidget, 0);
 
     // 日期过滤状态（用于点击日历高亮日期查看当日详情）
     QDate previewFilterDate;

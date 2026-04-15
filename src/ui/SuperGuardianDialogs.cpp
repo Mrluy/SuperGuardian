@@ -34,7 +34,19 @@ static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* 
 
     int year = calendar->yearShown();
     int month = calendar->monthShown();
-    QList<QDateTime> monthTimes = computeAllRulesInMonth(rules, year, month, 500);
+
+    // 计算完整触发总次数
+    int totalCount = 0;
+    for (const ScheduleRule& rule : rules)
+        totalCount += countTriggersInMonth(rule, year, month);
+
+    // 计算触发日期集合用于日历高亮
+    QSet<QDate> highlightDates;
+    for (const ScheduleRule& rule : rules)
+        highlightDates.unite(triggerDatesInMonth(rule, year, month));
+
+    // 计算用于列表显示的触发时间（最多25条）
+    QList<QDateTime> displayTimes = computeAllRulesInMonth(rules, year, month, 25);
 
     bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
     QTextCharFormat normalFmt;
@@ -42,41 +54,36 @@ static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* 
     highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
     highlightFmt.setForeground(isDark ? QColor(96, 205, 255) : QColor(0, 95, 183));
     calendar->setDateTextFormat(QDate(), normalFmt);
-
-    QSet<QDate> highlightDates;
-    for (const QDateTime& t : monthTimes)
-        highlightDates.insert(t.date());
     for (const QDate& d : highlightDates)
         calendar->setDateTextFormat(d, highlightFmt);
 
     // 摘要信息
     static constexpr QStringView dowNames[] = { u"", u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
-    bool truncated = (monthTimes.size() >= 500);
     if (rules.isEmpty()) {
         summaryLabel->setText(u"暂无规则"_s);
     } else if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
-        int dayCount = 0;
-        for (const QDateTime& t : monthTimes)
-            if (t.date() == filterDate) dayCount++;
-        summaryLabel->setText(u"共 %1 条规则 · %2年%3月%4日 %5 — %6 次触发\n点击其他日期或切换月份查看全月"_s
+        summaryLabel->setText(u"共 %1 条规则 · %2年%3月%4日 %5\n点击其他日期或切换月份查看全月"_s
             .arg(rules.size()).arg(filterDate.year()).arg(filterDate.month()).arg(filterDate.day())
-            .arg(dowNames[filterDate.dayOfWeek()]).arg(dayCount));
+            .arg(dowNames[filterDate.dayOfWeek()]));
     } else {
-        QString text = u"共 %1 条规则 · 本月 %2 次触发"_s.arg(rules.size()).arg(monthTimes.size());
-        if (truncated) text += u"（最多显示 500 条）"_s;
-        if (!monthTimes.isEmpty()) text += u"\n点击高亮日期查看当日详情"_s;
-        summaryLabel->setText(text);
+        summaryLabel->setText(u"共 %1 条规则 · 本月 %2 次触发"_s.arg(rules.size()).arg(totalCount));
     }
 
     // 填充触发时间列表
     if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
-        for (const QDateTime& t : monthTimes) {
-            if (t.date() == filterDate)
+        QList<QDateTime> allMonth = computeAllRulesInMonth(rules, year, month, 500);
+        int shown = 0;
+        for (const QDateTime& t : allMonth) {
+            if (t.date() == filterDate) {
                 previewList->addItem(t.toString(u"HH:mm:ss"_s));
+                if (++shown >= 25) break;
+            }
         }
     } else {
         QDate lastDate;
-        for (const QDateTime& t : monthTimes) {
+        int shown = 0;
+        for (const QDateTime& t : displayTimes) {
+            if (shown >= 25) break;
             if (t.date() != lastDate) {
                 lastDate = t.date();
                 QString headerText = lastDate.toString(u"yyyy-MM-dd"_s) + u" "_s
@@ -90,6 +97,14 @@ static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* 
                 previewList->addItem(headerItem);
             }
             previewList->addItem(u"    %1"_s.arg(t.toString(u"HH:mm:ss"_s)));
+            shown++;
+        }
+        if (totalCount > 25) {
+            QListWidgetItem* moreItem = new QListWidgetItem(
+                u"    … 还有 %1 条"_s.arg(totalCount - 25));
+            moreItem->setFlags(moreItem->flags() & ~Qt::ItemIsSelectable);
+            moreItem->setForeground(isDark ? QColor(150, 150, 150) : QColor(120, 120, 120));
+            previewList->addItem(moreItem);
         }
     }
 }
@@ -305,12 +320,9 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
         : u"color: #666666; padding: 2px 0;"_s);
     prevLay->addWidget(summaryLabel);
 
-    QCalendarWidget* previewCalendar = new QCalendarWidget();
-    previewCalendar->setGridVisible(true);
-    previewCalendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
-    previewCalendar->setFixedHeight(200);
-    previewCalendar->setNavigationBarVisible(true);
-    prevLay->addWidget(previewCalendar);
+    CalendarWithNav calNav = createCalendarWithNav(isDark);
+    QCalendarWidget* previewCalendar = calNav.calendar;
+    prevLay->addWidget(calNav.widget);
 
     QLabel* tzLabel = new QLabel(u"系统时区：%1"_s.arg(
         QString::fromUtf8(QTimeZone::systemTimeZone().id())));
@@ -323,7 +335,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     previewTimeList->setAlternatingRowColors(true);
     prevLay->addWidget(previewTimeList, 1);
 
-    mainLay->addWidget(previewWidget, 1);
+    previewWidget->setFixedWidth(280);
+    mainLay->addWidget(previewWidget, 0);
 
     // 日期过滤状态
     QDate previewFilterDate;
