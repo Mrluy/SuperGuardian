@@ -5,4 +5,3 @@
 void initializeAppStorage();
 QString appRootPath();
 QString appDataDirPath();
-QString appSettingsFilePath();

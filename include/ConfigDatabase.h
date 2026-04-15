@@ -23,9 +23,6 @@ public:
     // 从 JSON 导入全部配置（清除现有配置）
     void importFromJson(const QJsonObject& json);
 
-    // 从旧版 INI 文件迁移
-    void migrateFromIni(const QString& iniPath);
-
 private:
     ConfigDatabase();
     ~ConfigDatabase();

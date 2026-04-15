@@ -76,9 +76,6 @@ static QList<ScheduleRule> jsonToScheduleRules(const QJsonArray& arr) {
 void SuperGuardian::loadSettings() {
     auto& db = ConfigDatabase::instance();
 
-    // 首次启动时从旧版 INI 迁移
-    db.migrateFromIni(appSettingsFilePath());
-
     // Load SMTP config
     smtpConfig.server = db.value(u"smtp/server"_s).toString();
     smtpConfig.port = db.value(u"smtp/port"_s, 587).toInt();
@@ -127,13 +124,6 @@ void SuperGuardian::loadSettings() {
         if (o.contains(u"restartRulesJson"_s)) {
             QJsonDocument rulesDoc = QJsonDocument::fromJson(o[u"restartRulesJson"_s].toString().toUtf8());
             item.restartRules = jsonToScheduleRules(rulesDoc.array());
-        } else if (o[u"scheduledRestartIntervalSecs"_s].toInt(0) > 0) {
-            ScheduleRule r;
-            r.type = ScheduleRule::Periodic;
-            r.intervalSecs = o[u"scheduledRestartIntervalSecs"_s].toInt();
-            r.nextTrigger = QDateTime::fromString(o[u"nextScheduledRestart"_s].toString());
-            item.restartRules.append(r);
-            item.restartRulesActive = true;
         }
         item.restartRulesActive = o.contains(u"restartRulesActive"_s)
             ? o[u"restartRulesActive"_s].toBool()

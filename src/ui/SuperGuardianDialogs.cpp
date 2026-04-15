@@ -4,6 +4,57 @@
 #include "ProcessUtils.h"
 #include "LogDatabase.h"
 #include <QtWidgets>
+#include <QTimeZone>
+
+// 计算规则列表中所有规则合并的触发时间
+static QList<QDateTime> computeAllRulesPreview(const QList<ScheduleRule>& rules, int countPerRule = 10) {
+    QSet<qint64> seen;
+    QList<QDateTime> allTimes;
+    for (const ScheduleRule& rule : rules) {
+        QDateTime cur = QDateTime::currentDateTime();
+        for (int i = 0; i < countPerRule; ++i) {
+            QDateTime next = calculateNextTrigger(rule, cur);
+            if (!next.isValid()) break;
+            if (!seen.contains(next.toSecsSinceEpoch())) {
+                seen.insert(next.toSecsSinceEpoch());
+                allTimes.append(next);
+            }
+            cur = next;
+        }
+    }
+    std::sort(allTimes.begin(), allTimes.end());
+    return allTimes;
+}
+
+// 刷新规则列表的计划预览面板
+static void refreshRulesPreview(QListWidget* previewList, QCalendarWidget* calendar,
+                                QLabel* summaryLabel, const QList<ScheduleRule>& rules) {
+    previewList->clear();
+
+    QList<QDateTime> times = computeAllRulesPreview(rules);
+
+    summaryLabel->setText(rules.isEmpty()
+        ? u"暂无规则"_s
+        : u"共 %1 条规则"_s.arg(rules.size()));
+
+    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    QTextCharFormat normalFmt;
+    QTextCharFormat highlightFmt;
+    highlightFmt.setBackground(isDark ? QColor(33, 70, 111) : QColor(219, 234, 254));
+    highlightFmt.setForeground(isDark ? QColor(96, 205, 255) : QColor(0, 95, 183));
+    calendar->setDateTextFormat(QDate(), normalFmt);
+
+    QSet<QDate> highlightDates;
+    for (const QDateTime& t : times) {
+        highlightDates.insert(t.date());
+        previewList->addItem(t.toString(u"yyyy-MM-dd HH:mm:ss"_s));
+    }
+    for (const QDate& d : highlightDates)
+        calendar->setDateTextFormat(d, highlightFmt);
+
+    if (!times.isEmpty())
+        calendar->setSelectedDate(times.first().date());
+}
 
 void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun, bool activateOnConfirm) {
     QList<ScheduleRule> initRules;
@@ -15,8 +66,14 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
 
     QDialog dlg(this, kDialogFlags);
     dlg.setWindowTitle(forRun ? u"定时运行规则"_s : u"定时重启规则"_s);
-    dlg.setMinimumSize(420, 380);
-    QVBoxLayout* lay = new QVBoxLayout(&dlg);
+    dlg.setMinimumSize(720, 460);
+
+    QHBoxLayout* mainLay = new QHBoxLayout(&dlg);
+
+    // ===== 左侧：规则列表 =====
+    QWidget* leftWidget = new QWidget();
+    QVBoxLayout* lay = new QVBoxLayout(leftWidget);
+    lay->setContentsMargins(0, 0, 0, 0);
     lay->addWidget(new QLabel(u"规则列表（可添加多个，时间重复时只执行一次）："_s));
 
     QListWidget* ruleList = new QListWidget();
@@ -30,11 +87,11 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     auto formatRule = [](const ScheduleRule& r) -> QString {
         if (r.type == ScheduleRule::Periodic) return formatRestartInterval(r.intervalSecs);
         if (r.type == ScheduleRule::Advanced) return formatAdvancedRule(r);
-        return formatDaysShort(r.daysOfWeek) + " " + r.fixedTime.toString("HH:mm");
+        return formatDaysShort(r.daysOfWeek) + " " + r.fixedTime.toString("HH:mm:ss");
     };
 
     QList<ScheduleRule>* editRules = new QList<ScheduleRule>(initRules);
-    auto refreshList = [&]() {
+    std::function<void()> refreshList = [&]() {
         ruleList->clear();
         for (int i = 0; i < editRules->size(); i++) {
             QListWidgetItem* item = new QListWidgetItem(formatRule((*editRules)[i]));
@@ -112,8 +169,13 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     auto openRuleDialog = [&](int editIndex) {
         syncRulesFromList();
         const ScheduleRule* existing = (editIndex >= 0 && editIndex < editRules->size()) ? &(*editRules)[editIndex] : nullptr;
+        // 构建其他规则列表（不含正在编辑的规则）
+        QList<ScheduleRule> otherRules;
+        for (int i = 0; i < editRules->size(); ++i) {
+            if (i != editIndex) otherRules.append((*editRules)[i]);
+        }
         ScheduleRule result;
-        if (!showScheduleRuleEditDialog(&dlg, existing, result)) return;
+        if (!showScheduleRuleEditDialog(&dlg, existing, result, otherRules)) return;
         if (editIndex >= 0 && editIndex < editRules->size())
             (*editRules)[editIndex] = result;
         else
@@ -187,6 +249,67 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     dlgBtnLay->addWidget(cancelBtn);
     dlgBtnLay->addStretch();
     lay->addLayout(dlgBtnLay);
+
+    mainLay->addWidget(leftWidget, 1);
+
+    // ===== 右侧：计划预览 =====
+    bool isDark = qApp->palette().color(QPalette::Window).lightness() < 128;
+    QWidget* previewWidget = new QWidget();
+    QVBoxLayout* prevLay = new QVBoxLayout(previewWidget);
+    prevLay->setContentsMargins(8, 0, 0, 0);
+
+    QLabel* prevTitle = new QLabel(u"计划预览"_s);
+    QFont titleFont = prevTitle->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(titleFont.pointSize() + 1);
+    prevTitle->setFont(titleFont);
+    prevLay->addWidget(prevTitle);
+
+    QLabel* summaryLabel = new QLabel(u"-"_s);
+    summaryLabel->setWordWrap(true);
+    summaryLabel->setStyleSheet(isDark
+        ? u"color: #aaaaaa; padding: 2px 0;"_s
+        : u"color: #666666; padding: 2px 0;"_s);
+    prevLay->addWidget(summaryLabel);
+
+    QCalendarWidget* previewCalendar = new QCalendarWidget();
+    previewCalendar->setGridVisible(true);
+    previewCalendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    previewCalendar->setFixedHeight(200);
+    previewCalendar->setNavigationBarVisible(true);
+    prevLay->addWidget(previewCalendar);
+
+    QLabel* tzLabel = new QLabel(u"系统时区：%1"_s.arg(
+        QString::fromUtf8(QTimeZone::systemTimeZone().id())));
+    tzLabel->setStyleSheet(isDark
+        ? u"color: #888888; font-size: 11px;"_s
+        : u"color: #999999; font-size: 11px;"_s);
+    prevLay->addWidget(tzLabel);
+
+    QListWidget* previewTimeList = new QListWidget();
+    previewTimeList->setAlternatingRowColors(true);
+    prevLay->addWidget(previewTimeList, 1);
+
+    mainLay->addWidget(previewWidget, 1);
+
+    // 在 refreshList 后刷新预览（用 lambda 包装，每次 refreshList 后调用）
+    auto refreshPreviewPanel = [&]() {
+        syncRulesFromList();
+        refreshRulesPreview(previewTimeList, previewCalendar, summaryLabel, *editRules);
+    };
+
+    // 重新定义 refreshList 以包含预览刷新
+    refreshList = [&]() {
+        ruleList->clear();
+        for (int i = 0; i < editRules->size(); i++) {
+            QListWidgetItem* item = new QListWidgetItem(formatRule((*editRules)[i]));
+            item->setData(Qt::UserRole, i);
+            ruleList->addItem(item);
+        }
+        refreshPreviewPanel();
+    };
+    // 初始刷新预览
+    refreshPreviewPanel();
 
     if (dlg.exec() != QDialog::Accepted) { delete editRules; return; }
 
