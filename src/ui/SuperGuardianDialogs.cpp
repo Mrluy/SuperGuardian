@@ -26,19 +26,13 @@ static QList<QDateTime> computeAllRulesInMonth(const QList<ScheduleRule>& rules,
     return allTimes;
 }
 
-// 刷新规则列表的月度计划预览面板（仿 TrueNAS SCALE 风格）
+// 刷新规则列表的月度计划预览面板
 static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* calendar,
-                                     QLabel* summaryLabel, const QList<ScheduleRule>& rules,
-                                     const QDate& filterDate = QDate()) {
+                                     const QList<ScheduleRule>& rules) {
     previewList->clear();
 
     int year = calendar->yearShown();
     int month = calendar->monthShown();
-
-    // 计算完整触发总次数
-    int totalCount = 0;
-    for (const ScheduleRule& rule : rules)
-        totalCount += countTriggersInMonth(rule, year, month);
 
     // 计算触发日期集合用于日历高亮
     QSet<QDate> highlightDates;
@@ -57,55 +51,33 @@ static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* 
     for (const QDate& d : highlightDates)
         calendar->setDateTextFormat(d, highlightFmt);
 
-    // 摘要信息
+    // 填充触发时间列表（最多25条，按日期分组）
     static constexpr QStringView dowNames[] = { u"", u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
-    if (rules.isEmpty()) {
-        summaryLabel->setText(u"暂无规则"_s);
-    } else if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
-        summaryLabel->setText(u"共 %1 条规则 · %2年%3月%4日 %5\n点击其他日期或切换月份查看全月"_s
-            .arg(rules.size()).arg(filterDate.year()).arg(filterDate.month()).arg(filterDate.day())
-            .arg(dowNames[filterDate.dayOfWeek()]));
-    } else {
-        summaryLabel->setText(u"共 %1 条规则 · 本月 %2 次触发"_s.arg(rules.size()).arg(totalCount));
+    QDate lastDate;
+    int shown = 0;
+    for (const QDateTime& t : displayTimes) {
+        if (shown >= 25) break;
+        if (t.date() != lastDate) {
+            lastDate = t.date();
+            QString headerText = lastDate.toString(u"yyyy-MM-dd"_s) + u" "_s
+                + dowNames[lastDate.dayOfWeek()].toString();
+            QListWidgetItem* headerItem = new QListWidgetItem(headerText);
+            QFont hdrFont = previewList->font();
+            hdrFont.setBold(true);
+            headerItem->setFont(hdrFont);
+            headerItem->setFlags(headerItem->flags() & ~Qt::ItemIsSelectable);
+            headerItem->setBackground(isDark ? QColor(40, 40, 45) : QColor(240, 240, 245));
+            previewList->addItem(headerItem);
+        }
+        previewList->addItem(u"    %1"_s.arg(t.toString(u"HH:mm:ss"_s)));
+        shown++;
     }
-
-    // 填充触发时间列表
-    if (filterDate.isValid() && filterDate.year() == year && filterDate.month() == month) {
-        QList<QDateTime> allMonth = computeAllRulesInMonth(rules, year, month, 500);
-        int shown = 0;
-        for (const QDateTime& t : allMonth) {
-            if (t.date() == filterDate) {
-                previewList->addItem(t.toString(u"HH:mm:ss"_s));
-                if (++shown >= 25) break;
-            }
-        }
-    } else {
-        QDate lastDate;
-        int shown = 0;
-        for (const QDateTime& t : displayTimes) {
-            if (shown >= 25) break;
-            if (t.date() != lastDate) {
-                lastDate = t.date();
-                QString headerText = lastDate.toString(u"yyyy-MM-dd"_s) + u" "_s
-                    + dowNames[lastDate.dayOfWeek()].toString();
-                QListWidgetItem* headerItem = new QListWidgetItem(headerText);
-                QFont hdrFont = previewList->font();
-                hdrFont.setBold(true);
-                headerItem->setFont(hdrFont);
-                headerItem->setFlags(headerItem->flags() & ~Qt::ItemIsSelectable);
-                headerItem->setBackground(isDark ? QColor(40, 40, 45) : QColor(240, 240, 245));
-                previewList->addItem(headerItem);
-            }
-            previewList->addItem(u"    %1"_s.arg(t.toString(u"HH:mm:ss"_s)));
-            shown++;
-        }
-        if (totalCount > 25) {
-            QListWidgetItem* moreItem = new QListWidgetItem(
-                u"    … 还有 %1 条"_s.arg(totalCount - 25));
-            moreItem->setFlags(moreItem->flags() & ~Qt::ItemIsSelectable);
-            moreItem->setForeground(isDark ? QColor(150, 150, 150) : QColor(120, 120, 120));
-            previewList->addItem(moreItem);
-        }
+    if (shown > 0) {
+        QListWidgetItem* hintItem = new QListWidgetItem(u"仅显示前 25 个示例"_s);
+        hintItem->setFlags(hintItem->flags() & ~Qt::ItemIsSelectable);
+        hintItem->setForeground(isDark ? QColor(150, 150, 150) : QColor(120, 120, 120));
+        hintItem->setTextAlignment(Qt::AlignCenter);
+        previewList->addItem(hintItem);
     }
 }
 
@@ -119,7 +91,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
 
     QDialog dlg(this, kDialogFlags);
     dlg.setWindowTitle(forRun ? u"定时运行规则"_s : u"定时重启规则"_s);
-    dlg.setMinimumSize(720, 460);
+    dlg.setMinimumSize(600, 460);
 
     QHBoxLayout* mainLay = new QHBoxLayout(&dlg);
 
@@ -313,13 +285,6 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     prevTitle->setFont(titleFont);
     prevLay->addWidget(prevTitle);
 
-    QLabel* summaryLabel = new QLabel(u"-"_s);
-    summaryLabel->setWordWrap(true);
-    summaryLabel->setStyleSheet(isDark
-        ? u"color: #aaaaaa; padding: 2px 0;"_s
-        : u"color: #666666; padding: 2px 0;"_s);
-    prevLay->addWidget(summaryLabel);
-
     CalendarWithNav calNav = createCalendarWithNav(isDark);
     QCalendarWidget* previewCalendar = calNav.calendar;
     prevLay->addWidget(calNav.widget);
@@ -338,24 +303,14 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     previewWidget->setFixedWidth(280);
     mainLay->addWidget(previewWidget, 0);
 
-    // 日期过滤状态
-    QDate previewFilterDate;
-
     // 在 refreshList 后刷新预览（用 lambda 包装，每次 refreshList 后调用）
     auto refreshPreviewPanel = [&]() {
         syncRulesFromList();
-        refreshRulesMonthPreview(previewTimeList, previewCalendar, summaryLabel, *editRules, previewFilterDate);
+        refreshRulesMonthPreview(previewTimeList, previewCalendar, *editRules);
     };
 
-    // 日历月份导航切换 → 清除过滤并重新计算该月预览
+    // 日历月份导航切换 → 重新计算该月预览
     QObject::connect(previewCalendar, &QCalendarWidget::currentPageChanged, &dlg, [&](int, int) {
-        previewFilterDate = QDate();
-        refreshPreviewPanel();
-    });
-
-    // 日历日期点击 → 切换日期过滤（再次点击同一日期取消过滤）
-    QObject::connect(previewCalendar, &QCalendarWidget::clicked, &dlg, [&](const QDate& date) {
-        previewFilterDate = (previewFilterDate == date) ? QDate() : date;
         refreshPreviewPanel();
     });
 
@@ -367,7 +322,6 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
             item->setData(Qt::UserRole, i);
             ruleList->addItem(item);
         }
-        previewFilterDate = QDate();
         refreshPreviewPanel();
     };
     // 初始刷新预览

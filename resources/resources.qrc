@@ -12,6 +12,8 @@
         <file alias="dark/mail.png">../img/dark/mail.png</file>
         <file alias="dark/theme.png">../img/dark/dark.png</file>
         <file alias="dark/hide.png">../img/dark/hide.png</file>
+        <file alias="dark/L.png">../img/dark/L.png</file>
+        <file alias="dark/R.png">../img/dark/R.png</file>
         <file alias="light/top.png">../img/light/top.png</file>
         <file alias="light/check.png">../img/light/check.png</file>
         <file alias="light/keepalive.png">../img/light/keepalive.png</file>
@@ -23,5 +25,7 @@
         <file alias="light/mail.png">../img/light/mail.png</file>
         <file alias="light/theme.png">../img/light/light.png</file>
         <file alias="light/hide.png">../img/light/hide.png</file>
+        <file alias="light/L.png">../img/light/L.png</file>
+        <file alias="light/R.png">../img/light/R.png</file>
     </qresource>
 </RCC>

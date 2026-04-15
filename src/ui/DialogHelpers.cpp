@@ -304,8 +304,37 @@ QString formatScheduleRulesDetail(const QList<ScheduleRule>& rules) {
 
 // ── MonthOnlyCalendar ──
 void MonthOnlyCalendar::paintCell(QPainter* painter, const QRect& rect, QDate date) const {
-    if (date.month() != monthShown() || date.year() != yearShown()) return;
-    QCalendarWidget::paintCell(painter, rect, date);
+    bool isCurrentMonth = (date.month() == monthShown() && date.year() == yearShown());
+    if (!isCurrentMonth) {
+        // 空格：不绘制任何内容，也不绘制边界线
+        return;
+    }
+
+    // 获取该日期的 format（用于高亮触发日期）
+    QTextCharFormat fmt = dateTextFormat(date);
+    bool isToday = (date == QDate::currentDate());
+
+    // 绘制背景
+    if (fmt.hasProperty(QTextFormat::BackgroundBrush)) {
+        painter->fillRect(rect, fmt.background());
+    }
+
+    // 绘制文字（统一颜色，不区分周末）
+    if (fmt.hasProperty(QTextFormat::ForegroundBrush)) {
+        painter->setPen(fmt.foreground().color());
+    } else {
+        bool isDark = palette().color(QPalette::Window).lightness() < 128;
+        painter->setPen(isDark ? QColor(220, 220, 220) : QColor(30, 30, 30));
+    }
+    painter->drawText(rect, Qt::AlignCenter, QString::number(date.day()));
+
+    // 今天：绘制底部亮条
+    if (isToday) {
+        bool isDark = palette().color(QPalette::Window).lightness() < 128;
+        QColor barColor = isDark ? QColor(96, 205, 255) : QColor(0, 95, 183);
+        int barH = 2;
+        painter->fillRect(rect.left(), rect.bottom() - barH, rect.width(), barH, barColor);
+    }
 }
 
 // ── YearComboBox ──
@@ -330,8 +359,15 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
     navLay->setContentsMargins(0, 0, 0, 2);
     navLay->setSpacing(4);
 
-    QPushButton* prevBtn = new QPushButton(u"◀"_s);
-    QPushButton* nextBtn = new QPushButton(u"▶"_s);
+    // dark主题使用light文件夹图标，反之亦然（与makeToolbarIcon一致）
+    QString iconDir = isDark ? u"light"_s : u"dark"_s;
+
+    QPushButton* prevBtn = new QPushButton();
+    QPushButton* nextBtn = new QPushButton();
+    prevBtn->setIcon(QIcon(u":/SuperGuardian/%1/L.png"_s.arg(iconDir)));
+    nextBtn->setIcon(QIcon(u":/SuperGuardian/%1/R.png"_s.arg(iconDir)));
+    prevBtn->setIconSize(QSize(16, 16));
+    nextBtn->setIconSize(QSize(16, 16));
     prevBtn->setFixedSize(28, 28);
     nextBtn->setFixedSize(28, 28);
     prevBtn->setFlat(true);
@@ -361,9 +397,32 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
     // 日历
     nav.calendar = new MonthOnlyCalendar();
     nav.calendar->setNavigationBarVisible(false);
-    nav.calendar->setGridVisible(true);
     nav.calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
-    nav.calendar->setFixedHeight(200);
+    nav.calendar->setSelectionMode(QCalendarWidget::NoSelection);
+
+    // 去除周末红色：统一所有日期颜色
+    QTextCharFormat weekdayFmt;
+    weekdayFmt.setForeground(isDark ? QColor(220, 220, 220) : QColor(30, 30, 30));
+    nav.calendar->setWeekdayTextFormat(Qt::Saturday, weekdayFmt);
+    nav.calendar->setWeekdayTextFormat(Qt::Sunday, weekdayFmt);
+
+    // 动态行数：根据月份天数计算需要几行，设置对应高度
+    auto updateCalendarHeight = [cal = nav.calendar]() {
+        QDate first(cal->yearShown(), cal->monthShown(), 1);
+        int daysInMonth = first.daysInMonth();
+        int startDow = first.dayOfWeek(); // 1=Mon .. 7=Sun
+        int totalCells = (startDow - 1) + daysInMonth;
+        int rows = (totalCells + 6) / 7;
+        // 每行大约 24px + 表头约 24px
+        int headerH = 24;
+        int rowH = 24;
+        cal->setFixedHeight(headerH + rows * rowH + 4);
+    };
+    updateCalendarHeight();
+
+    // 隐藏网格线（由 paintCell 自行决定是否绘制边界）
+    nav.calendar->setGridVisible(false);
+
     vlay->addWidget(nav.calendar);
 
     // 初始同步
@@ -394,13 +453,14 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
             cal->setCurrentPage(yc->currentData().toInt(), idx + 1);
         });
 
-    // 日历页面变化 → 同步下拉（用 QSignalBlocker 防止递归）
+    // 日历页面变化 → 同步下拉 + 更新行数高度（用 QSignalBlocker 防止递归）
     QObject::connect(nav.calendar, &QCalendarWidget::currentPageChanged, nav.widget,
-        [yc = nav.yearCombo, mc = nav.monthCombo](int year, int month) {
+        [yc = nav.yearCombo, mc = nav.monthCombo, updateCalendarHeight](int year, int month) {
             QSignalBlocker yb(yc);
             QSignalBlocker mb(mc);
             yc->setCurrentIndex(qBound(0, year - 2000, 99));
             mc->setCurrentIndex(month - 1);
+            updateCalendarHeight();
         });
 
     return nav;
