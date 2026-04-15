@@ -168,13 +168,14 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     QTimeEdit* timeEdit = new QTimeEdit(QTime(0, 0, 0));
     timeEdit->setDisplayFormat("HH:mm:ss");
     fLay->addWidget(timeEdit);
-    fLay->addWidget(new QLabel(u"星期（不选则每天）："_s));
+    fLay->addWidget(new QLabel(u"星期几（不选则每天）："_s));
     QHBoxLayout* dowLay = new QHBoxLayout();
-    static constexpr QStringView dayNames[] = { u"一", u"二", u"三", u"四", u"五", u"六", u"日" };
+    static constexpr QStringView dayNames[] = { u"星期一", u"星期二", u"星期三", u"星期四", u"星期五", u"星期六", u"星期日" };
     QCheckBox* dowChecks[7];
     for (int d = 0; d < 7; d++) {
         dowChecks[d] = new QCheckBox(dayNames[d].toString());
-        dowLay->addWidget(dowChecks[d]);
+        dowChecks[d]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        dowLay->addWidget(dowChecks[d], 1);
     }
     fLay->addLayout(dowLay);
     fixedWidget->setVisible(false);
@@ -198,12 +199,25 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
 
     // ── 时间 ──
     addSectionTitle(u"时间"_s);
+    const QStringList advFieldLabels = { u"小时"_s, u"分钟"_s, u"秒"_s, u"年"_s, u"月"_s, u"日"_s };
+    QFontMetrics advMetrics(advWidget->font());
+    int advLabelTextWidth = 0;
+    for (const QString& text : advFieldLabels)
+        advLabelTextWidth = qMax(advLabelTextWidth, advMetrics.horizontalAdvance(text));
+    int advCheckWidth = advWidget->style()->pixelMetric(QStyle::PM_IndicatorWidth)
+        + advWidget->style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing)
+        + advLabelTextWidth + 16;
     auto makeTimeRow = [&](const QString& label, int lo, int hi, int defaultVal) {
         QHBoxLayout* row = new QHBoxLayout();
+        row->setContentsMargins(0, 0, 0, 0);
         QCheckBox* cb = new QCheckBox(label);
+        cb->setFixedWidth(advCheckWidth);
         QSpinBox* sb = new QSpinBox(); sb->setRange(lo, hi); sb->setValue(defaultVal);
+        sb->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        sb->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         sb->setSpecialValueText(u""_s); // 默认无特殊文字
-        row->addWidget(cb); row->addWidget(sb, 1);
+        row->addWidget(cb);
+        row->addWidget(sb, 1);
         advLay->addLayout(row);
         QObject::connect(cb, &QCheckBox::toggled, sb, [sb](bool checked) {
             sb->setEnabled(checked);
@@ -218,28 +232,30 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
         cb->setChecked(true);
         return std::make_pair(cb, sb);
     };
-    auto [advHourCheck, advHourSpin] = makeTimeRow(u"小时  "_s, 0, 23, 0);
-    auto [advMinCheck, advMinSpin]   = makeTimeRow(u"分钟  "_s, 0, 59, 0);
-    auto [advSecCheck, advSecSpin]   = makeTimeRow(u"秒      "_s, 0, 59, 0);
+    auto [advHourCheck, advHourSpin] = makeTimeRow(u"小时"_s, 0, 23, 0);
+    auto [advMinCheck, advMinSpin]   = makeTimeRow(u"分钟"_s, 0, 59, 0);
+    auto [advSecCheck, advSecSpin]   = makeTimeRow(u"秒"_s, 0, 59, 0);
 
     // ── 日期 ──
     addSectionTitle(u"日期"_s);
     QDate today = QDate::currentDate();
-    auto [advYearCheck, advYearSpin]   = makeTimeRow(u"年      "_s, 2000, 2099, today.year());
-    auto [advMonthCheck, advMonthSpin] = makeTimeRow(u"月      "_s, 1, 12, today.month());
-    auto [advDayCheck, advDaySpin]     = makeTimeRow(u"日      "_s, 1, 31, today.day());
+    auto [advYearCheck, advYearSpin]   = makeTimeRow(u"年"_s, 2000, 2099, today.year());
+    auto [advMonthCheck, advMonthSpin] = makeTimeRow(u"月"_s, 1, 12, today.month());
+    auto [advDayCheck, advDaySpin]     = makeTimeRow(u"日"_s, 1, 31, today.day());
 
     // ── 星期几 ──
     addSectionTitle(u"星期几"_s);
-    static constexpr QStringView advDowNames[] = { u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
-    QGridLayout* advDowGrid = new QGridLayout();
-    advDowGrid->setSpacing(2);
+    static constexpr QStringView advDowNames[] = { u"星期一", u"星期二", u"星期三", u"星期四", u"星期五", u"星期六", u"星期日" };
+    QHBoxLayout* advDowLay = new QHBoxLayout();
+    advDowLay->setContentsMargins(0, 0, 0, 0);
+    advDowLay->setSpacing(6);
     QCheckBox* advDowChecks[7];
     for (int d = 0; d < 7; d++) {
         advDowChecks[d] = new QCheckBox(advDowNames[d].toString());
-        advDowGrid->addWidget(advDowChecks[d], d / 4, d % 4);
+        advDowChecks[d]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        advDowLay->addWidget(advDowChecks[d], 1);
     }
-    advLay->addLayout(advDowGrid);
+    advLay->addLayout(advDowLay);
 
     advWidget->setVisible(false);
     al->addWidget(advWidget);
