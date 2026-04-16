@@ -45,7 +45,7 @@ static ScheduleRule buildRuleFromUI(
 
 // 更新月度预览面板（仿 TrueNAS SCALE 风格，按月显示触发时间）
 static void refreshMonthPreview(
-    QListWidget* previewList, QCalendarWidget* calendar,
+    QListWidget* previewList, SimpleCalendarGrid* calendar,
     QLabel* ruleDescLabel,
     const ScheduleRule& rule)
 {
@@ -342,7 +342,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     prevLay->addWidget(ruleDescLabel);
 
     CalendarWithNav calNav = createCalendarWithNav(isDark);
-    QCalendarWidget* calendar = calNav.calendar;
+    SimpleCalendarGrid* calendar = calNav.calendar;
     prevLay->addWidget(calNav.widget);
 
     QLabel* tzLabel = new QLabel(u"系统时区：%1"_s.arg(
@@ -378,7 +378,7 @@ bool showScheduleRuleEditDialog(QWidget* parent, const ScheduleRule* existing, S
     };
 
     // 日历月份导航切换 → 重新计算该月预览
-    QObject::connect(calendar, &QCalendarWidget::currentPageChanged, &dlg, [&](int, int) {
+    calendar->setPageChangedCallback([&](int, int) {
         doRefreshPreview();
     });
 

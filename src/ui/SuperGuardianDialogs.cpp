@@ -28,7 +28,7 @@ static QList<QDateTime> computeAllRulesInMonth(const QList<ScheduleRule>& rules,
 }
 
 // 刷新规则列表的月度计划预览面板
-static void refreshRulesMonthPreview(QListWidget* previewList, QCalendarWidget* calendar,
+static void refreshRulesMonthPreview(QListWidget* previewList, SimpleCalendarGrid* calendar,
                                      const QList<ScheduleRule>& rules) {
     previewList->clear();
 
@@ -287,7 +287,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     prevLay->addWidget(prevTitle);
 
     CalendarWithNav calNav = createCalendarWithNav(isDark);
-    QCalendarWidget* previewCalendar = calNav.calendar;
+    SimpleCalendarGrid* previewCalendar = calNav.calendar;
     prevLay->addWidget(calNav.widget);
 
     QLabel* tzLabel = new QLabel(u"系统时区：%1"_s.arg(
@@ -311,7 +311,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     };
 
     // 日历月份导航切换 → 重新计算该月预览
-    QObject::connect(previewCalendar, &QCalendarWidget::currentPageChanged, &dlg, [&](int, int) {
+    previewCalendar->setPageChangedCallback([&](int, int) {
         refreshPreviewPanel();
     });
 

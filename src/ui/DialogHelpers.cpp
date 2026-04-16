@@ -302,39 +302,112 @@ QString formatScheduleRulesDetail(const QList<ScheduleRule>& rules) {
     return lines.join(u"\n"_s);
 }
 
-// ── MonthOnlyCalendar ──
-void MonthOnlyCalendar::paintCell(QPainter* painter, const QRect& rect, QDate date) const {
-    bool isCurrentMonth = (date.month() == monthShown() && date.year() == yearShown());
-    if (!isCurrentMonth) {
-        // 空格：不绘制任何内容，也不绘制边界线
-        return;
+// ── SimpleCalendarGrid ──
+SimpleCalendarGrid::SimpleCalendarGrid(bool isDark, QWidget* parent)
+    : QWidget(parent), m_year(0), m_month(0), m_isDark(isDark)
+{
+    m_grid = new QGridLayout(this);
+    m_grid->setContentsMargins(0, 0, 0, 0);
+    m_grid->setSpacing(0);
+
+    static constexpr QStringView hdrs[] = { u"周一", u"周二", u"周三", u"周四", u"周五", u"周六", u"周日" };
+    QString hdrStyle = isDark
+        ? u"color: #aaaaaa; font-size: 11px; padding: 2px 0;"_s
+        : u"color: #666666; font-size: 11px; padding: 2px 0;"_s;
+    for (int c = 0; c < 7; ++c) {
+        QLabel* lbl = new QLabel(hdrs[c].toString());
+        lbl->setAlignment(Qt::AlignCenter);
+        lbl->setStyleSheet(hdrStyle);
+        m_grid->addWidget(lbl, 0, c);
     }
 
-    // 获取该日期的 format（用于高亮触发日期）
-    QTextCharFormat fmt = dateTextFormat(date);
-    bool isToday = (date == QDate::currentDate());
-
-    // 绘制背景
-    if (fmt.hasProperty(QTextFormat::BackgroundBrush)) {
-        painter->fillRect(rect, fmt.background());
+    QString cellStyle = u"font-size: 12px; padding: 2px 0;"_s;
+    for (int i = 0; i < 42; ++i) {
+        m_cells[i] = new QLabel();
+        m_cells[i]->setAlignment(Qt::AlignCenter);
+        m_cells[i]->setStyleSheet(cellStyle);
+        m_cells[i]->setFixedHeight(24);
+        m_grid->addWidget(m_cells[i], 1 + i / 7, i % 7);
     }
 
-    // 绘制文字（统一颜色，不区分周末）
-    if (fmt.hasProperty(QTextFormat::ForegroundBrush)) {
-        painter->setPen(fmt.foreground().color());
-    } else {
-        bool isDark = palette().color(QPalette::Window).lightness() < 128;
-        painter->setPen(isDark ? QColor(220, 220, 220) : QColor(30, 30, 30));
-    }
-    painter->drawText(rect, Qt::AlignCenter, QString::number(date.day()));
+    QDate today = QDate::currentDate();
+    setCurrentPage(today.year(), today.month());
+}
 
-    // 今天：绘制底部亮条
-    if (isToday) {
-        bool isDark = palette().color(QPalette::Window).lightness() < 128;
-        QColor barColor = isDark ? QColor(96, 205, 255) : QColor(0, 95, 183);
-        int barH = 2;
-        painter->fillRect(rect.left(), rect.bottom() - barH, rect.width(), barH, barColor);
+void SimpleCalendarGrid::setCurrentPage(int year, int month) {
+    if (m_year == year && m_month == month) return;
+    m_year = year;
+    m_month = month;
+    rebuild();
+    if (m_pageChangedCbs.isEmpty()) return;
+    for (const auto& cb : m_pageChangedCbs) cb(year, month);
+}
+
+void SimpleCalendarGrid::setDateTextFormat(const QDate& date, const QTextCharFormat& format) {
+    if (!date.isValid()) { m_formats.clear(); rebuild(); return; }
+    m_formats[date] = format;
+    // 只更新对应的单元格
+    QDate first(m_year, m_month, 1);
+    int offset = first.dayOfWeek() - 1; // 0=Mon
+    int idx = offset + date.day() - 1;
+    if (idx >= 0 && idx < 42 && date.month() == m_month && date.year() == m_year) {
+        QTextCharFormat fmt = format;
+        bool isToday = (date == QDate::currentDate());
+        QString style = u"font-size: 12px; padding: 2px 0;"_s;
+        if (fmt.hasProperty(QTextFormat::BackgroundBrush))
+            style += u"background: %1;"_s.arg(fmt.background().color().name());
+        if (fmt.hasProperty(QTextFormat::ForegroundBrush))
+            style += u"color: %1;"_s.arg(fmt.foreground().color().name());
+        else
+            style += m_isDark ? u"color: #dcdcdc;"_s : u"color: #1e1e1e;"_s;
+        if (isToday)
+            style += u"border-bottom: 2px solid %1;"_s.arg(m_isDark ? u"#60cdff"_s : u"#005fb7"_s);
+        m_cells[idx]->setStyleSheet(style);
     }
+}
+
+QTextCharFormat SimpleCalendarGrid::dateTextFormat(const QDate& date) const {
+    return m_formats.value(date);
+}
+
+void SimpleCalendarGrid::rebuild() {
+    QDate first(m_year, m_month, 1);
+    if (!first.isValid()) return;
+    int daysInMonth = first.daysInMonth();
+    int offset = first.dayOfWeek() - 1; // 0=Mon .. 6=Sun
+    int totalCells = offset + daysInMonth;
+    int rows = (totalCells + 6) / 7;
+
+    QDate today = QDate::currentDate();
+    QString defaultColor = m_isDark ? u"color: #dcdcdc;"_s : u"color: #1e1e1e;"_s;
+
+    for (int i = 0; i < 42; ++i) {
+        int day = i - offset + 1;
+        if (day >= 1 && day <= daysInMonth) {
+            m_cells[i]->setText(QString::number(day));
+            QDate d(m_year, m_month, day);
+            QTextCharFormat fmt = m_formats.value(d);
+            bool isToday = (d == today);
+            QString style = u"font-size: 12px; padding: 2px 0;"_s;
+            if (fmt.hasProperty(QTextFormat::BackgroundBrush))
+                style += u"background: %1;"_s.arg(fmt.background().color().name());
+            if (fmt.hasProperty(QTextFormat::ForegroundBrush))
+                style += u"color: %1;"_s.arg(fmt.foreground().color().name());
+            else
+                style += defaultColor;
+            if (isToday)
+                style += u"border-bottom: 2px solid %1;"_s.arg(m_isDark ? u"#60cdff"_s : u"#005fb7"_s);
+            m_cells[i]->setStyleSheet(style);
+            m_cells[i]->show();
+        } else {
+            m_cells[i]->setText(QString());
+            m_cells[i]->setStyleSheet(u"font-size: 12px; padding: 2px 0;"_s);
+            m_cells[i]->setVisible(i < rows * 7);
+        }
+    }
+    // 隐藏多余行的单元格
+    for (int i = rows * 7; i < 42; ++i)
+        m_cells[i]->hide();
 }
 
 // ── YearComboBox ──
@@ -396,33 +469,7 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
     vlay->addLayout(navLay);
 
     // 日历
-    nav.calendar = new MonthOnlyCalendar();
-    nav.calendar->setNavigationBarVisible(false);
-    nav.calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
-    nav.calendar->setSelectionMode(QCalendarWidget::NoSelection);
-
-    // 去除周末红色：统一所有日期颜色
-    QTextCharFormat weekdayFmt;
-    weekdayFmt.setForeground(isDark ? QColor(220, 220, 220) : QColor(30, 30, 30));
-    nav.calendar->setWeekdayTextFormat(Qt::Saturday, weekdayFmt);
-    nav.calendar->setWeekdayTextFormat(Qt::Sunday, weekdayFmt);
-
-    // 动态行数：根据月份天数计算需要几行，设置对应高度
-    auto updateCalendarHeight = [cal = nav.calendar]() {
-        QDate first(cal->yearShown(), cal->monthShown(), 1);
-        int daysInMonth = first.daysInMonth();
-        int startDow = first.dayOfWeek(); // 1=Mon .. 7=Sun
-        int totalCells = (startDow - 1) + daysInMonth;
-        int rows = (totalCells + 6) / 7;
-        // 每行大约 24px + 表头约 24px
-        int headerH = 24;
-        int rowH = 24;
-        cal->setFixedHeight(headerH + rows * rowH + 4);
-    };
-    updateCalendarHeight();
-
-    // 隐藏网格线（由 paintCell 自行决定是否绘制边界）
-    nav.calendar->setGridVisible(false);
+    nav.calendar = new SimpleCalendarGrid(isDark);
 
     vlay->addWidget(nav.calendar);
 
@@ -454,14 +501,13 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
             cal->setCurrentPage(yc->currentData().toInt(), idx + 1);
         });
 
-    // 日历页面变化 → 同步下拉 + 更新行数高度（用 QSignalBlocker 防止递归）
-    QObject::connect(nav.calendar, &QCalendarWidget::currentPageChanged, nav.widget,
-        [yc = nav.yearCombo, mc = nav.monthCombo, updateCalendarHeight](int year, int month) {
+    // 日历页面变化 → 同步下拉（用 QSignalBlocker 防止递归）
+    nav.calendar->setPageChangedCallback(
+        [yc = nav.yearCombo, mc = nav.monthCombo](int year, int month) {
             QSignalBlocker yb(yc);
             QSignalBlocker mb(mc);
             yc->setCurrentIndex(qBound(0, year - 2000, 99));
             mc->setCurrentIndex(month - 1);
-            updateCalendarHeight();
         });
 
     return nav;

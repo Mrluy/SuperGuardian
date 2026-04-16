@@ -5,12 +5,24 @@
 
 using namespace Qt::Literals::StringLiterals;
 
-// 只显示当前月份日期的日历控件
-class MonthOnlyCalendar : public QCalendarWidget {
+// 自定义日历网格控件（无空行问题）
+class SimpleCalendarGrid : public QWidget {
 public:
-    using QCalendarWidget::QCalendarWidget;
-protected:
-    void paintCell(QPainter* painter, const QRect& rect, QDate date) const override;
+    explicit SimpleCalendarGrid(bool isDark, QWidget* parent = nullptr);
+    int yearShown() const { return m_year; }
+    int monthShown() const { return m_month; }
+    void setCurrentPage(int year, int month);
+    void setDateTextFormat(const QDate& date, const QTextCharFormat& format);
+    QTextCharFormat dateTextFormat(const QDate& date) const;
+    void setPageChangedCallback(std::function<void(int, int)> cb) { m_pageChangedCbs.append(std::move(cb)); }
+private:
+    void rebuild();
+    int m_year, m_month;
+    bool m_isDark;
+    QGridLayout* m_grid;
+    QLabel* m_cells[42]; // 6 rows x 7 cols
+    QMap<QDate, QTextCharFormat> m_formats;
+    QList<std::function<void(int, int)>> m_pageChangedCbs;
 };
 
 // 自定义年份选择下拉框，弹出时当前年份显示在第3行
@@ -23,7 +35,7 @@ public:
 // 带自定义导航栏的日历控件返回结构
 struct CalendarWithNav {
     QWidget* widget;
-    QCalendarWidget* calendar;
+    SimpleCalendarGrid* calendar;
     QComboBox* yearCombo;
     QComboBox* monthCombo;
 };
