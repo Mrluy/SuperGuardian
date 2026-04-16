@@ -32,6 +32,33 @@ $patch = $parts[2]
 $commaVer = "$major,$minor,$patch,0"     # 1,0,7,0
 $dotVer   = "$major.$minor.$patch.0"     # 1.0.7.0
 
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Update-ByRegex(
+    [string]$Path,
+    [string]$Pattern,
+    [string]$Replacement,
+    [string]$ChangedMessage,
+    [string]$SkipMessage
+) {
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+
+    $content = Get-Content $Path -Raw -Encoding UTF8
+    $updated = [regex]::Replace($content, $Pattern, $Replacement, 1)
+    if ($updated -ne $content) {
+        Write-Utf8NoBom $Path $updated
+        Write-Change ($Path.Substring($root.Length + 1).Replace('/', '\')) $ChangedMessage
+        return $true
+    }
+
+    Write-Skip ($Path.Substring($root.Length + 1).Replace('/', '\')) $SkipMessage
+    return $false
+}
+
 function Write-Change([string]$File, [string]$Detail) {
     Write-Host "  [OK] $File - $Detail" -ForegroundColor Green
 }
@@ -45,16 +72,10 @@ $changedCount = 0
 # ---- 1. src/app/main.cpp ----
 $mainCpp = Join-Path $root 'src\app\main.cpp'
 if (Test-Path $mainCpp) {
-    $content = Get-Content $mainCpp -Raw -Encoding UTF8
-    $pattern = 'setApplicationVersion\(u"[^"]*"_s\)'
-    $replacement = "setApplicationVersion(u`"$Version`"_s)"
-    if ($content -match $pattern -and $Matches[0] -ne $replacement) {
-        $content = $content -replace $pattern, $replacement
-        [System.IO.File]::WriteAllText($mainCpp, $content, [System.Text.UTF8Encoding]::new($false))
-        Write-Change 'src/app/main.cpp' "setApplicationVersion -> $Version"
+    $pattern = 'QCoreApplication::setApplicationVersion\s*\(\s*u"[^"]*"_s\s*\)'
+    $replacement = "QCoreApplication::setApplicationVersion(u`"$Version`"_s)"
+    if (Update-ByRegex $mainCpp $pattern $replacement "setApplicationVersion -> $Version" $Version) {
         $changedCount++
-    } else {
-        Write-Skip 'src/app/main.cpp' $Version
     }
 } else {
     Write-Host "  [!!] src/app/main.cpp not found" -ForegroundColor Red
@@ -95,7 +116,7 @@ if (Test-Path $rcFile) {
     }
 
     if ($changed) {
-        [System.IO.File]::WriteAllText($rcFile, $content, [System.Text.UTF8Encoding]::new($false))
+        Write-Utf8NoBom $rcFile $content
         Write-Change 'resources/app.rc' "FILEVERSION/PRODUCTVERSION -> $commaVer, strings -> $dotVer"
         $changedCount++
     } else {

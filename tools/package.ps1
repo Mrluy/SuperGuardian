@@ -9,7 +9,7 @@
     目标平台，默认 x64。
 .PARAMETER Version
     可选版本号字符串（如 "1.0.0"），用于 ZIP 文件命名。
-    不填则自动使用当前日期时间。
+    不填则优先读取当前程序版本号，失败时退回当前日期时间。
 .PARAMETER SkipBuild
     跳过编译步骤，直接打包已有产物。
 .PARAMETER NoZip
@@ -53,6 +53,28 @@ function Write-Step([string]$Message) {
 
 function Write-OK([string]$Message) {
     Write-Host "  OK $Message" -ForegroundColor Green
+}
+
+function Get-CurrentAppVersion {
+    $mainCpp = Join-Path $root 'src\app\main.cpp'
+    if (Test-Path $mainCpp) {
+        $content = Get-Content $mainCpp -Raw -Encoding UTF8
+        $match = [regex]::Match($content, 'QCoreApplication::setApplicationVersion\s*\(\s*u"(?<v>[^"]+)"_s\s*\)')
+        if ($match.Success) {
+            return $match.Groups['v'].Value.Trim()
+        }
+    }
+
+    $rcFile = Join-Path $root 'resources\app.rc'
+    if (Test-Path $rcFile) {
+        $content = Get-Content $rcFile -Raw -Encoding UTF8
+        $match = [regex]::Match($content, 'VALUE\s+"ProductVersion",\s+"(?<v>\d+\.\d+\.\d+)\.\d+"')
+        if ($match.Success) {
+            return $match.Groups['v'].Value.Trim()
+        }
+    }
+
+    return ''
 }
 
 function Find-MSBuild {
@@ -108,8 +130,13 @@ if (-not (Test-Path $exePath)) {
 
 # Step 2：确定 ZIP 名称
 $dateStr = Get-Date -Format 'yyyyMMdd_HHmmss'
-if ($Version -ne '') {
-    $zipBaseName = "SuperGuardian_v$($Version.TrimStart('vV'))_$dateStr"
+$effectiveVersion = $Version.Trim()
+if ($effectiveVersion -eq '') {
+    $effectiveVersion = Get-CurrentAppVersion
+}
+
+if ($effectiveVersion -ne '') {
+    $zipBaseName = "SuperGuardian_v$($effectiveVersion.TrimStart('vV'))_$dateStr"
 } else {
     $zipBaseName = "SuperGuardian_$dateStr"
 }
