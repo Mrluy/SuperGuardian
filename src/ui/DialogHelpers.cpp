@@ -467,46 +467,6 @@ CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent) {
     return nav;
 }
 
-// ── 计算月内触发总次数（数学计算，不生成列表）──
-int countTriggersInMonth(const ScheduleRule& rule, int year, int month) {
-    QDate firstDay(year, month, 1);
-    if (!firstDay.isValid()) return 0;
-    QDateTime monthStart(firstDay, QTime(0, 0, 0));
-    QDateTime monthEnd(QDate(year, month, firstDay.daysInMonth()), QTime(23, 59, 59));
-    QDateTime now = QDateTime::currentDateTime();
-
-    if (rule.type == ScheduleRule::Periodic) {
-        if (rule.intervalSecs <= 0 || monthEnd < now) return 0;
-        qint64 interval = static_cast<qint64>(rule.intervalSecs);
-        qint64 secsToMonthStart = now.secsTo(monthStart);
-        qint64 minK = (secsToMonthStart > 0) ? (secsToMonthStart + interval - 1) / interval : 1;
-        if (minK < 1) minK = 1;
-        qint64 secsToMonthEnd = now.secsTo(monthEnd);
-        qint64 maxK = secsToMonthEnd / interval;
-        return (maxK >= minK) ? static_cast<int>(qMin(maxK - minK + 1, (qint64)9999999)) : 0;
-    } else if (rule.type == ScheduleRule::FixedTime) {
-        int count = 0;
-        for (int day = 1; day <= firstDay.daysInMonth(); ++day) {
-            QDate d(year, month, day);
-            QDateTime dt(d, rule.fixedTime);
-            if (dt <= now) continue;
-            if (!rule.daysOfWeek.isEmpty() && !rule.daysOfWeek.contains(d.dayOfWeek())) continue;
-            count++;
-        }
-        return count;
-    } else {
-        QDateTime cur = (monthStart > now) ? monthStart.addSecs(-1) : now;
-        int count = 0;
-        for (int safety = 0; safety < 100000; ++safety) {
-            QDateTime next = calculateNextTrigger(rule, cur);
-            if (!next.isValid() || next > monthEnd) break;
-            if (next >= monthStart) count++;
-            cur = next;
-        }
-        return count;
-    }
-}
-
 // ── 计算月内有触发的日期集合（不生成完整时间列表）──
 QSet<QDate> triggerDatesInMonth(const ScheduleRule& rule, int year, int month) {
     QSet<QDate> dates;

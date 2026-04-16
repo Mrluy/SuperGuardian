@@ -2,12 +2,14 @@
 #include "DialogHelpers.h"
 #include "ConfigDatabase.h"
 #include "LogDatabase.h"
+#include "ProcessUtils.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDir>
+#include <windows.h>
 
 using namespace Qt::Literals::StringLiterals;
 
@@ -285,4 +287,316 @@ void SuperGuardian::importConfig() {
             ? u"配置已成功增量导入。\n\n注意：所有全局功能（全局守护、全局定时重启、全局定时运行）已自动关闭，请根据需要手动开启。"_s
             : u"配置已成功覆盖导入。\n\n注意：所有全局功能（全局守护、全局定时重启、全局定时运行）已自动关闭，请根据需要手动开启。"_s);
     logOperation((importMode == 1 ? u"增量导入配置从 %1"_s : u"覆盖导入配置从 %1"_s).arg(filePath));
+}
+
+// ---- 导出配置 ----
+
+static QJsonArray exportScheduleRules(const QList<ScheduleRule>& rules) {
+    QJsonArray arr;
+    for (const ScheduleRule& r : rules) {
+        QJsonObject o;
+        if (r.type == ScheduleRule::Advanced)
+            o[u"type"_s] = u"advanced"_s;
+        else
+            o[u"type"_s] = (r.type == ScheduleRule::Periodic) ? u"periodic"_s : u"fixed"_s;
+        o[u"intervalSecs"_s] = r.intervalSecs;
+        o[u"fixedTime"_s] = r.fixedTime.isValid() ? r.fixedTime.toString(u"HH:mm:ss"_s) : u""_s;
+        QJsonArray days;
+        for (int d : r.daysOfWeek) days.append(d);
+        o[u"daysOfWeek"_s] = days;
+        o[u"nextTrigger"_s] = r.nextTrigger.isValid() ? r.nextTrigger.toString(Qt::ISODate) : u""_s;
+        if (r.type == ScheduleRule::Advanced) {
+            o[u"advSecond"_s] = r.advSecond;
+            o[u"advMinute"_s] = r.advMinute;
+            o[u"advHour"_s] = r.advHour;
+            o[u"advDay"_s] = r.advDay;
+            o[u"advMonth"_s] = r.advMonth;
+            o[u"advYear"_s] = r.advYear;
+            QJsonArray advDow;
+            for (int d : r.advDaysOfWeek) advDow.append(d);
+            o[u"advDaysOfWeek"_s] = advDow;
+        }
+        arr.append(o);
+    }
+    return arr;
+}
+
+void SuperGuardian::exportConfig() {
+    saveSettings();
+    auto& db = ConfigDatabase::instance();
+
+    QJsonObject root;
+    root[u"alwaysOnTop"_s] = db.value(u"alwaysOnTop"_s, false).toBool();
+    root[u"autoCheckUpdates"_s] = db.value(u"autoCheckUpdates"_s, false).toBool();
+    root[u"emailEnabled"_s] = db.value(u"emailEnabled"_s, false).toBool();
+    root[u"theme"_s] = db.value(u"theme"_s, u"dark"_s).toString();
+
+    QJsonObject smtpObj;
+    smtpObj[u"server"_s] = smtpConfig.server;
+    smtpObj[u"port"_s] = smtpConfig.port;
+    smtpObj[u"useTls"_s] = smtpConfig.useTls;
+    smtpObj[u"username"_s] = smtpConfig.username;
+    smtpObj[u"password"_s] = smtpConfig.password;
+    smtpObj[u"fromAddress"_s] = smtpConfig.fromAddress;
+    smtpObj[u"fromName"_s] = smtpConfig.fromName;
+    smtpObj[u"toAddress"_s] = smtpConfig.toAddress;
+    root[u"smtp"_s] = smtpObj;
+
+    QJsonArray itemsArr;
+    for (const GuardItem& item : items) {
+        QJsonObject o;
+        o[u"id"_s] = item.id;
+        o[u"path"_s] = item.path;
+        o[u"note"_s] = item.note;
+        o[u"pinned"_s] = item.pinned;
+        o[u"insertionOrder"_s] = item.insertionOrder;
+        o[u"scheduledRunEnabled"_s] = item.scheduledRunEnabled;
+        o[u"startDelaySecs"_s] = item.startDelaySecs;
+        o[u"trackRunDuration"_s] = item.trackRunDuration;
+        o[u"runHideWindow"_s] = item.runHideWindow;
+        o[u"lastRunHidden"_s] = item.lastRunHidden;
+        if (!item.launchArgs.isEmpty())
+            o[u"launchArgs"_s] = item.launchArgs;
+
+        QJsonObject guardObj;
+        guardObj[u"enabled"_s] = item.guarding;
+        guardObj[u"startTime"_s] = item.guardStartTime.isValid()
+            ? item.guardStartTime.toString(Qt::ISODate) : u""_s;
+        o[u"guard"_s] = guardObj;
+
+        QJsonObject retryObj;
+        retryObj[u"intervalSecs"_s] = item.retryConfig.retryIntervalSecs;
+        retryObj[u"maxDurationSecs"_s] = item.retryConfig.maxDurationSecs;
+        retryObj[u"maxRetries"_s] = item.retryConfig.maxRetries;
+        o[u"retry"_s] = retryObj;
+
+        o[u"runRules"_s] = exportScheduleRules(item.runRules);
+        o[u"restartRules"_s] = exportScheduleRules(item.restartRules);
+        o[u"restartRulesActive"_s] = item.restartRulesActive;
+
+        QJsonObject emailObj;
+        emailObj[u"enabled"_s] = item.emailNotify.enabled;
+        emailObj[u"onGuardTriggered"_s] = item.emailNotify.onGuardTriggered;
+        emailObj[u"onProcessExited"_s] = item.emailNotify.onProcessExited;
+        emailObj[u"onRestartFailed"_s] = item.emailNotify.onScheduledRestartFailed;
+        emailObj[u"onRetryExhausted"_s] = item.emailNotify.onRetryExhausted;
+        emailObj[u"onRunFailed"_s] = item.emailNotify.onScheduledRunFailed;
+        emailObj[u"onStartFailed"_s] = item.emailNotify.onStartFailed;
+        o[u"emailNotifications"_s] = emailObj;
+
+        QJsonObject statusObj;
+        statusObj[u"lastRestart"_s] = item.lastRestart.isValid()
+            ? item.lastRestart.toString(Qt::ISODate) : u""_s;
+        statusObj[u"restartCount"_s] = item.restartCount;
+        statusObj[u"startTime"_s] = item.startTime.isValid()
+            ? item.startTime.toString(Qt::ISODate) : u""_s;
+        o[u"status"_s] = statusObj;
+
+        itemsArr.append(o);
+    }
+    root[u"items"_s] = itemsArr;
+
+    QString timestamp = QDateTime::currentDateTime().toString(u"yyyyMMdd_HHmmss"_s);
+    QString defaultName = u"SuperGuardian_Config_%1.json"_s.arg(timestamp);
+    QString filePath = QFileDialog::getSaveFileName(this,
+        u"导出配置"_s, defaultName, u"JSON Files (*.json)"_s);
+    if (filePath.isEmpty())
+        return;
+
+    QFile f(filePath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+        f.close();
+        showMessageDialog(this, u"导出配置"_s,
+            u"配置已导出到：\n%1"_s.arg(filePath));
+        logOperation(u"导出配置到 %1"_s.arg(filePath));
+    } else {
+        showMessageDialog(this, u"导出失败"_s,
+            u"无法写入文件：%1"_s.arg(filePath));
+    }
+}
+
+// ---- 重置配置 ----
+
+void SuperGuardian::resetConfig() {
+    if (!showMessageDialog(this, u"重置配置"_s,
+        u"确认重置全部配置吗？此操作将清除所有设置和程序列表。"_s, true))
+        return;
+
+    ConfigDatabase::instance().importFromJson(QJsonObject());
+    items.clear();
+    tableWidget->setRowCount(0);
+
+    if (selfGuardAct) {
+        selfGuardAct->blockSignals(true);
+        selfGuardAct->setChecked(false);
+        selfGuardAct->blockSignals(false);
+    }
+    if (autostartAct) {
+        autostartAct->blockSignals(true);
+        autostartAct->setChecked(false);
+        autostartAct->blockSignals(false);
+    }
+
+    stopWatchdogHelper();
+    setAutostart(false);
+    distributeColumnWidths();
+    saveSettings();
+
+    QString theme = detectSystemThemeName();
+    ConfigDatabase::instance().setValue(u"theme"_s, theme);
+    applyTheme(theme);
+
+    showMessageDialog(this, u"重置配置"_s, u"配置已重置为默认设置。"_s);
+    logOperation(u"重置全部配置"_s);
+}
+
+// ---- 重建表格 ----
+
+void SuperGuardian::rebuildTableFromItems() {
+    tableWidget->setRowCount(0);
+    auto appendRows = [this](bool pinned) {
+        for (const GuardItem& item : items) {
+            if (item.pinned != pinned)
+                continue;
+            int row = tableWidget->rowCount();
+            tableWidget->insertRow(row);
+            setupTableRow(row, item);
+        }
+    };
+    appendRows(true);
+    appendRows(false);
+}
+
+// ---- 导出诊断信息 ----
+
+void SuperGuardian::exportDiagnosticInfo() {
+    QString timestamp = QDateTime::currentDateTime().toString(u"yyyyMMdd_HHmmss"_s);
+    QString defaultName = u"SuperGuardian_Diagnostic_%1.txt"_s.arg(timestamp);
+    QString filePath = QFileDialog::getSaveFileName(this,
+        u"导出诊断信息"_s, defaultName, u"文本文件 (*.txt)"_s);
+    if (filePath.isEmpty())
+        return;
+
+    QStringList lines;
+    auto section = [&](const QString& title) {
+        lines << QString();
+        lines << u"═══════════════════════════════════════════════════════"_s;
+        lines << u"  %1"_s.arg(title);
+        lines << u"═══════════════════════════════════════════════════════"_s;
+    };
+
+    section(u"系统与应用信息"_s);
+    lines << u"导出时间: %1"_s.arg(QDateTime::currentDateTime().toString(u"yyyy-MM-dd HH:mm:ss"_s));
+    lines << u"应用版本: %1"_s.arg(QCoreApplication::applicationVersion());
+    lines << u"Qt 版本: %1"_s.arg(qVersion());
+    lines << u"操作系统: %1"_s.arg(QSysInfo::prettyProductName());
+    lines << u"CPU 架构: %1"_s.arg(QSysInfo::currentCpuArchitecture());
+    lines << u"应用路径: %1"_s.arg(QCoreApplication::applicationFilePath());
+    lines << u"数据目录: %1"_s.arg(appDataDirPath());
+    lines << u"PID: %1"_s.arg(QCoreApplication::applicationPid());
+
+    {
+        QByteArray probe = u"中文"_s.toUtf8();
+        QString hex;
+        for (int i = 0; i < probe.size(); ++i) {
+            if (i)
+                hex += u' ';
+            hex += QString::asprintf("%02X", static_cast<unsigned char>(probe[i]));
+        }
+        lines << u"编码验证: \"%1\" → [%2] (预期: E4 B8 AD E6 96 87)"_s.arg(u"中文"_s, hex);
+    }
+
+    section(u"当前配置"_s);
+    auto& db = ConfigDatabase::instance();
+    QJsonObject allConfig = db.exportToJson();
+    for (auto it = allConfig.begin(); it != allConfig.end(); ++it) {
+        QString val = it.value().isString()
+            ? it.value().toString()
+            : QString::fromUtf8(QJsonDocument(QJsonArray{ it.value() }).toJson(QJsonDocument::Compact));
+        if (val.length() > 200)
+            val = val.left(200) + u"... (已截断)"_s;
+        lines << u"  %1 = %2"_s.arg(it.key(), val);
+    }
+
+    section(u"守护项状态 (共 %1 项)"_s.arg(items.size()));
+    for (int i = 0; i < items.size(); ++i) {
+        const GuardItem& item = items[i];
+        lines << u"--- [%1] %2 ---"_s.arg(i).arg(item.path);
+        lines << u"  进程名: %1"_s.arg(item.processName);
+        lines << u"  目标路径: %1"_s.arg(item.targetPath);
+        if (!item.launchArgs.isEmpty())
+            lines << u"  启动参数: %1"_s.arg(item.launchArgs);
+        if (!item.note.isEmpty())
+            lines << u"  备注: %1"_s.arg(item.note);
+        lines << u"  守护中: %1"_s.arg(item.guarding ? u"是"_s : u"否"_s);
+        lines << u"  已置顶: %1"_s.arg(item.pinned ? u"是"_s : u"否"_s);
+        lines << u"  被守护次数: %1"_s.arg(item.restartCount);
+        if (item.startTime.isValid())
+            lines << u"  启动时间: %1"_s.arg(item.startTime.toString(u"yyyy-MM-dd HH:mm:ss"_s));
+        if (item.guardStartTime.isValid())
+            lines << u"  守护开始: %1"_s.arg(item.guardStartTime.toString(u"yyyy-MM-dd HH:mm:ss"_s));
+        if (item.lastRestart.isValid())
+            lines << u"  上次重启: %1"_s.arg(item.lastRestart.toString(u"yyyy-MM-dd HH:mm:ss"_s));
+        lines << u"  定时重启: %1 (%2条规则)"_s.arg(item.restartRulesActive ? u"启用"_s : u"停用"_s).arg(item.restartRules.size());
+        lines << u"  定时运行: %1 (%2条规则)"_s.arg(item.scheduledRunEnabled ? u"启用"_s : u"停用"_s).arg(item.runRules.size());
+        lines << u"  启动延时: %1秒"_s.arg(item.startDelaySecs);
+        lines << u"  重试配置: 间隔%1秒, 最多%2次, 最长%3秒"_s
+            .arg(item.retryConfig.retryIntervalSecs)
+            .arg(item.retryConfig.maxRetries)
+            .arg(item.retryConfig.maxDurationSecs);
+        if (item.retryActive) {
+            lines << u"  重试中: 当前第%1次, 开始于 %2"_s
+                .arg(item.currentRetryCount)
+                .arg(item.retryStartTime.toString(u"yyyy-MM-dd HH:mm:ss"_s));
+        }
+        int procCount = 0;
+        bool running = isProcessRunning(item.processName, procCount);
+        lines << u"  当前进程状态: %1 (实例数: %2)"_s.arg(running ? u"运行中"_s : u"未运行"_s).arg(procCount);
+    }
+
+    section(u"自我守护状态"_s);
+    bool selfGuardEnabled = db.value(u"self_guard_enabled"_s, false).toBool();
+    bool manualExit = db.value(u"self_guard_manual_exit"_s, false).toBool();
+    int watchdogPid = db.value(u"watchdog_pid"_s, 0).toInt();
+    lines << u"  自我守护: %1"_s.arg(selfGuardEnabled ? u"启用"_s : u"停用"_s);
+    lines << u"  手动退出标记: %1"_s.arg(manualExit ? u"是"_s : u"否"_s);
+    lines << u"  看门狗 PID: %1"_s.arg(watchdogPid > 0 ? QString::number(watchdogPid) : u"无"_s);
+    if (watchdogPid > 0) {
+        HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, static_cast<DWORD>(watchdogPid));
+        lines << u"  看门狗进程存活: %1"_s.arg(h ? u"是"_s : u"否"_s);
+        if (h)
+            CloseHandle(h);
+    }
+
+    auto appendLogs = [&](const QString& category, const QString& title, int limit) {
+        section(u"最近%1 (最多%2条)"_s.arg(title).arg(limit));
+        auto logs = LogDatabase::instance().queryLogs(category, limit);
+        if (logs.isEmpty()) {
+            lines << u"  (无记录)"_s;
+            return;
+        }
+        for (const LogEntry& entry : logs) {
+            QString program = entry.program.isEmpty() ? QString() : u" [%1]"_s.arg(entry.program);
+            lines << u"  %1%2 %3"_s.arg(entry.timestamp.toString(u"MM-dd HH:mm:ss"_s), program, entry.message);
+        }
+    };
+    appendLogs(u"runtime"_s, u"运行日志"_s, 50);
+    appendLogs(u"operation"_s, u"操作日志"_s, 30);
+    appendLogs(u"guard"_s, u"守护日志"_s, 30);
+    appendLogs(u"scheduled_restart"_s, u"定时重启日志"_s, 20);
+    appendLogs(u"scheduled_run"_s, u"定时运行日志"_s, 20);
+
+    QFile f(filePath);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write("\xEF\xBB\xBF");
+        f.write(lines.join(u"\r\n"_s).toUtf8());
+        f.close();
+        showMessageDialog(this, u"导出诊断信息"_s,
+            u"诊断信息已导出到：\n%1"_s.arg(filePath));
+        logOperation(u"导出诊断信息到 %1"_s.arg(filePath));
+    } else {
+        showMessageDialog(this, u"导出失败"_s,
+            u"无法写入文件：%1"_s.arg(filePath));
+    }
 }

@@ -3,7 +3,6 @@
 #include <QtCore/QThread>
 #include <QtSql/QSqlDatabase>
 #include "SuperGuardian.h"
-#include "AppStorage.h"
 #include "ProcessUtils.h"
 #include "ConfigDatabase.h"
 #include <windows.h>

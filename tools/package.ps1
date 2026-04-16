@@ -44,7 +44,7 @@ $exeName     = 'SuperGuardian.exe'
 $buildDir    = Join-Path $root "$Platform\$Configuration"
 $exePath     = Join-Path $buildDir $exeName
 $packageDir  = Join-Path $root 'package'
-$projectFile = Join-Path $root 'SuperGuardian.vcxproj'
+$projectFile = Join-Path $root 'project\SuperGuardian.vcxproj'
 
 # 辅助函数
 function Write-Step([string]$Message) {

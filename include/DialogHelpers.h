@@ -43,6 +43,5 @@ QString formatDaysShort(const QSet<int>& days);
 QDateTime calculateNextTrigger(const ScheduleRule& rule, const QDateTime& from = QDateTime::currentDateTime());
 QDateTime nextTriggerTime(const QList<ScheduleRule>& rules);
 QList<QDateTime> computeTriggersInMonth(const ScheduleRule& rule, int year, int month, int maxCount = 500);
-int countTriggersInMonth(const ScheduleRule& rule, int year, int month);
 QSet<QDate> triggerDatesInMonth(const ScheduleRule& rule, int year, int month);
 CalendarWithNav createCalendarWithNav(bool isDark, QWidget* parent = nullptr);

@@ -5,6 +5,11 @@
 #include <QJsonObject>
 #include <QSqlDatabase>
 
+// ── 应用存储路径 ──
+void initializeAppStorage();
+QString appRootPath();
+QString appDataDirPath();
+
 class ConfigDatabase {
 public:
     static ConfigDatabase& instance();

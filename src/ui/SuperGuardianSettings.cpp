@@ -1,6 +1,5 @@
 ﻿#include "SuperGuardian.h"
 #include "DialogHelpers.h"
-#include "AppStorage.h"
 #include "ProcessUtils.h"
 #include "ConfigDatabase.h"
 #include "LogDatabase.h"
