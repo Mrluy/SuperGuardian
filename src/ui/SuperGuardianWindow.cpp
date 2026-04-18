@@ -36,6 +36,7 @@ void SuperGuardian::onExit() {
         return;
 
     m_exiting = true;
+    saveSettings();
     ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, true);
     stopWatchdogHelper();
     logOperation(u"退出软件"_s);

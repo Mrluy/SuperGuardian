@@ -52,6 +52,7 @@ private:
     bool pendingResetColumnWidths = false;
     bool m_revertingHeader = false;
     bool m_exiting = false;
+    QDateTime m_lastSaveTime;
 
     QStringList duplicateWhitelist;
     QList<ScheduleRule> copiedScheduleRules;

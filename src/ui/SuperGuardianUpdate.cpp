@@ -84,8 +84,8 @@ bool runPowerShell(const QString& script, QByteArray* stdOut, QString* error,
     QElapsedTimer timer;
     timer.start();
     while (process.state() != QProcess::NotRunning) {
+        qApp->processEvents();
         if (progress) {
-            qApp->processEvents();
             if (progress->wasCanceled()) {
                 process.kill();
                 process.waitForFinished();

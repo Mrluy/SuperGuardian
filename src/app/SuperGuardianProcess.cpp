@@ -566,5 +566,8 @@ void SuperGuardian::checkProcesses() {
         }
     }
 
-    saveSettings();
+    if (!m_lastSaveTime.isValid() || m_lastSaveTime.secsTo(now) >= 5) {
+        saveSettings();
+        m_lastSaveTime = now;
+    }
 }
