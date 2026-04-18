@@ -267,7 +267,20 @@ bool SuperGuardian::installUpdatePackage(const QString& selectedFile, QWidget* d
                 u"Expand-Archive -Path '%1' -DestinationPath '%2' -Force"_s).arg(
                     QDir::toNativeSeparators(selectedFile).replace(u"'"_s, u"''"_s),
                     QDir::toNativeSeparators(tempDir).replace(u"'"_s, u"''"_s)));
-        const bool finished = proc.waitForFinished(60000);
+        // 使用事件循环避免阻塞 UI 线程（阻塞会触发看门狗误判未响应）
+        QElapsedTimer zipTimer;
+        zipTimer.start();
+        bool finished = false;
+        while (proc.state() != QProcess::NotRunning) {
+            qApp->processEvents();
+            if (proc.waitForFinished(100)) { finished = true; break; }
+            if (zipTimer.elapsed() > 60000) {
+                proc.kill();
+                proc.waitForFinished(1000);
+                break;
+            }
+        }
+        if (!finished) finished = (proc.state() == QProcess::NotRunning);
         if (!finished || proc.exitStatus() != QProcess::NormalExit || proc.exitCode() != 0) {
             showMessageDialog(dialogParent ? dialogParent : this, u"更新失败"_s,
                 u"解压 ZIP 文件失败。"_s);

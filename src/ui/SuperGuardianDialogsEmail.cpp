@@ -516,6 +516,13 @@ void sendNotificationAsync(const SmtpConfig& config, const QString& subject, con
     if (!isSmtpConfigValid(config)) return;
     QProcess* proc = new QProcess();
     QObject::connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), proc, &QProcess::deleteLater);
+    // 超时自动终止，防止 PowerShell 挂起导致进程泄漏
+    QTimer* killTimer = new QTimer(proc);
+    killTimer->setSingleShot(true);
+    QObject::connect(killTimer, &QTimer::timeout, proc, [proc]() {
+        proc->kill();
+    });
+    killTimer->start(60000);
     proc->start("powershell", { "-NoProfile", "-NonInteractive", "-Command", buildPsScript(config, subject, body) });
 }
 
@@ -524,6 +531,18 @@ bool sendTestEmail(const SmtpConfig& config) {
     QProcess proc;
     proc.start("powershell", { "-NoProfile", "-NonInteractive", "-Command",
         buildPsScript(config, u"SuperGuardian 测试邮件"_s, u"这是一封来自超级守护的测试邮件。"_s) });
-    proc.waitForFinished(30000);
+    // 使用事件循环避免阻塞 UI 线程（阻塞会触发看门狗误判未响应）
+    QElapsedTimer timer;
+    timer.start();
+    while (proc.state() != QProcess::NotRunning) {
+        qApp->processEvents();
+        if (proc.waitForFinished(100))
+            break;
+        if (timer.elapsed() > 30000) {
+            proc.kill();
+            proc.waitForFinished(1000);
+            return false;
+        }
+    }
     return proc.exitCode() == 0;
 }
