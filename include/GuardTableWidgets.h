@@ -36,6 +36,7 @@ public:
     std::function<void(int, int)> onCellDoubleClicked;
     std::function<void(int, int)> onKeyPressed;
     std::function<void(const QList<int>&)> onDeletePressed;
+    std::function<bool(int)> isRowProtected; // 行有活跃功能时返回true，阻止Delete
     int hoveredRow() const { return m_hoverRow; }
     void setRowDragEnabled(bool enabled) { m_rowDragEnabled = enabled; }
     bool isRowDragEnabled() const { return m_rowDragEnabled; }

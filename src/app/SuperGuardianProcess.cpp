@@ -262,6 +262,9 @@ void SuperGuardian::checkProcesses() {
     bool globalRestartOn = globalRestartAct && globalRestartAct->isChecked();
     bool globalRunOn = globalRunAct && globalRunAct->isChecked();
 
+    // 一次性获取进程快照，避免多次 CreateToolhelp32Snapshot
+    QHash<QString, ProcessInfo> procSnapshot = takeProcessSnapshot();
+
     for (int row = 0; row < tableWidget->rowCount(); ++row) {
         int idx = findItemIndexById(rowId(row));
         if (idx < 0) continue;
@@ -280,8 +283,9 @@ void SuperGuardian::checkProcesses() {
             }
         };
 
-        int count = 0;
-        bool running = isProcessRunning(item.processName, count);
+        const ProcessInfo& pi = procSnapshot[item.processName.toLower()];
+        int count = pi.count;
+        bool running = count > 0;
         bool scheduledRestarted = false;
 
         if (hasGuard && !item.guardStartTime.isValid())
@@ -318,8 +322,7 @@ void SuperGuardian::checkProcesses() {
             }
             setCell(2, u"定时运行"_s);
             if (item.trackRunDuration) {
-                QDateTime procStart = getProcessStartTime(item.processName);
-                setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+                setCell(3, pi.startTime.isValid() ? formatDuration(pi.startTime.secsTo(now)) : "-");
             } else {
                 setCell(3, "-");
             }
@@ -417,12 +420,9 @@ void SuperGuardian::checkProcesses() {
 
         if (hasGuard && !running && !scheduledRestarted) {
             if (!item.lastLaunchTime.isValid() || item.lastLaunchTime.secsTo(now) >= 10) {
-                int recount = 0;
-                isProcessRunning(item.processName, recount);
-                if (recount == 0) {
+                if (count == 0) {
                     auto tryGuardLaunch = [&]() {
-                        int finalCount = 0;
-                        if (isProcessRunning(item.processName, finalCount) || finalCount > 0) {
+                        if (count > 0) {
                             item.startDelayExitTime = QDateTime();
                             running = true;
                             return;
@@ -504,8 +504,7 @@ void SuperGuardian::checkProcesses() {
             setCell(2, running ? u"运行中"_s : u"未运行"_s);
         }
         if (hasGuard) {
-            QDateTime procStart = getProcessStartTime(item.processName);
-            setCell(3, procStart.isValid() ? formatDuration(procStart.secsTo(now)) : "-");
+            setCell(3, pi.startTime.isValid() ? formatDuration(pi.startTime.secsTo(now)) : "-");
         } else {
             setCell(3, "-");
         }

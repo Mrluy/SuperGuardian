@@ -397,6 +397,11 @@ void SuperGuardian::initSignals() {
         }
         saveSettings();
     };
+    static_cast<DesktopSelectTable*>(tableWidget)->isRowProtected = [this](int row) -> bool {
+        int idx = findItemIndexById(rowId(row));
+        if (idx < 0) return false;
+        return items[idx].guarding || items[idx].restartRulesActive || items[idx].scheduledRunEnabled;
+    };
 
     // 表头排序（点击列标题循环：升序→降序→默认）
     connect(tableWidget->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int section) {

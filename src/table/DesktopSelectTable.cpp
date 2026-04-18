@@ -234,6 +234,13 @@ void DesktopSelectTable::mouseReleaseEvent(QMouseEvent* e) {
     Q_UNUSED(e);
     if (m_pendingRowDrag) {
         m_pendingRowDrag = false;
+        // 多选状态下左键单击已选行 → 退出多选，只选单击的行
+        auto rows = selectionModel() ? selectionModel()->selectedRows() : QModelIndexList{};
+        if (rows.size() > 1 && m_dragSourceRow >= 0) {
+            clearSelection();
+            selectionModel()->select(model()->index(m_dragSourceRow, 0),
+                QItemSelectionModel::Select | QItemSelectionModel::Rows);
+        }
         killCurrentIndex();
         return;
     }
@@ -319,6 +326,13 @@ void DesktopSelectTable::killCurrentIndex() {
 }
 
 void DesktopSelectTable::keyPressEvent(QKeyEvent* e) {
+    // ESC：取消所有选择
+    if (e->key() == Qt::Key_Escape) {
+        clearSelection();
+        killCurrentIndex();
+        return;
+    }
+
     if ((e->key() == Qt::Key_Up || e->key() == Qt::Key_Down) && e->modifiers() == Qt::NoModifier) {
         if (rowCount() <= 0)
             return;
@@ -356,6 +370,12 @@ void DesktopSelectTable::keyPressEvent(QKeyEvent* e) {
             for (const QModelIndex& idx : rows)
                 rowList.append(idx.row());
             std::sort(rowList.begin(), rowList.end());
+            // 任一选中行有活跃功能时阻止删除
+            if (isRowProtected) {
+                for (int r : rowList) {
+                    if (isRowProtected(r)) return;
+                }
+            }
             onDeletePressed(rowList);
             return;
         }

@@ -139,12 +139,19 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     bool anyScheduledRun = false;
     bool anyGuardOrRestart = false;
     bool anyActive = false;
+    // 统计各功能开关状态一致性
+    int guardOnCount = 0, guardOffCount = 0;
+    int restartOnCount = 0, restartOffCount = 0;
+    int runOnCount = 0, runOffCount = 0;
     for (int r : targetRows) {
         int ii = findItemIndexById(rowId(r));
         if (ii >= 0) {
             if (items[ii].scheduledRunEnabled) anyScheduledRun = true;
             if (items[ii].guarding || items[ii].restartRulesActive) anyGuardOrRestart = true;
             if (items[ii].guarding || items[ii].restartRulesActive || items[ii].scheduledRunEnabled) anyActive = true;
+            items[ii].guarding ? guardOnCount++ : guardOffCount++;
+            items[ii].restartRulesActive ? restartOnCount++ : restartOffCount++;
+            items[ii].scheduledRunEnabled ? runOnCount++ : runOffCount++;
         }
     }
 
@@ -188,6 +195,94 @@ void SuperGuardian::onTableContextMenuRequested(const QPoint& pos) {
     menu.addAction(u"重试设置"_s, this, [this, targetRows]() { contextSetRetryConfig(targetRows); });
     // 邮件提醒设置
     menu.addAction(u"邮件提醒设置"_s, this, [this, targetRows]() { contextSetEmailNotify(targetRows); });
+
+    // 批量开关：仅当所有选中项状态一致时显示
+    {
+        bool hasToggle = false;
+        // 守护开关（不与定时运行冲突）
+        if (runOnCount == 0) {
+            if (guardOnCount > 0 && guardOffCount == 0) {
+                if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                menu.addAction(u"关闭守护"_s, this, [this, targetRows]() {
+                    for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && items[ii].guarding) contextToggleGuard(r); }
+                });
+            } else if (guardOffCount > 0 && guardOnCount == 0) {
+                if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                menu.addAction(u"开始守护"_s, this, [this, targetRows]() {
+                    for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].guarding) contextToggleGuard(r); }
+                });
+            }
+        }
+        // 定时重启开关（不与定时运行冲突）
+        if (runOnCount == 0) {
+            if (restartOnCount > 0 && restartOffCount == 0) {
+                if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                menu.addAction(u"关闭定时重启"_s, this, [this, targetRows]() {
+                    for (int r : targetRows) {
+                        int ii = findItemIndexById(rowId(r));
+                        if (ii < 0 || !items[ii].restartRulesActive) continue;
+                        items[ii].restartRulesActive = false;
+                        QWidget* opw = tableWidget->cellWidget(r, 10);
+                        if (opw) { if (QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[ii].id))) b->setText(u"开启定时重启"_s); }
+                        updateButtonStates(r);
+                    }
+                    saveSettings();
+                });
+            } else if (restartOffCount > 0 && restartOnCount == 0) {
+                // 只有有规则的项才能开启
+                bool anyHasRules = false;
+                for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].restartRules.isEmpty()) anyHasRules = true; }
+                if (anyHasRules) {
+                    if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                    menu.addAction(u"开启定时重启"_s, this, [this, targetRows]() {
+                        for (int r : targetRows) {
+                            int ii = findItemIndexById(rowId(r));
+                            if (ii < 0 || items[ii].restartRules.isEmpty()) continue;
+                            items[ii].restartRulesActive = true;
+                            QWidget* opw = tableWidget->cellWidget(r, 10);
+                            if (opw) { if (QPushButton* b = opw->findChild<QPushButton*>(QString("srBtn_%1").arg(items[ii].id))) b->setText(u"关闭定时重启"_s); }
+                            updateButtonStates(r);
+                        }
+                        saveSettings();
+                    });
+                }
+            }
+        }
+        // 定时运行开关（不与守护/定时重启冲突）
+        if (guardOnCount == 0 && restartOnCount == 0) {
+            if (runOnCount > 0 && runOffCount == 0) {
+                if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                menu.addAction(u"关闭定时运行"_s, this, [this, targetRows]() {
+                    for (int r : targetRows) {
+                        int ii = findItemIndexById(rowId(r));
+                        if (ii < 0 || !items[ii].scheduledRunEnabled) continue;
+                        items[ii].scheduledRunEnabled = false;
+                        QWidget* opw = tableWidget->cellWidget(r, 10);
+                        if (opw) { if (QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[ii].id))) b->setText(u"开启定时运行"_s); }
+                        updateButtonStates(r);
+                    }
+                    saveSettings();
+                });
+            } else if (runOffCount > 0 && runOnCount == 0) {
+                bool anyHasRules = false;
+                for (int r : targetRows) { int ii = findItemIndexById(rowId(r)); if (ii >= 0 && !items[ii].runRules.isEmpty()) anyHasRules = true; }
+                if (anyHasRules) {
+                    if (!hasToggle) { menu.addSeparator(); hasToggle = true; }
+                    menu.addAction(u"开启定时运行"_s, this, [this, targetRows]() {
+                        for (int r : targetRows) {
+                            int ii = findItemIndexById(rowId(r));
+                            if (ii < 0 || items[ii].runRules.isEmpty()) continue;
+                            items[ii].scheduledRunEnabled = true;
+                            QWidget* opw = tableWidget->cellWidget(r, 10);
+                            if (opw) { if (QPushButton* b = opw->findChild<QPushButton*>(QString("runBtn_%1").arg(items[ii].id))) b->setText(u"关闭定时运行"_s); }
+                            updateButtonStates(r);
+                        }
+                        saveSettings();
+                    });
+                }
+            }
+        }
+    }
 
     menu.addSeparator();
 

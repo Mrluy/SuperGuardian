@@ -57,6 +57,38 @@ QString resolveShortcut(const QString& path, QString* outArgs) {
     return path;
 }
 
+QHash<QString, ProcessInfo> takeProcessSnapshot() {
+    QHash<QString, ProcessInfo> result;
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snap == INVALID_HANDLE_VALUE) return result;
+    PROCESSENTRY32 pe;
+    pe.dwSize = sizeof(pe);
+    if (Process32First(snap, &pe)) {
+        do {
+            QString exe = QString::fromWCharArray(pe.szExeFile).toLower();
+            ProcessInfo& info = result[exe];
+            info.count++;
+            // 获取进程启动时间（仅首次获取）
+            if (!info.startTime.isValid()) {
+                HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pe.th32ProcessID);
+                if (h) {
+                    FILETIME ftCreate, ftExit, ftKernel, ftUser;
+                    if (GetProcessTimes(h, &ftCreate, &ftExit, &ftKernel, &ftUser)) {
+                        ULARGE_INTEGER ull;
+                        ull.LowPart = ftCreate.dwLowDateTime;
+                        ull.HighPart = ftCreate.dwHighDateTime;
+                        qint64 epoch = (qint64)(ull.QuadPart / 10000000ULL - 11644473600ULL);
+                        info.startTime = QDateTime::fromSecsSinceEpoch(epoch);
+                    }
+                    CloseHandle(h);
+                }
+            }
+        } while (Process32Next(snap, &pe));
+    }
+    CloseHandle(snap);
+    return result;
+}
+
 void killProcessesByName(const QString& name) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE) return;
