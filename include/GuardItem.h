@@ -64,6 +64,7 @@ struct GuardItem {
 
     int startDelaySecs = 1;
     QDateTime startDelayExitTime;
+    QDateTime pendingScheduledRestartTime; // 非阻塞延迟：记录 kill 时间
 
     bool scheduledRunEnabled = false;
     QList<ScheduleRule> runRules;

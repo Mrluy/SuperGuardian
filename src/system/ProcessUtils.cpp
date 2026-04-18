@@ -135,7 +135,7 @@ QDateTime getProcessStartTime(const QString& processName) {
 bool launchProgram(const QString& path, const QString& args, bool hideWindow) {
     SHELLEXECUTEINFOW sei{};
     sei.cbSize = sizeof(sei);
-    sei.fMask = SEE_MASK_NOASYNC;
+    sei.fMask = SEE_MASK_ASYNCOK;
     sei.hwnd = nullptr;
     sei.lpVerb = L"open";
     std::wstring wpath = QDir::toNativeSeparators(path).toStdWString();

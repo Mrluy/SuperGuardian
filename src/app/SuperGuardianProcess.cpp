@@ -5,7 +5,6 @@
 #include "ConfigDatabase.h"
 #include "ThemeManager.h"
 #include <QtWidgets>
-#include <QThread>
 #include <windows.h>
 
 using namespace Qt::Literals::StringLiterals;
@@ -346,6 +345,33 @@ void SuperGuardian::checkProcesses() {
         }
 
         if (hasScheduledRestart) {
+            // 延迟启动：检查是否有待处理的延迟启动
+            if (item.pendingScheduledRestartTime.isValid()) {
+                if (item.pendingScheduledRestartTime.msecsTo(now) >= item.startDelaySecs * 1000) {
+                    bool ok = launchProgram(item.targetPath, item.launchArgs);
+                    item.lastLaunchTime = now;
+                    item.lastRestart = now;
+                    item.startTime = now;
+                    scheduledRestarted = true;
+                    item.startDelayExitTime = QDateTime();
+                    item.lastGuardRestartTime = now;
+                    item.pendingScheduledRestartTime = QDateTime();
+                    running = true;
+                    logScheduledRestart(u"定时重启延迟启动完成"_s, programId(item.processName, item.launchArgs));
+                    if (!ok) {
+                        trySendNotification(item, "restart_failed",
+                            u"%1 定时重启后启动失败"_s.arg(item.processName));
+                        if (!item.retryActive) {
+                            item.retryActive = true;
+                            item.retryStartTime = now;
+                            item.currentRetryCount = 0;
+                            item.lastRetryTime = now;
+                        }
+                    }
+                }
+                continue; // 等待延迟期间跳过后续逻辑
+            }
+
             bool anyDue = false;
             for (ScheduleRule& rule : item.restartRules) {
                 if (rule.nextTrigger.isValid() && now >= rule.nextTrigger) {
@@ -361,25 +387,28 @@ void SuperGuardian::checkProcesses() {
                     if (running) {
                         killProcessesByName(item.processName);
                     }
-                    if (item.startDelaySecs > 0)
-                        QThread::msleep(static_cast<unsigned long>(item.startDelaySecs * 1000));
-                    bool ok = launchProgram(item.targetPath, item.launchArgs);
-                    item.lastLaunchTime = now;
-                    item.lastRestart = now;
-                    item.startTime = now;
-                    scheduledRestarted = true;
-                    item.startDelayExitTime = QDateTime();
-                    item.lastGuardRestartTime = now;
-                    running = true;
-                    logScheduledRestart(wasRunning ? u"定时重启触发"_s : u"定时重启触发（程序未运行，已启动）"_s, programId(item.processName, item.launchArgs));
-                    if (!ok) {
-                        trySendNotification(item, "restart_failed",
-                            u"%1 定时重启后启动失败"_s.arg(item.processName));
-                        if (!item.retryActive) {
-                            item.retryActive = true;
-                            item.retryStartTime = now;
-                            item.currentRetryCount = 0;
-                            item.lastRetryTime = now;
+                    if (item.startDelaySecs > 0) {
+                        item.pendingScheduledRestartTime = now;
+                        logScheduledRestart(wasRunning ? u"定时重启触发，等待延迟启动"_s : u"定时重启触发（程序未运行），等待延迟启动"_s, programId(item.processName, item.launchArgs));
+                    } else {
+                        bool ok = launchProgram(item.targetPath, item.launchArgs);
+                        item.lastLaunchTime = now;
+                        item.lastRestart = now;
+                        item.startTime = now;
+                        scheduledRestarted = true;
+                        item.startDelayExitTime = QDateTime();
+                        item.lastGuardRestartTime = now;
+                        running = true;
+                        logScheduledRestart(wasRunning ? u"定时重启触发"_s : u"定时重启触发（程序未运行，已启动）"_s, programId(item.processName, item.launchArgs));
+                        if (!ok) {
+                            trySendNotification(item, "restart_failed",
+                                u"%1 定时重启后启动失败"_s.arg(item.processName));
+                            if (!item.retryActive) {
+                                item.retryActive = true;
+                                item.retryStartTime = now;
+                                item.currentRetryCount = 0;
+                                item.lastRetryTime = now;
+                            }
                         }
                     }
                 }
