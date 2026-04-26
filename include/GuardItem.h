@@ -61,6 +61,7 @@ struct GuardItem {
 
     QList<ScheduleRule> restartRules;
     bool restartRulesActive = false;
+    bool restartUseStartDelay = false;
 
     int startDelaySecs = 1;
     QDateTime startDelayExitTime;

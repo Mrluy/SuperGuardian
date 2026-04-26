@@ -48,6 +48,7 @@ QJsonObject structuredItemToFlat(const QJsonObject& src) {
     copyIfExists(u"runHideWindow"_s);
     copyIfExists(u"lastRunHidden"_s);
     copyIfExists(u"restartRulesActive"_s);
+    copyIfExists(u"restartUseStartDelay"_s);
 
     // guard: {enabled, startTime} → guard(bool), guardStartTime(string)
     if (src.contains(u"guard"_s) && src[u"guard"_s].isObject()) {
@@ -373,6 +374,7 @@ void SuperGuardian::exportConfig() {
         o[u"runRules"_s] = exportScheduleRules(item.runRules);
         o[u"restartRules"_s] = exportScheduleRules(item.restartRules);
         o[u"restartRulesActive"_s] = item.restartRulesActive;
+        o[u"restartUseStartDelay"_s] = item.restartUseStartDelay;
 
         QJsonObject emailObj;
         emailObj[u"enabled"_s] = item.emailNotify.enabled;
@@ -539,6 +541,7 @@ void SuperGuardian::exportDiagnosticInfo() {
         if (item.lastRestart.isValid())
             lines << u"  上次重启: %1"_s.arg(item.lastRestart.toString(u"yyyy-MM-dd HH:mm:ss"_s));
         lines << u"  定时重启: %1 (%2条规则)"_s.arg(item.restartRulesActive ? u"启用"_s : u"停用"_s).arg(item.restartRules.size());
+        lines << u"  定时重启使用启动延时: %1"_s.arg(item.restartUseStartDelay ? u"是"_s : u"否"_s);
         lines << u"  定时运行: %1 (%2条规则)"_s.arg(item.scheduledRunEnabled ? u"启用"_s : u"停用"_s).arg(item.runRules.size());
         lines << u"  启动延时: %1秒"_s.arg(item.startDelaySecs);
         lines << u"  重试配置: 间隔%1秒, 最多%2次, 最长%3秒"_s

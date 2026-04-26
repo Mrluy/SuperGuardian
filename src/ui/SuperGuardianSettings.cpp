@@ -127,6 +127,9 @@ void SuperGuardian::loadSettings() {
         item.restartRulesActive = o.contains(u"restartRulesActive"_s)
             ? o[u"restartRulesActive"_s].toBool()
             : !item.restartRules.isEmpty();
+        item.restartUseStartDelay = o.contains(u"restartUseStartDelay"_s)
+            ? o[u"restartUseStartDelay"_s].toBool()
+            : false;
 
         item.scheduledRunEnabled = o[u"scheduledRunEnabled"_s].toBool();
         item.trackRunDuration = o[u"trackRunDuration"_s].toBool();
@@ -200,6 +203,7 @@ void SuperGuardian::saveSettings() {
         QJsonDocument restartDoc(scheduleRulesToJson(items[i].restartRules));
         o[u"restartRulesJson"_s] = QString::fromUtf8(restartDoc.toJson(QJsonDocument::Compact));
         o[u"restartRulesActive"_s] = items[i].restartRulesActive;
+        o[u"restartUseStartDelay"_s] = items[i].restartUseStartDelay;
 
         o[u"scheduledRunEnabled"_s] = items[i].scheduledRunEnabled;
         o[u"trackRunDuration"_s] = items[i].trackRunDuration;

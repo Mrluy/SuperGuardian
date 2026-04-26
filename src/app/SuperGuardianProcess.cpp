@@ -390,7 +390,7 @@ void SuperGuardian::checkProcesses() {
                     if (running) {
                         killProcessesByName(item.processName);
                     }
-                    if (item.startDelaySecs > 0) {
+                    if (item.restartUseStartDelay && item.startDelaySecs > 0) {
                         item.pendingScheduledRestartTime = now;
                         logScheduledRestart(wasRunning ? u"定时重启触发，等待延迟启动"_s : u"定时重启触发（程序未运行），等待延迟启动"_s, programId(item.processName, item.launchArgs));
                     } else {
@@ -421,13 +421,7 @@ void SuperGuardian::checkProcesses() {
         if (hasGuard && !running && !scheduledRestarted) {
             if (!item.lastLaunchTime.isValid() || item.lastLaunchTime.secsTo(now) >= 10) {
                 if (count == 0) {
-                    auto tryGuardLaunch = [&]() {
-                        if (count > 0) {
-                            item.startDelayExitTime = QDateTime();
-                            running = true;
-                            return;
-                        }
-
+                    auto launchGuardProgram = [&]() {
                         bool ok = launchProgram(item.targetPath, item.launchArgs);
                         item.lastLaunchTime = now;
                         item.lastGuardRestartTime = now;
@@ -458,10 +452,15 @@ void SuperGuardian::checkProcesses() {
                                 u"%1 进程已退出，将在 %2 秒后重启"_s.arg(item.processName).arg(item.startDelaySecs));
                         }
                         if (item.startDelayExitTime.msecsTo(now) >= item.startDelaySecs * 1000) {
-                            tryGuardLaunch();
+                            if (count > 0) {
+                                item.startDelayExitTime = QDateTime();
+                                running = true;
+                            } else {
+                                launchGuardProgram();
+                            }
                         }
                     } else {
-                        tryGuardLaunch();
+                        launchGuardProgram();
                     }
                 }
             }

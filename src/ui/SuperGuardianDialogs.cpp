@@ -84,10 +84,13 @@ static void refreshRulesMonthPreview(QListWidget* previewList, SimpleCalendarGri
 
 void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun, bool activateOnConfirm) {
     QList<ScheduleRule> initRules;
+    bool initRestartUseStartDelay = false;
     if (rows.size() == 1) {
         int itemIdx = findItemIndexById(rowId(rows[0]));
-        if (itemIdx >= 0)
+        if (itemIdx >= 0) {
             initRules = forRun ? items[itemIdx].runRules : items[itemIdx].restartRules;
+            initRestartUseStartDelay = items[itemIdx].restartUseStartDelay;
+        }
     }
 
     QDialog dlg(this, kDialogFlags);
@@ -232,6 +235,7 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
     // 定时运行模式下添加选项复选框
     QCheckBox* trackDurationCheck = nullptr;
     QCheckBox* hideWindowCheck = nullptr;
+    QCheckBox* restartUseStartDelayCheck = nullptr;
     if (forRun) {
         hideWindowCheck = new QCheckBox(u"隐藏运行窗口"_s);
         hideWindowCheck->setToolTip(u"启动程序时隐藏其窗口，适用于命令行脚本等不需要显示窗口的程序"_s);
@@ -250,6 +254,11 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
                 trackDurationCheck->setChecked(items[itemIdx].trackRunDuration);
         }
         lay->addWidget(trackDurationCheck);
+    } else {
+        restartUseStartDelayCheck = new QCheckBox(u"使用启动延时"_s);
+        restartUseStartDelayCheck->setToolTip(u"勾选后，定时重启触发时将按“启动延时”倒计时，到时再次确认程序未运行后再启动。"_s);
+        restartUseStartDelayCheck->setChecked(initRestartUseStartDelay);
+        lay->addWidget(restartUseStartDelayCheck);
     }
 
     QHBoxLayout* dlgBtnLay = new QHBoxLayout();
@@ -363,6 +372,8 @@ void SuperGuardian::contextSetScheduleRules(const QList<int>& rows, bool forRun,
             }
         } else {
             item.restartRules = finalRules;
+            if (restartUseStartDelayCheck)
+                item.restartUseStartDelay = restartUseStartDelayCheck->isChecked();
             if (activateOnConfirm) {
                 item.restartRulesActive = !item.restartRules.isEmpty();
                 setButtonText(QString("srBtn_%1").arg(item.id),
