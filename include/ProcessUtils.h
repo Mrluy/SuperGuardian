@@ -22,3 +22,6 @@ void setAutostart(bool enable);
 void killProcessesByName(const QString& name);
 
 int runWatchdogMode(int argc, char* argv[]);
+void installCrashDumpHandler();
+void setCrashDumpSuppressedForSystemShutdown(bool suppressed);
+[[noreturn]] void triggerIntentionalCrash();

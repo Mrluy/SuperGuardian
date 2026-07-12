@@ -32,7 +32,7 @@ SuperGuardian（超级守护）是 Windows x64 原生桌面程序，用于守护
 - 完整构建和打包使用 `tools/package.ps1`；已有 Release 产物仅打包使用 `tools/package-release.ps1`。
 - 静态 Qt 构建脚本位于 `tools/build_static_qt.bat`。
 
-当前记录快照为 1.0.9；不要依赖本行判断最新版本，修改或发布前应重新读取上述两个版本源文件。
+当前记录快照为 1.0.10；不要依赖本行判断最新版本，修改或发布前应重新读取上述两个版本源文件。
 
 ## 3. 目录与模块职责
 
@@ -111,9 +111,14 @@ SuperGuardian（超级守护）是 Windows x64 原生桌面程序，用于守护
 - 正常退出前写入 `self_guard_manual_exit`，看门狗不得恢复正常退出的主程序。
 - 看门狗每秒检查主进程，并用 `WM_NULL` 检查主窗口响应。
 - 连续 3 次超时会生成 MiniDump、终止主进程并记录 `restart_reason=hang`。
+- 主进程安装未处理异常过滤器，真实未处理异常会在 `SuperGuardian.exe` 所在目录生成 `crash_<时间>_<PID>.dmp`；看门狗按退出 PID 关联本轮 Dump，并将路径交给重启后的主程序显示。
+- 未响应生成的 `hang_*.dmp` 同样放在 `SuperGuardian.exe` 所在目录根部；所有 Dump 都不得写入 `data/` 子目录。
+- “帮助 → 测试自我守护”和内部 `--simulate-crash` 使用真正的未处理异常验证 Dump 与自动恢复，不再用 `TerminateProcess` 冒充崩溃。
+- 任务管理器硬终止会绕过进程内异常过滤器，因此只应验证看门狗拉起，不承诺生成有效 Dump；不要生成与故障进程无关的伪 Dump。
 - 异常退出后最多尝试重启 5 次，失败时采用递增等待。
 - Windows 关机、重启和注销不属于异常退出：主窗口收到 `WM_QUERYENDSESSION`/`WM_ENDSESSION` 后写入临时的 `system_shutdown_in_progress` 标记并停止看门狗。
-- 看门狗在进程检查、生成 Dump 和执行重启前都必须同时检查 `SM_SHUTTINGDOWN` 与 `system_shutdown_in_progress`；任一成立时直接退出，不生成 Dump、不记录异常原因、不重启主程序。
+- 即使配置为启动时最小化到托盘，也必须预先创建隐藏的主窗口 HWND，确保能够接收 Windows 会话结束消息。
+- 看门狗在进程检查、生成 Dump 和执行重启前都必须同时检查 `SM_SHUTTINGDOWN` 与 `system_shutdown_in_progress`；主进程收到关机消息时还必须先禁用未处理异常 Dump。任一关机条件成立时都不生成 Dump、不记录异常原因、不重启主程序。
 - 如果 Windows 会话结束被取消，应清除临时标记并恢复原有自我守护状态；下次正常启动也应清理上次关机遗留的临时标记和错误通知状态。
 - 修改主线程中的长时间操作时要继续处理事件，避免看门狗把正常工作误判为未响应。
 
@@ -189,6 +194,7 @@ SMTP 发送通过 PowerShell 的 `System.Net.Mail` 完成；修改参数转义�
   - 守护与定时重启同时启用时的 30 秒冷却逻辑。
   - 三个全局功能开关暂停和恢复任务。
 - 修改自我守护或耗时 UI 操作时，验证不会触发错误的未响应重启。
+- 修改崩溃处理时，使用模拟未处理异常验证 `crash_*.dmp`、看门狗拉起和重启提示中的 Dump 路径；同时验证任务管理器硬终止仍能拉起但不会伪造 Dump。
 - 修改看门狗或窗口生命周期时，验证 Windows 关机/重启不会生成 Dump、记录异常退出或启动新实例，并验证取消关机后看门狗能够恢复。
 - 修改持久化字段时，应同步处理：默认值、加载、保存、结构化导出、导入转换和诊断导出。
 - 修改版本时使用 `tools/set-version.ps1`，并核对 `main.cpp` 与 `app.rc` 一致。

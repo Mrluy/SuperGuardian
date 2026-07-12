@@ -95,6 +95,9 @@ void SuperGuardian::beginSystemShutdown() {
     if (m_systemShutdownInProgress)
         return;
 
+    // 必须先禁止进程内崩溃转储，确保关机阶段即使出现异常也不会生成 Dump。
+    setCrashDumpSuppressedForSystemShutdown(true);
+
     // 先持久化关机标记，让独立看门狗在主程序来不及完成后续清理时也能
     // 立即识别这是系统关机，而不是崩溃或未响应。
     auto& db = ConfigDatabase::instance();
@@ -116,6 +119,7 @@ void SuperGuardian::cancelSystemShutdown() {
     }
 
     db.remove(u"system_shutdown_in_progress"_s);
+    setCrashDumpSuppressedForSystemShutdown(false);
     m_systemShutdownInProgress = false;
     m_exiting = false;
 
@@ -445,14 +449,15 @@ void SuperGuardian::runSelfGuardTest() {
         showMessageDialog(this, u"提示"_s, u"请先开启自我守护后再测试。"_s);
         return;
     }
-    if (!showMessageDialog(this, u"测试自我守护"_s, u"将立即强制结束当前主进程，用于验证自我守护是否能自动重启。是否继续？"_s, true))
+    if (!showMessageDialog(this, u"测试自我守护"_s,
+        u"将触发一次模拟崩溃，用于验证崩溃转储和自我守护自动重启。是否继续？"_s, true))
         return;
 
     ConfigDatabase::instance().setValue(u"self_guard_manual_exit"_s, false);
     startWatchdogHelper();
     logOperation(u"测试自我守护"_s);
-    logRuntime(u"manual self-guard test triggered"_s);
-    ::TerminateProcess(GetCurrentProcess(), 99);
+    logRuntime(u"manual self-guard crash test triggered"_s);
+    triggerIntentionalCrash();
 }
 
 void SuperGuardian::startWatchdogHelper() {

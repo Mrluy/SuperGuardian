@@ -15,7 +15,7 @@ using namespace Qt::Literals::StringLiterals;
 int main(int argc, char* argv[]) {
     QCoreApplication::setApplicationName(u"SuperGuardian"_s);
     QCoreApplication::setOrganizationName(u"SuperGuardian"_s);
-    QCoreApplication::setApplicationVersion(u"1.0.9"_s);
+    QCoreApplication::setApplicationVersion(u"1.0.10"_s);
 
     if (argc > 1 && QByteArrayView(argv[1]) == "--watchdog") {
         QCoreApplication app(argc, argv);
@@ -24,15 +24,18 @@ int main(int argc, char* argv[]) {
     }
 
     bool isRestart = false;
+    bool simulateCrash = false;
     for (int i = 1; i < argc; i++) {
         if (QByteArrayView(argv[i]) == "--restart") {
             isRestart = true;
-            break;
+        } else if (QByteArrayView(argv[i]) == "--simulate-crash") {
+            simulateCrash = true;
         }
     }
 
     QApplication a(argc, argv);
     initializeAppStorage();
+    installCrashDumpHandler();
 
     if (isRestart) {
         for (int attempt = 0; attempt < 20; ++attempt) {
@@ -63,6 +66,9 @@ int main(int argc, char* argv[]) {
     }
 
     SuperGuardian w;
+    // 即使配置为启动后只显示托盘，也要创建隐藏的原生窗口，确保能够收到
+    // WM_QUERYENDSESSION / WM_ENDSESSION 等 Windows 会话结束消息。
+    (void)w.winId();
     if (!ConfigDatabase::instance().value(u"minimizeToTray"_s, false).toBool())
         w.show();
 
@@ -81,12 +87,20 @@ int main(int argc, char* argv[]) {
                 msg += u"\n\n转储文件：\n"_s + dumpPath;
         } else {
             msg = u"检测到程序意外终止，已通过自我守护自动重启。"_s;
+            if (!dumpPath.isEmpty())
+                msg += u"\n\n崩溃转储文件：\n"_s + dumpPath;
         }
         w.show();
         w.raise();
         w.activateWindow();
         QMessageBox::warning(&w, u"自动重启通知"_s, msg);
     });
+
+    if (simulateCrash) {
+        QTimer::singleShot(1500, []() {
+            triggerIntentionalCrash();
+        });
+    }
 
     return a.exec();
 }

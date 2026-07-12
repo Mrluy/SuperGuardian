@@ -14,6 +14,7 @@
 #include <QCoreApplication>
 #include <QProcess>
 #include <QDir>
+#include <string>
 #include "ConfigDatabase.h"
 
 using namespace Qt::Literals::StringLiterals;
@@ -207,6 +208,87 @@ void setAutostart(bool enable) {
 
 #pragma comment(lib, "dbghelp.lib")
 
+namespace {
+
+constexpr DWORD kIntentionalCrashCode = 0xE0534701;
+volatile LONG s_crashDumpSuppressed = FALSE;
+std::wstring s_crashDumpDirectory;
+
+LONG WINAPI crashDumpUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionPointers) {
+    if (InterlockedCompareExchange(&s_crashDumpSuppressed, FALSE, FALSE) != FALSE
+        || GetSystemMetrics(SM_SHUTTINGDOWN) != 0) {
+        return EXCEPTION_EXECUTE_HANDLER;
+    }
+
+    if (s_crashDumpDirectory.empty())
+        return EXCEPTION_EXECUTE_HANDLER;
+
+    CreateDirectoryW(s_crashDumpDirectory.c_str(), nullptr);
+
+    SYSTEMTIME now{};
+    GetLocalTime(&now);
+    const DWORD pid = GetCurrentProcessId();
+    wchar_t fileName[160]{};
+    swprintf_s(fileName, L"crash_%04u%02u%02u_%02u%02u%02u_%03u_%lu.dmp",
+        now.wYear, now.wMonth, now.wDay,
+        now.wHour, now.wMinute, now.wSecond, now.wMilliseconds,
+        static_cast<unsigned long>(pid));
+
+    std::wstring dumpPath = s_crashDumpDirectory;
+    if (!dumpPath.empty() && dumpPath.back() != L'\\')
+        dumpPath.push_back(L'\\');
+    dumpPath += fileName;
+
+    HANDLE file = CreateFileW(dumpPath.c_str(), GENERIC_WRITE, 0, nullptr,
+        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE)
+        return EXCEPTION_EXECUTE_HANDLER;
+
+    MINIDUMP_EXCEPTION_INFORMATION exceptionInfo{};
+    exceptionInfo.ThreadId = GetCurrentThreadId();
+    exceptionInfo.ExceptionPointers = exceptionPointers;
+    exceptionInfo.ClientPointers = FALSE;
+
+    const BOOL written = MiniDumpWriteDump(GetCurrentProcess(), pid, file,
+        MiniDumpNormal, exceptionPointers ? &exceptionInfo : nullptr, nullptr, nullptr);
+    CloseHandle(file);
+    if (!written)
+        DeleteFileW(dumpPath.c_str());
+
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+QString findCrashDumpForProcess(DWORD pid, const QDateTime& monitoredSince) {
+    QDir dir(appRootPath());
+    const QString pattern = u"crash_*_%1.dmp"_s.arg(pid);
+    const QFileInfoList candidates = dir.entryInfoList(
+        QStringList{pattern}, QDir::Files, QDir::Time);
+    const QDateTime earliest = monitoredSince.addSecs(-2);
+    for (const QFileInfo& info : candidates) {
+        if (info.lastModified() >= earliest)
+            return info.absoluteFilePath();
+    }
+    return {};
+}
+
+} // namespace
+
+void installCrashDumpHandler() {
+    s_crashDumpDirectory = QDir::toNativeSeparators(appRootPath()).toStdWString();
+    InterlockedExchange(&s_crashDumpSuppressed, FALSE);
+    SetUnhandledExceptionFilter(crashDumpUnhandledExceptionFilter);
+}
+
+void setCrashDumpSuppressedForSystemShutdown(bool suppressed) {
+    InterlockedExchange(&s_crashDumpSuppressed, suppressed ? TRUE : FALSE);
+}
+
+[[noreturn]] void triggerIntentionalCrash() {
+    RaiseException(kIntentionalCrashCode, EXCEPTION_NONCONTINUABLE, 0, nullptr);
+    TerminateProcess(GetCurrentProcess(), kIntentionalCrashCode);
+    ExitProcess(kIntentionalCrashCode);
+}
+
 struct FindWndData { DWORD pid; HWND hwnd; };
 static BOOL CALLBACK enumWndCb(HWND hwnd, LPARAM lp) {
     auto* d = reinterpret_cast<FindWndData*>(lp);
@@ -224,8 +306,7 @@ static HWND findMainWindow(DWORD pid) {
 static QString createMiniDump(DWORD pid) {
     HANDLE proc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
     if (!proc) return {};
-    QString dir = appDataDirPath();
-    QDir().mkpath(dir);
+    QString dir = appRootPath();
     QString path = dir + u"/hang_"_s + QDateTime::currentDateTime().toString(u"yyyyMMdd_HHmmss"_s) + u".dmp"_s;
     HANDLE file = CreateFileW(path.toStdWString().c_str(), GENERIC_WRITE, 0, nullptr,
         CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -260,6 +341,7 @@ int runWatchdogMode(int argc, char* argv[]) {
 
     const QString workingDir = QFileInfo(parentExe).absolutePath();
     int hangCounter = 0;   // 连续未响应计数（每次1秒轮询）
+    QDateTime monitoredSince = QDateTime::currentDateTime();
 
     while (true) {
         auto& db = ConfigDatabase::instance();
@@ -340,9 +422,16 @@ int runWatchdogMode(int argc, char* argv[]) {
         bool manualExit = db.value(u"self_guard_manual_exit"_s, false).toBool();
         if (!enabled || manualExit) break;
 
-        // 记录意外终止原因（如果不是hang触发的）
-        if (db.value(u"restart_reason"_s).toString().isEmpty())
+        // 未处理异常会由主进程先写入 crash_*.dmp；看门狗在进程退出后
+        // 关联本次 PID 的最新转储，再记录重启通知信息。
+        const QString crashDumpPath = findCrashDumpForProcess(parentPid, monitoredSince);
+        if (db.value(u"restart_reason"_s).toString().isEmpty()) {
             db.setValue(u"restart_reason"_s, u"crash"_s);
+            if (!crashDumpPath.isEmpty()) {
+                db.setValue(u"restart_dump_path"_s, crashDumpPath);
+                logRuntime(u"crash dump associated: %1"_s.arg(crashDumpPath));
+            }
+        }
 
         bool restarted = false;
         for (int attempt = 1; attempt <= 5; ++attempt) {
@@ -352,6 +441,7 @@ int runWatchdogMode(int argc, char* argv[]) {
             bool ok = QProcess::startDetached(parentExe, { "--restart" }, workingDir, &newPid);
             if (ok && newPid > 0) {
                 parentPid = static_cast<DWORD>(newPid);
+                monitoredSince = QDateTime::currentDateTime();
                 logRuntime(QString("main restarted pid=%1 attempt=%2").arg(parentPid).arg(attempt));
                 Sleep(1500);
                 restarted = true;
