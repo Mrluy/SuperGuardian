@@ -52,6 +52,7 @@ private:
     bool pendingResetColumnWidths = false;
     bool m_revertingHeader = false;
     bool m_exiting = false;
+    bool m_systemShutdownInProgress = false;
     QDateTime m_lastSaveTime;
 
     QStringList duplicateWhitelist;
@@ -121,6 +122,8 @@ private:
     void requestResetColumnWidths();
     void updateToolbarIcons();
     QIcon makeToolbarIcon(const QString& letter, bool active, const QString& theme) const;
+    void beginSystemShutdown();
+    void cancelSystemShutdown();
 
 private slots:
     void toggleVisible();

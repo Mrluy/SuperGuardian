@@ -91,9 +91,59 @@ void SuperGuardian::showEvent(QShowEvent* event) {
     QTimer::singleShot(0, this, &SuperGuardian::resetColumnWidths);
 }
 
+void SuperGuardian::beginSystemShutdown() {
+    if (m_systemShutdownInProgress)
+        return;
+
+    // 先持久化关机标记，让独立看门狗在主程序来不及完成后续清理时也能
+    // 立即识别这是系统关机，而不是崩溃或未响应。
+    auto& db = ConfigDatabase::instance();
+    db.setValue(u"system_shutdown_in_progress"_s, true);
+    db.setValue(u"self_guard_manual_exit"_s, true);
+
+    m_systemShutdownInProgress = true;
+    m_exiting = true;
+    saveSettings();
+    logRuntime(u"Windows session ending; suppress watchdog restart and dump"_s);
+    stopWatchdogHelper();
+}
+
+void SuperGuardian::cancelSystemShutdown() {
+    auto& db = ConfigDatabase::instance();
+    if (!m_systemShutdownInProgress
+        && !db.value(u"system_shutdown_in_progress"_s, false).toBool()) {
+        return;
+    }
+
+    db.remove(u"system_shutdown_in_progress"_s);
+    m_systemShutdownInProgress = false;
+    m_exiting = false;
+
+    const bool selfGuardEnabled = db.value(u"self_guard_enabled"_s, false).toBool();
+    if (selfGuardEnabled) {
+        db.setValue(u"self_guard_manual_exit"_s, false);
+        startWatchdogHelper();
+    }
+    logRuntime(u"Windows session end canceled; watchdog state restored"_s);
+}
+
 bool SuperGuardian::nativeEvent(const QByteArray& eventType, void* message, qintptr* result) {
     static const UINT WM_SG_SHOW = RegisterWindowMessageW(L"SuperGuardianShowMainWindow");
     MSG* msg = static_cast<MSG*>(message);
+    if (msg->message == WM_QUERYENDSESSION) {
+        beginSystemShutdown();
+        if (result) *result = TRUE;
+        return true;
+    }
+    if (msg->message == WM_ENDSESSION) {
+        if (msg->wParam) {
+            beginSystemShutdown();
+        } else {
+            // 用户或系统取消了关机/注销，恢复正常运行和自我守护。
+            cancelSystemShutdown();
+        }
+        return QMainWindow::nativeEvent(eventType, message, result);
+    }
     if (msg->message == WM_SG_SHOW) {
         showNormal();
         raise();

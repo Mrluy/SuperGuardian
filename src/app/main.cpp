@@ -52,6 +52,16 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    // Windows 关机期间主程序和看门狗都可能被系统强制结束。该场景不是崩溃，
+    // 仅由成功取得单实例锁的新主实例清理临时标记和错误的重启通知状态。
+    auto& startupDb = ConfigDatabase::instance();
+    if (startupDb.value(u"system_shutdown_in_progress"_s, false).toBool()) {
+        startupDb.remove(u"system_shutdown_in_progress"_s);
+        startupDb.remove(u"restart_reason"_s);
+        startupDb.remove(u"restart_dump_path"_s);
+        startupDb.setValue(u"self_guard_manual_exit"_s, false);
+    }
+
     SuperGuardian w;
     if (!ConfigDatabase::instance().value(u"minimizeToTray"_s, false).toBool())
         w.show();

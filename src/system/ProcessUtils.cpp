@@ -9,6 +9,7 @@
 #include <objbase.h>
 #include <dbghelp.h>
 #include <QFileIconProvider>
+#include <QFile>
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QProcess>
@@ -238,6 +239,13 @@ static QString createMiniDump(DWORD pid) {
     return path;
 }
 
+static bool isSystemShutdownInProgress(ConfigDatabase& db) {
+    // SM_SHUTTINGDOWN 可覆盖主程序尚未来得及写入 SQLite 标记的窗口；
+    // SQLite 标记可覆盖看门狗轮询期间没有及时观察到系统指标的窗口。
+    return GetSystemMetrics(SM_SHUTTINGDOWN) != 0
+        || db.value(u"system_shutdown_in_progress"_s, false).toBool();
+}
+
 int runWatchdogMode(int argc, char* argv[]) {
     Q_UNUSED(argc);
     Q_UNUSED(argv);
@@ -254,6 +262,12 @@ int runWatchdogMode(int argc, char* argv[]) {
     int hangCounter = 0;   // 连续未响应计数（每次1秒轮询）
 
     while (true) {
+        auto& db = ConfigDatabase::instance();
+        if (isSystemShutdownInProgress(db)) {
+            logRuntime(u"watchdog detected Windows session ending; exit without restart or dump"_s);
+            break;
+        }
+
         HANDLE h = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE, parentPid);
         if (!h) {
             logRuntime(QString("open main process failed, trying restart (err=%1)").arg(GetLastError()));
@@ -261,6 +275,10 @@ int runWatchdogMode(int argc, char* argv[]) {
             DWORD waitRc = WaitForSingleObject(h, 1000);
             CloseHandle(h);
             if (waitRc == WAIT_TIMEOUT) {
+                if (isSystemShutdownInProgress(db)) {
+                    logRuntime(u"watchdog detected Windows session ending while waiting for main process"_s);
+                    break;
+                }
                 // 进程仍在运行，检查是否未响应
                 HWND mainWnd = findMainWindow(parentPid);
                 if (mainWnd) {
@@ -270,15 +288,27 @@ int runWatchdogMode(int argc, char* argv[]) {
                     if (lr == 0 && GetLastError() == ERROR_TIMEOUT) {
                         hangCounter++;
                         if (hangCounter >= 3) {
+                            // 在生成 Dump 前做最后一次关机检查，避免把关机阶段的
+                            // 窗口无响应误判为应用卡死。
+                            if (isSystemShutdownInProgress(db)) {
+                                logRuntime(u"watchdog suppressed hang dump because Windows is shutting down"_s);
+                                break;
+                            }
                             logRuntime(QString("main process not responding for %1s, creating dump").arg(hangCounter));
                             QString dumpPath = createMiniDump(parentPid);
+                            if (isSystemShutdownInProgress(db)) {
+                                // 关机可能刚好发生在转储过程中，只删除本轮刚创建的文件。
+                                if (!dumpPath.isEmpty())
+                                    QFile::remove(dumpPath);
+                                logRuntime(u"watchdog discarded hang dump created during Windows shutdown"_s);
+                                break;
+                            }
                             if (!dumpPath.isEmpty())
                                 logRuntime(QString("dump created: %1").arg(dumpPath));
                             // 终止未响应的进程
                             HANDLE hp = OpenProcess(PROCESS_TERMINATE, FALSE, parentPid);
                             if (hp) { TerminateProcess(hp, 0xDEAD); CloseHandle(hp); }
                             // 记录重启原因
-                            auto& db = ConfigDatabase::instance();
                             db.setValue(u"restart_reason"_s, u"hang"_s);
                             if (!dumpPath.isEmpty())
                                 db.setValue(u"restart_dump_path"_s, dumpPath);
@@ -301,7 +331,11 @@ int runWatchdogMode(int argc, char* argv[]) {
             }
         }
 
-        auto& db = ConfigDatabase::instance();
+        if (isSystemShutdownInProgress(db)) {
+            logRuntime(u"watchdog suppressed restart because Windows is shutting down"_s);
+            break;
+        }
+
         bool enabled = db.value(u"self_guard_enabled"_s, false).toBool();
         bool manualExit = db.value(u"self_guard_manual_exit"_s, false).toBool();
         if (!enabled || manualExit) break;
@@ -312,6 +346,8 @@ int runWatchdogMode(int argc, char* argv[]) {
 
         bool restarted = false;
         for (int attempt = 1; attempt <= 5; ++attempt) {
+            if (isSystemShutdownInProgress(db))
+                break;
             qint64 newPid = 0;
             bool ok = QProcess::startDetached(parentExe, { "--restart" }, workingDir, &newPid);
             if (ok && newPid > 0) {
