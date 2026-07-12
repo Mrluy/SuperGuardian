@@ -32,7 +32,7 @@ SuperGuardian（超级守护）是 Windows x64 原生桌面程序，用于守护
 - 完整构建和打包使用 `tools/package.ps1`；已有 Release 产物仅打包使用 `tools/package-release.ps1`。
 - 静态 Qt 构建脚本位于 `tools/build_static_qt.bat`。
 
-当前记录快照为 1.0.8；不要依赖本行判断最新版本，修改或发布前应重新读取上述两个版本源文件。
+当前记录快照为 1.0.9；不要依赖本行判断最新版本，修改或发布前应重新读取上述两个版本源文件。
 
 ## 3. 目录与模块职责
 
@@ -125,6 +125,18 @@ SuperGuardian（超级守护）是 Windows x64 原生桌面程序，用于守护
 - 更新完成后以 `--restart` 启动新程序，再退出当前实例。
 - 在线更新来源固定为 `Mrluy/SuperGuardian` 的最新 GitHub Release。
 
+### 默认版本、生成与上传流程
+
+- 每个完成的修改任务默认递增补丁版本号，例如 `1.0.8` 更新为 `1.0.9`；用户指定版本时使用指定版本，只有用户明确要求不更新版本号时才跳过。
+- 使用 `tools/set-version.ps1 -Version <版本>` 同步修改 `src/app/main.cpp` 和 `resources/app.rc`，随后核对两个版本源一致。
+- 每个修改任务默认生成新的静态 Release EXE，并更新 `x64/Release/SuperGuardian.exe`；只有用户明确要求不生成时才跳过。
+- `project/SuperGuardian.vcxproj` 的预构建步骤会清空整个输出目录。生成时应使用独立临时 `OutDir`/`IntDir` 完成构建，成功后只替换目标 EXE，以保留 `x64/Release/data/`、备份和其他运行数据。
+- 每次修改都必须更新根目录唯一的 `更新记录.md`。新版本记录插入文件最上方，旧记录继续保留在同一文件中。
+- 默认生成仅指更新 Release EXE，不自动生成 ZIP；ZIP 在用户明确要求上传程序时生成。
+- 上传前使用 `tools/package-release.ps1 -Version <版本> -SkipQtDeploy`，在 `package/` 中生成 `SuperGuardian_v{版本}_{yyyyMMdd_HHmmss}.zip`。
+- ZIP 结构以现有压缩包为准，根目录只包含 `SuperGuardian.exe` 和 `README.md`，不得额外套一层目录。
+- 生成 ZIP 后检查文件名、内部条目和 EXE 版本，再上传到对应版本的 GitHub Release。上传程序只授权 Release 资产相关操作，不授权推送源码分支。
+
 ## 6. 持久化与数据格式
 
 - 应用数据位于程序同级 `data/` 目录，属于便携式存储，不使用用户 AppData。
@@ -180,7 +192,9 @@ SMTP 发送通过 PowerShell 的 `System.Net.Mail` 完成；修改参数转义�
 - 修改看门狗或窗口生命周期时，验证 Windows 关机/重启不会生成 Dump、记录异常退出或启动新实例，并验证取消关机后看门狗能够恢复。
 - 修改持久化字段时，应同步处理：默认值、加载、保存、结构化导出、导入转换和诊断导出。
 - 修改版本时使用 `tools/set-version.ps1`，并核对 `main.cpp` 与 `app.rc` 一致。
-- Release 构建会在预构建阶段清理输出目录；在用户已有产物可能需要保留时，不要未经确认直接构建。
+- Release 构建会在预构建阶段清理输出目录；默认使用独立临时输出目录构建，成功后只替换 EXE，始终保留现有运行数据。
+- 每次修改都更新 `更新记录.md`，新记录写在最上方，并按默认规则更新版本号、生成 Release EXE。
+- 用户要求上传程序时，先检查 ZIP 内容与现有包一致，再上传到 GitHub Releases；不要推送源码分支。
 - 完成修改后检查 `git status` 和目标文件差异，只提交当前任务范围内的文件。
 - 每次修改并完成必要验证后必须创建本地 Git 提交；提交前检查暂存差异，确保不混入无关文件。
 - Git 提交说明统一使用中文。
